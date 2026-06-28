@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TaxFlow — Smart Tax Organizer</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
@@ -1596,262 +1597,137 @@ document.addEventListener('visibilitychange', () => {
 
 // ── INIT ───────────────────────────────────────────────────────────────────
 
-// ── AUTH SYSTEM ────────────────────────────────────────────────────────────
-// Email + password login with tier-based feature access.
-// Accounts are stored locally (localStorage) — wire up a real backend
-// later by coming back to Claude and saying "add Supabase auth to TaxFlow".
+// ── AUTH SYSTEM (Supabase + Stripe) ─────────────────────────────────────────
 
-const AUTH_SALT = 'tf2025xk';
+const SUPABASE_URL  = 'https://ltwyiitvakabtltwxxmz.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_jQdwf4ddqaWCP-Fzi1Fp0w_55qDHBjQ';
 
-// ── TIER DEFINITIONS ──────────────────────────────────────────────────────
-// Each tier unlocks features. Free is limited; paid tiers get everything.
+const STRIPE_LINKS = {
+  household_monthly: 'https://buy.stripe.com/test_7sY6oz7jbfQc7Ep1y687K00',
+  household_yearly:  'https://buy.stripe.com/test_4gM6ozeLDeM88It6Sq87K01',
+  business_monthly:  'https://buy.stripe.com/test_8x228j6f7dI4gaV3Ge87K02',
+  business_yearly:   'https://buy.stripe.com/test_9B65kv1YReM87EpekS87K03',
+};
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+
 const TIERS = {
   free: {
-    label: 'Free',
-    maxUsers: 1,
-    optionalTabs: ['settings'],            // only settings tab
-    canExportExcel: true,
-    canImportPdf: true,
-    canExportCsv: false,
-    maxTransactions: 200,
-    showUpgradeBanner: true,
+    label: 'Free', maxUsers: 1,
+    optionalTabs: ['settings'],
+    canExportExcel: true, canImportPdf: true, canExportCsv: false,
+    maxTransactions: 200, showUpgradeBanner: true,
   },
   household: {
-    label: 'Household',
-    maxUsers: 2,
+    label: 'Household', maxUsers: 2,
     optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true,
-    canImportPdf: true,
-    canExportCsv: true,
-    maxTransactions: Infinity,
-    showUpgradeBanner: false,
+    canExportExcel: true, canImportPdf: true, canExportCsv: true,
+    maxTransactions: Infinity, showUpgradeBanner: false,
   },
   business: {
-    label: 'Business',
-    maxUsers: 5,
+    label: 'Business', maxUsers: 5,
     optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true,
-    canImportPdf: true,
-    canExportCsv: true,
-    maxTransactions: Infinity,
-    showUpgradeBanner: false,
+    canExportExcel: true, canImportPdf: true, canExportCsv: true,
+    maxTransactions: Infinity, showUpgradeBanner: false,
   },
 };
 
-let authData = null;
+let currentProfile = null;
 let selectedPlan = 'household';
 
-function simpleHash(str) {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h) ^ str.charCodeAt(i);
-  return (h >>> 0).toString(36);
-}
-
-function loadAuth() {
-  try { const d = localStorage.getItem('tf_auth'); if (d) authData = JSON.parse(d); } catch(e) {}
-  return authData;
-}
-
-function saveAuth(data) {
-  authData = data;
-  localStorage.setItem('tf_auth', JSON.stringify(data));
-}
-
 function currentTier() {
-  return TIERS[authData && authData.plan ? authData.plan : 'free'];
+  const plan   = currentProfile?.plan   ?? 'free';
+  const status = currentProfile?.plan_status ?? 'active';
+  if (status === 'canceled') return TIERS.free;
+  return TIERS[plan] ?? TIERS.free;
 }
 
-function checkAuth() {
-  loadAuth();
-  if (authData && authData.loggedIn) {
-    applyTierRestrictions();
-    restoreUserProfiles();
-    hideAuthScreen();
-    return true;
+// ── Auth screen helpers ───────────────────────────────────────────────────────
+function showAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = ''; s.style.opacity = '1'; s.style.display = 'flex';
+}
+function hideAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = 'opacity 0.35s ease'; s.style.opacity = '0';
+  setTimeout(() => { s.style.display='none'; s.style.opacity='1'; s.style.transition=''; }, 360);
+  updateHeaderUser(); updateDropdownNames();
+}
+function authTab(tab) {
+  document.getElementById('form-login').style.display    = tab==='login'    ? 'block' : 'none';
+  document.getElementById('form-register').style.display = tab==='register' ? 'block' : 'none';
+  document.getElementById('tab-login').classList.toggle('active',    tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+  clearAuthMessages();
+}
+function showAuthError(msg)   { const e=document.getElementById('auth-error');   e.textContent=msg; e.style.display='block'; document.getElementById('auth-success').style.display='none'; }
+function showAuthSuccess(msg) { const e=document.getElementById('auth-success'); e.textContent=msg; e.style.display='block'; document.getElementById('auth-error').style.display='none'; }
+function clearAuthMessages()  { document.getElementById('auth-error').style.display='none'; document.getElementById('auth-success').style.display='none'; }
+
+function selectPlan(plan) {
+  selectedPlan = plan;
+  ['free','household','business'].forEach(p => {
+    document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
+  });
+}
+
+// ── Load profile from Supabase ────────────────────────────────────────────────
+async function loadProfile(userId) {
+  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+  if (error) { console.error('Profile load error:', error); return null; }
+  return data;
+}
+
+function applyProfile(profile) {
+  currentProfile = profile;
+  if (profile.full_name)     S.users.herbert.name = profile.full_name;
+  if (profile.business_name) S.users.herbert.biz  = profile.business_name;
+  if (profile.user2_name)    S.users.spouse.name  = profile.user2_name;
+  applyTierRestrictions();
+}
+
+// ── Check session on load ─────────────────────────────────────────────────────
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    const profile = await loadProfile(session.user.id);
+    if (profile) { applyProfile(profile); hideAuthScreen(); return true; }
   }
   showAuthScreen();
   return false;
 }
 
-function restoreUserProfiles() {
-  if (!authData) return;
-  if (authData.user1Name) S.users.herbert.name = authData.user1Name;
-  if (authData.user2Name) S.users.spouse.name = authData.user2Name;
-  if (authData.bizName)   S.users.herbert.biz  = authData.bizName;
-  S.cur = authData.lastUser || 'herbert';
-}
-
-function applyTierRestrictions() {
-  const tier = currentTier();
-
-  // Restrict optional tabs to what the tier allows
-  S.activeTabs = S.activeTabs.filter(t => tier.optionalTabs.includes(t));
-
-  // Show upgrade banner for free tier
-  showUpgradeBanners(tier);
-
-  // Lock second user if on free plan
-  const ud2 = document.getElementById('ud-spouse');
-  if (ud2) {
-    if (tier.maxUsers < 2) {
-      ud2.style.opacity = '0.4';
-      ud2.style.pointerEvents = 'none';
-      ud2.title = 'Upgrade to Household or Business to add a second user';
-    } else {
-      ud2.style.opacity = '';
-      ud2.style.pointerEvents = '';
-      ud2.title = '';
-    }
-  }
-
-  // Show tier badge in header
-  updateTierBadge(tier);
-}
-
-function updateTierBadge(tier) {
-  let badge = document.getElementById('tier-badge');
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.id = 'tier-badge';
-    badge.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;background:rgba(255,255,255,0.2);color:#fff;letter-spacing:0.05em;cursor:pointer;';
-    badge.title = 'Click to upgrade';
-    badge.onclick = () => showUpgradeModal();
-    const hdrRight = document.querySelector('.header-right');
-    if (hdrRight) hdrRight.insertBefore(badge, hdrRight.firstChild);
-  }
-  badge.textContent = tier.label.toUpperCase();
-  if (tier.label === 'Free') {
-    badge.style.background = 'rgba(255,255,255,0.15)';
-    badge.style.border = '1px solid rgba(255,255,255,0.3)';
-  } else {
-    badge.style.background = 'rgba(255,255,255,0.25)';
-    badge.style.border = '1px solid rgba(255,255,255,0.4)';
-  }
-}
-
-function showUpgradeBanners(tier) {
-  // Remove any existing banners
-  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
-  if (!tier.showUpgradeBanner) return;
-
-  // Add banner to top of statements tab
-  const stmtPanel = document.getElementById('panel-statements');
-  if (!stmtPanel) return;
-  if (stmtPanel) {
-    const banner = document.createElement('div');
-    banner.className = 'upgrade-banner';
-    banner.innerHTML = `
-      <div><strong>You're on the Free plan</strong> — limited to ${TIERS.free.maxTransactions} transactions and core features only.</div>
-      <button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px" onclick="showUpgradeModal()">Upgrade ⭐</button>
-    `;
-    stmtPanel.insertBefore(banner, stmtPanel.firstChild);
-  }
-}
-
-function showUpgradeModal() {
-  alert('Upgrade to Household ($20/mo) or Business ($49/mo) at taxflow.app — get all features, unlimited transactions, and up to 5 users.');
-}
-
-// ── AUTH SCREEN ────────────────────────────────────────────────────────────
-function showAuthScreen() {
-  const screen = document.getElementById('auth-screen');
-  screen.style.transition = '';
-  screen.style.opacity = '1';
-  screen.style.display = 'flex';
-}
-
-function hideAuthScreen() {
-  const screen = document.getElementById('auth-screen');
-  screen.style.transition = 'opacity 0.35s ease';
-  screen.style.opacity = '0';
-  setTimeout(() => {
-    screen.style.display = 'none';
-    screen.style.opacity = '1';
-    screen.style.transition = '';
-  }, 360);
-  updateHeaderUser();
-  updateDropdownNames();
-}
-
-function updateDropdownNames() {
-  const ud1 = document.getElementById('ud-name1');
-  const ud2 = document.getElementById('ud-name2');
-  const ub1 = document.getElementById('ud-biz1');
-  if (ud1) ud1.textContent = S.users.herbert.name || 'User 1';
-  if (ud2) ud2.textContent = S.users.spouse.name  || 'User 2';
-  if (ub1) ub1.textContent = S.users.herbert.biz  || 'Primary Account';
-}
-
-function authTab(tab) {
-  document.getElementById('form-login').style.display    = tab === 'login'    ? 'block' : 'none';
-  document.getElementById('form-register').style.display = tab === 'register' ? 'block' : 'none';
-  document.getElementById('tab-login').classList.toggle('active',    tab === 'login');
-  document.getElementById('tab-register').classList.toggle('active', tab === 'register');
-  clearAuthMessages();
-}
-
-function showAuthError(msg) {
-  const el = document.getElementById('auth-error');
-  el.textContent = msg; el.style.display = 'block';
-  document.getElementById('auth-success').style.display = 'none';
-}
-function showAuthSuccess(msg) {
-  const el = document.getElementById('auth-success');
-  el.textContent = msg; el.style.display = 'block';
-  document.getElementById('auth-error').style.display = 'none';
-}
-function clearAuthMessages() {
-  document.getElementById('auth-error').style.display = 'none';
-  document.getElementById('auth-success').style.display = 'none';
-}
-
-function selectPlan(plan) {
-  selectedPlan = plan;
-  ['free','household','business'].forEach(p => {
-    document.getElementById('plan-'+p).classList.toggle('selected', p === plan);
-  });
-}
-
-// ── LOGIN ──────────────────────────────────────────────────────────────────
-function doLogin() {
+// ── Login ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
   clearAuthMessages();
   const email = document.getElementById('login-email').value.trim().toLowerCase();
   const pass  = document.getElementById('login-pass').value;
-
   if (!email || !email.includes('@')) { showAuthError('Please enter your email address.'); return; }
   if (!pass) { showAuthError('Please enter your password.'); return; }
 
-  // Look up account in localStorage
-  const accounts = getAccounts();
-  const account = accounts[email];
+  const btn = document.querySelector('#form-login .auth-btn');
+  btn.textContent = 'Signing in…'; btn.disabled = true;
 
-  if (!account) {
-    showAuthError('No account found for that email. Create one below.');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.textContent = 'Sign in to TaxFlow'; btn.disabled = false;
+
+  if (error) {
+    if (error.message.includes('Invalid login')) showAuthError('Incorrect email or password.');
+    else if (error.message.includes('Email not confirmed')) showAuthError('Please confirm your email first.');
+    else showAuthError(error.message);
     return;
   }
-  if (account.passHash !== simpleHash(pass + AUTH_SALT + email)) {
-    showAuthError('Incorrect password. Please try again.');
-    return;
-  }
 
-  // Restore profile
-  S.users.herbert.name = account.user1Name || '';
-  S.users.herbert.biz  = account.bizName   || '';
-  S.users.spouse.name  = account.user2Name || '';
-  S.cur = 'herbert';
-
-  saveAuth({ loggedIn:true, email, plan:account.plan,
-    user1Name:account.user1Name, user2Name:account.user2Name,
-    bizName:account.bizName, lastUser:'herbert' });
-
-  applyTierRestrictions();
-  hideAuthScreen();
-  save();
-  toast('✅ Welcome back, ' + (account.user1Name || email.split('@')[0]) + '!');
+  const profile = await loadProfile(data.user.id);
+  if (!profile) { showAuthError('Account error — please contact support.'); return; }
+  applyProfile(profile);
+  hideAuthScreen(); save();
+  toast('✅ Welcome back, ' + (profile.full_name || email.split('@')[0]) + '!');
 }
 
-// ── REGISTER ───────────────────────────────────────────────────────────────
-function doRegister() {
+// ── Register ──────────────────────────────────────────────────────────────────
+async function doRegister() {
   clearAuthMessages();
   const name  = document.getElementById('reg-name').value.trim();
   const email = document.getElementById('reg-email').value.trim().toLowerCase();
@@ -1860,69 +1736,105 @@ function doRegister() {
   const name2 = document.getElementById('reg-name2').value.trim();
 
   if (!name)  { showAuthError('Please enter your name.'); return; }
-  if (!email || !email.includes('@')) { showAuthError('Please enter a valid email address.'); return; }
+  if (!email || !email.includes('@')) { showAuthError('Please enter a valid email.'); return; }
   if (!pass || pass.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
   if (pass !== pass2) { showAuthError('Passwords do not match.'); return; }
 
-  // Check if email already registered
-  const accounts = getAccounts();
-  if (accounts[email]) {
-    showAuthError('An account already exists for that email. Sign in instead.');
+  const btn = document.querySelector('#form-register .auth-btn');
+  btn.textContent = 'Creating account…'; btn.disabled = true;
+
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: name } }
+  });
+  btn.textContent = 'Create account & sign in'; btn.disabled = false;
+
+  if (error) { showAuthError(error.message); return; }
+
+  if (data.user) {
+    await sb.from('profiles').update({
+      full_name: name, user2_name: name2 || null, plan: 'free',
+    }).eq('id', data.user.id);
+  }
+
+  // If paid plan selected, redirect to Stripe after account creation
+  if (selectedPlan !== 'free') {
+    showAuthSuccess('Account created! Redirecting to payment…');
+    setTimeout(() => {
+      const link = STRIPE_LINKS[selectedPlan + '_monthly'];
+      if (link) window.open(link + '?prefilled_email=' + encodeURIComponent(email), '_blank');
+    }, 1500);
+    setTimeout(() => { showAuthSuccess('Payment opened! Sign in after completing payment.'); authTab('login'); }, 2500);
     return;
   }
 
-  // For paid plans in the real app, payment would be confirmed here
-  // For now, household/business plans are created directly
-  // (wire up Stripe webhook later to set the plan automatically)
-  const plan = selectedPlan || 'free';
-
-  // Save account
-  accounts[email] = {
-    passHash: simpleHash(pass + AUTH_SALT + email),
-    plan, user1Name: name, user2Name: name2, bizName: '', createdAt: new Date().toISOString(),
-  };
-  saveAccounts(accounts);
-
-  // Set up state
-  S.users.herbert.name = name;
-  S.users.spouse.name  = name2 || '';
-  S.cur = 'herbert';
-
-  saveAuth({ loggedIn:true, email, plan,
-    user1Name:name, user2Name:name2, bizName:'', lastUser:'herbert' });
-
-  applyTierRestrictions();
-  hideAuthScreen();
-  save();
-  toast('✅ Account created! Welcome to TaxFlow, ' + name + '!');
+  showAuthSuccess('Account created! Check your email to confirm, then sign in.');
+  setTimeout(() => authTab('login'), 2000);
 }
 
-// ── ACCOUNT STORAGE ────────────────────────────────────────────────────────
-function getAccounts() {
-  try { return JSON.parse(localStorage.getItem('tf_accounts') || '{}'); } catch(e) { return {}; }
-}
-function saveAccounts(accounts) {
-  localStorage.setItem('tf_accounts', JSON.stringify(accounts));
-}
-
-// ── SIGN OUT ───────────────────────────────────────────────────────────────
-function signOut() {
+// ── Sign out ──────────────────────────────────────────────────────────────────
+async function signOut() {
   if (!confirm('Sign out of TaxFlow? Your data will remain saved on this device.')) return;
-  const auth = loadAuth();
-  if (auth) { auth.loggedIn = false; saveAuth(auth); }
-  // Clean up tier UI
+  await sb.auth.signOut();
+  currentProfile = null;
   const badge = document.getElementById('tier-badge');
   if (badge) badge.remove();
   document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
-  // Reset form and show screen
-  document.getElementById('login-email').value = '';
-  document.getElementById('login-pass').value  = '';
-  clearAuthMessages();
-  authTab('login');
-  showAuthScreen();
+  const le = document.getElementById('login-email'); if(le) le.value='';
+  const lp = document.getElementById('login-pass');  if(lp) lp.value='';
+  clearAuthMessages(); authTab('login'); showAuthScreen();
 }
 
+// ── Tier restrictions ─────────────────────────────────────────────────────────
+function applyTierRestrictions() {
+  const tier = currentTier();
+  S.activeTabs = S.activeTabs.filter(t => tier.optionalTabs.includes(t));
+  showUpgradeBanners(tier);
+  const ud2 = document.getElementById('ud-spouse');
+  if (ud2) {
+    ud2.style.opacity      = tier.maxUsers < 2 ? '0.4' : '';
+    ud2.style.pointerEvents = tier.maxUsers < 2 ? 'none' : '';
+    ud2.title = tier.maxUsers < 2 ? 'Upgrade to Household to add a second user' : '';
+  }
+  updateTierBadge(tier);
+}
 
+function updateTierBadge(tier) {
+  let badge = document.getElementById('tier-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'tier-badge';
+    badge.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff;letter-spacing:0.05em;cursor:pointer;margin-right:8px;';
+    badge.onclick = () => showUpgradeModal();
+    const hdr = document.querySelector('.header-right');
+    if (hdr) hdr.insertBefore(badge, hdr.firstChild);
+  }
+  badge.textContent = tier.label.toUpperCase();
+  badge.style.background = tier.label === 'Free' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)';
+}
+
+function showUpgradeBanners(tier) {
+  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
+  if (!tier.showUpgradeBanner) return;
+  const panel = document.getElementById('panel-statements');
+  if (!panel) return;
+  const banner = document.createElement('div');
+  banner.className = 'upgrade-banner';
+  banner.innerHTML = '<div><strong>You are on the Free plan</strong> — limited to ' + TIERS.free.maxTransactions + ' transactions and core features.</div><button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px" onclick="showUpgradeModal()">Upgrade ⭐</button>';
+  panel.insertBefore(banner, panel.firstChild);
+}
+
+function showUpgradeModal() {
+  const email = currentProfile?.email || '';
+  const link  = STRIPE_LINKS.household_monthly + (email ? '?prefilled_email=' + encodeURIComponent(email) : '');
+  window.open(link, '_blank');
+}
+
+function updateDropdownNames() {
+  const ud1=document.getElementById('ud-name1'); if(ud1) ud1.textContent=S.users.herbert.name||'User 1';
+  const ud2=document.getElementById('ud-name2'); if(ud2) ud2.textContent=S.users.spouse.name||'User 2';
+  const ub1=document.getElementById('ud-biz1');  if(ub1) ub1.textContent=S.users.herbert.biz||'Primary Account';
+}
 // ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
 // Clears the session when the tab/window is closed or the app exits.
 // Transaction data remains saved — only the login session is cleared.
