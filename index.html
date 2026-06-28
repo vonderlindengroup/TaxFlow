@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TaxFlow — Smart Accounting for Self-Employed Professionals</title>
+<meta name="description" content="Upload your bank statements, auto-categorize transactions, and know exactly what you owe before tax season. Use it free in your browser or download the desktop app.">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#2563eb;--brand-dark:#1d4ed8;--brand-light:#eff6ff;--brand-mid:#bfdbfe;
+  --text:#0f172a;--text2:#475569;--text3:#94a3b8;
+  --bg:#ffffff;--bg2:#f8fafc;--bg3:#f1f5f9;
+  --border:#e2e8f0;--border2:#cbd5e1;
+  --green:#16a34a;--green-bg:#f0fdf4;--green-mid:#bbf7d0;
+  --red:#dc2626;--red-bg:#fef2f2;
+  --amber:#d97706;--amber-bg:#fffbeb;
+  --radius:10px;--radius-lg:14px;--radius-xl:22px;
+  --shadow:0 1px 3px rgba(0,0,0,0.07),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,0.08);
+  --shadow-lg:0 12px 48px rgba(0,0,0,0.12);
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--text);background:var(--bg);line-height:1.6}
+a{color:inherit;text-decoration:none}
+
+/* ── NAV ── */
+nav{position:sticky;top:0;z-index:200;background:rgba(255,255,255,0.96);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+.nav-inner{max-width:1140px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:64px}
+.nav-logo{display:flex;align-items:center;gap:10px;font-size:20px;font-weight:800;letter-spacing:-0.03em}
+.logo-mark{width:36px;height:36px;background:linear-gradient(135deg,var(--brand),var(--brand-dark));border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;box-shadow:0 2px 8px rgba(37,99,235,0.3)}
+.nav-links{display:flex;align-items:center;gap:28px;font-size:14px;font-weight:500;color:var(--text2)}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:10px 20px;border-radius:var(--radius);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all 0.15s;line-height:1}
+.btn:active{transform:scale(0.97)}
+.btn-primary{background:var(--brand);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,0.3)}
+.btn-primary:hover{background:var(--brand-dark);box-shadow:0 4px 16px rgba(37,99,235,0.35);transform:translateY(-1px)}
+.btn-outline{background:#fff;color:var(--text);border:1.5px solid var(--border2)}
+.btn-outline:hover{border-color:var(--brand);color:var(--brand)}
+.btn-white{background:#fff;color:var(--brand);font-weight:700}
+.btn-white:hover{background:#f0f6ff}
+.btn-green{background:var(--green);color:#fff;box-shadow:0 2px 8px rgba(22,163,74,0.3)}
+.btn-green:hover{opacity:0.9;transform:translateY(-1px)}
+.btn-dark{background:#0f172a;color:#fff}
+.btn-dark:hover{background:#1e293b;transform:translateY(-1px)}
+.btn-lg{padding:14px 26px;font-size:15px;border-radius:var(--radius-lg)}
+.btn-xl{padding:16px 32px;font-size:16px;border-radius:var(--radius-lg)}
+
+/* ── HERO ── */
+.hero-wrap{background:linear-gradient(180deg,#eef2ff 0%,#f8fafc 60%,var(--bg) 100%)}
+.hero{max-width:1140px;margin:0 auto;padding:80px 24px 60px;text-align:center}
+.hero-badge{display:inline-flex;align-items:center;gap:7px;background:#fff;color:var(--brand);border:1.5px solid var(--brand-mid);border-radius:99px;padding:6px 16px;font-size:13px;font-weight:700;margin-bottom:24px;box-shadow:var(--shadow)}
+.hero h1{font-size:clamp(38px,6vw,72px);font-weight:900;line-height:1.05;letter-spacing:-0.04em;margin-bottom:20px}
+.hero h1 span{background:linear-gradient(135deg,var(--brand) 0%,#7c3aed 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:clamp(16px,2.2vw,20px);color:var(--text2);max-width:600px;margin:0 auto 40px;line-height:1.65}
+
+/* ── ACCESS OPTIONS ── */
+.access-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:780px;margin:0 auto 20px}
+@media(max-width:640px){.access-options{grid-template-columns:1fr}}
+.access-card{background:#fff;border:2px solid var(--border);border-radius:var(--radius-xl);padding:28px 24px;text-align:left;transition:all 0.2s;position:relative;overflow:hidden}
+.access-card:hover{border-color:var(--brand);box-shadow:var(--shadow-lg);transform:translateY(-2px)}
+.access-card.featured{border-color:var(--brand);background:linear-gradient(135deg,var(--brand-light) 0%,#fff 100%)}
+.access-card.featured::before{content:'⭐ Most popular';position:absolute;top:14px;right:14px;background:var(--brand);color:#fff;font-size:11px;font-weight:700;padding:3px 10px;border-radius:99px}
+.access-icon{font-size:36px;margin-bottom:12px}
+.access-title{font-size:18px;font-weight:800;margin-bottom:6px;letter-spacing:-0.02em}
+.access-desc{font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:18px}
+.access-perks{list-style:none;margin-bottom:20px}
+.access-perks li{display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;color:var(--text2)}
+.perk-check{color:var(--green);font-weight:700;font-size:14px;flex-shrink:0}
+.access-btn{width:100%;justify-content:center;padding:13px 20px;font-size:14px}
+.hero-note{font-size:13px;color:var(--text3);text-align:center}
+.hero-note span{color:var(--green);font-weight:600}
+
+/* ── DOWNLOAD SECTION ── */
+.download-section{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:60px 24px}
+.download-inner{max-width:1140px;margin:0 auto}
+.download-header{text-align:center;margin-bottom:40px}
+.section-tag{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--brand);margin-bottom:10px}
+.section-title{font-size:clamp(26px,4vw,42px);font-weight:800;letter-spacing:-0.03em;line-height:1.15;margin-bottom:12px}
+.section-sub{font-size:17px;color:var(--text2);max-width:520px;margin:0 auto}
+.download-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;max-width:860px;margin:0 auto}
+.dl-card{background:#fff;border:1.5px solid var(--border);border-radius:var(--radius-xl);padding:24px;text-align:center;transition:all 0.2s;box-shadow:var(--shadow)}
+.dl-card:hover{border-color:var(--brand-mid);box-shadow:var(--shadow-md);transform:translateY(-2px)}
+.dl-os-icon{font-size:48px;margin-bottom:12px}
+.dl-os-name{font-size:18px;font-weight:800;margin-bottom:4px}
+.dl-os-sub{font-size:13px;color:var(--text3);margin-bottom:16px}
+.dl-size{font-size:12px;color:var(--text3);margin-top:8px}
+.dl-reqs{font-size:11px;color:var(--text3);margin-top:4px}
+.dl-also{text-align:center;margin-top:20px;font-size:13px;color:var(--text2)}
+.dl-also a{color:var(--brand);font-weight:600}
+.dl-also a:hover{text-decoration:underline}
+.version-badge{display:inline-flex;align-items:center;gap:6px;background:var(--green-bg);color:var(--green);border:1px solid var(--green-mid);border-radius:99px;padding:4px 12px;font-size:12px;font-weight:700;margin-bottom:16px}
+
+/* ── COMPARISON TABLE ── */
+.compare-wrap{max-width:860px;margin:0 auto;overflow-x:auto}
+.compare-table{width:100%;border-collapse:collapse;font-size:14px;background:#fff;border-radius:var(--radius-xl);overflow:hidden;box-shadow:var(--shadow-md)}
+.compare-table th{padding:14px 20px;text-align:left;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--text3);background:var(--bg2);border-bottom:1.5px solid var(--border)}
+.compare-table th:not(:first-child){text-align:center}
+.compare-table td{padding:13px 20px;border-bottom:1px solid var(--border);color:var(--text2)}
+.compare-table td:not(:first-child){text-align:center}
+.compare-table tr:last-child td{border-bottom:none}
+.compare-table tr:hover td{background:#fafbff}
+.col-web{color:var(--brand);font-weight:700}
+.col-desk{color:var(--green);font-weight:700}
+.check-y{color:var(--green);font-size:17px}
+.check-n{color:var(--text3);font-size:17px}
+.check-p{color:var(--amber);font-size:13px;font-weight:600}
+.compare-header{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:2px solid var(--border)}
+.compare-col-head{padding:20px;text-align:center;font-weight:800;font-size:15px}
+
+/* ── FEATURES ── */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px;margin-top:48px}
+.feature-card{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow);transition:all 0.2s}
+.feature-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);border-color:var(--brand-mid)}
+.feature-icon{width:44px;height:44px;border-radius:11px;background:var(--brand-light);display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:14px}
+.feature-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.feature-desc{font-size:13px;color:var(--text2);line-height:1.6}
+
+/* ── HOW IT WORKS ── */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:32px;margin-top:48px}
+.step{text-align:center;padding:0 12px}
+.step-num{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--brand),#7c3aed);color:#fff;font-size:20px;font-weight:900;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 4px 12px rgba(37,99,235,0.3)}
+.step-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.step-desc{font-size:13px;color:var(--text2);line-height:1.6}
+
+/* ── PRICING ── */
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;max-width:920px;margin:48px auto 0}
+.price-card{background:#fff;border:2px solid var(--border);border-radius:var(--radius-xl);padding:26px;position:relative;transition:all 0.2s}
+.price-card.popular{border-color:var(--brand);box-shadow:0 0 0 4px rgba(37,99,235,0.07)}
+.popular-pill{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--brand),#7c3aed);color:#fff;padding:4px 16px;border-radius:99px;font-size:11px;font-weight:800;white-space:nowrap;letter-spacing:0.05em}
+.price-tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text3);margin-bottom:8px}
+.price-amount{font-size:42px;font-weight:900;letter-spacing:-0.04em;margin-bottom:2px}
+.price-amount sup{font-size:20px;font-weight:700;vertical-align:super}
+.price-period{font-size:13px;color:var(--text3);margin-bottom:18px}
+.price-features{list-style:none;margin-bottom:22px}
+.price-features li{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;border-bottom:1px solid var(--border);color:var(--text2)}
+.price-features li:last-child{border-bottom:none}
+.pf-check{color:var(--green);font-weight:700}
+.pf-x{color:var(--text3)}
+
+/* ── TESTIMONIALS ── */
+.testimonials{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px;margin-top:48px}
+.testimonial{background:#fff;border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;box-shadow:var(--shadow)}
+.stars{color:#f59e0b;font-size:15px;margin-bottom:10px;letter-spacing:2px}
+.testimonial-text{font-size:14px;color:var(--text2);line-height:1.65;margin-bottom:14px;font-style:italic}
+.testimonial-author{display:flex;align-items:center;gap:10px}
+.author-av{width:34px;height:34px;border-radius:50%;background:var(--brand-light);color:var(--brand);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px;flex-shrink:0}
+.author-name{font-size:13px;font-weight:700}
+.author-role{font-size:11px;color:var(--text3)}
+
+/* ── FAQ ── */
+.faq-list{max-width:720px;margin-top:40px}
+.faq-item{border-bottom:1px solid var(--border)}
+.faq-q{width:100%;text-align:left;background:none;border:none;padding:18px 0;font-size:15px;font-weight:600;color:var(--text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:12px}
+.faq-q:hover{color:var(--brand)}
+.faq-icon{font-size:20px;color:var(--text3);transition:transform 0.2s;flex-shrink:0}
+.faq-a{font-size:14px;color:var(--text2);line-height:1.7;padding-bottom:16px;display:none}
+.faq-item.open .faq-a{display:block}
+.faq-item.open .faq-icon{transform:rotate(45deg);color:var(--brand)}
+
+/* ── CTA BANNER ── */
+.cta-banner{background:linear-gradient(135deg,var(--brand) 0%,#7c3aed 100%);border-radius:var(--radius-xl);padding:56px 40px;text-align:center;color:#fff;margin:0 24px}
+.cta-banner h2{font-size:clamp(26px,4vw,44px);font-weight:900;margin-bottom:10px;letter-spacing:-0.03em}
+.cta-banner p{font-size:17px;opacity:0.85;margin-bottom:32px}
+.cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.email-row{display:flex;gap:8px;max-width:440px;margin:24px auto 0;flex-wrap:wrap;justify-content:center}
+.email-input{flex:1;min-width:210px;padding:13px 16px;border-radius:var(--radius-lg);border:none;font-size:14px;outline:none;color:var(--text)}
+.email-input:focus{box-shadow:0 0 0 3px rgba(255,255,255,0.3)}
+
+/* ── FOOTER ── */
+footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
+.footer-inner{max-width:1140px;margin:0 auto}
+.footer-top{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:36px}
+@media(max-width:768px){.footer-top{grid-template-columns:1fr 1fr}.nav-links{display:none}}
+.footer-logo{font-size:18px;font-weight:800;color:#fff;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.footer-tagline{font-size:13px;line-height:1.6;margin-bottom:12px}
+.footer-col-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#fff;margin-bottom:12px}
+.footer-links{list-style:none}
+.footer-links li{margin-bottom:8px}
+.footer-links a{font-size:13px;color:#94a3b8;transition:color 0.15s}
+.footer-links a:hover{color:#fff}
+.footer-bottom{border-top:1px solid #1e293b;padding-top:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px}
+.footer-legal{display:flex;gap:20px}
+.footer-legal a:hover{color:#fff}
+
+/* ── MOCKUP ── */
+.mockup-wrap{max-width:640px;margin:48px auto 0}
+.mockup{background:#fff;border:1px solid var(--border);border-radius:20px;overflow:hidden;box-shadow:var(--shadow-lg)}
+.mockup-titlebar{background:#f1f5f9;border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:8px}
+.traffic{width:12px;height:12px;border-radius:50%}
+.t-red{background:#ff5f57}.t-yellow{background:#febc2e}.t-green{background:#28c840}
+.mockup-title{font-size:13px;font-weight:600;color:var(--text2);margin:0 auto}
+.mockup-header{background:linear-gradient(135deg,var(--brand),var(--brand-dark));padding:12px 16px;display:flex;align-items:center;justify-content:space-between}
+.mockup-logo{color:#fff;font-weight:800;font-size:15px;display:flex;align-items:center;gap:7px}
+.mockup-lm{width:24px;height:24px;background:rgba(255,255,255,0.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;font-weight:800}
+.mockup-tabs{background:#fff;border-bottom:1.5px solid var(--border);display:flex;gap:0;padding:0 16px}
+.mock-tab{padding:10px 14px;font-size:12px;font-weight:600;color:var(--text3);border-bottom:2.5px solid transparent;margin-bottom:-1.5px}
+.mock-tab.active{color:var(--brand);border-bottom-color:var(--brand)}
+.mockup-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid var(--border)}
+.mock-metric{padding:12px 14px;border-right:1px solid var(--border)}
+.mock-metric:last-child{border-right:none}
+.mm-label{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px;font-weight:600}
+.mm-val{font-size:16px;font-weight:800}
+.mock-row{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);font-size:12px}
+.mock-row:last-child{border-bottom:none}
+.mr-info{display:flex;flex-direction:column;gap:2px}
+.mr-date{font-size:10px;color:var(--text3)}
+.mr-desc{font-weight:600;color:var(--text)}
+.mr-badge{font-size:9px;padding:2px 7px;border-radius:99px;font-weight:700}
+.badge-ded{background:var(--brand-light);color:var(--brand)}
+.badge-per{background:var(--red-bg);color:var(--red)}
+.badge-inc{background:var(--green-bg);color:var(--green)}
+.mr-amt{font-weight:700;font-size:13px}
+.mr-pos{color:var(--green)}.mr-neg{color:var(--text)}
+
+/* section layout */
+.section{max-width:1140px;margin:0 auto;padding:72px 24px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+@media(max-width:768px){.two-col{grid-template-columns:1fr}}
+.centered{text-align:center;max-width:600px;margin:0 auto}
+.how-bg{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">
+      <div class="logo-mark">TF</div>
+      TaxFlow
+    </div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </div>
+    <div class="nav-cta">
+      <a href="TaxFlow_App.html" target="_blank" class="btn btn-outline">Try in browser</a>
+      <a href="#download" class="btn btn-primary">Download app</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<div class="hero-wrap">
+  <div class="hero">
+    <div class="hero-badge">🚀 Version 1.0 — Free to try, no account needed</div>
+    <h1>Tax prep that<br><span>doesn't suck.</span></h1>
+    <p class="hero-sub">Drop in your bank statements. TaxFlow reads every transaction, sorts income from deductions from personal spending, and hands your accountant exactly what they need — in minutes, not days.</p>
+
+    <!-- ACCESS OPTIONS -->
+    <div class="access-options">
+
+      <!-- Web version card -->
+      <div class="access-card">
+        <div class="access-icon">🌐</div>
+        <div class="access-title">Use in your browser</div>
+        <div class="access-desc">No download, no install. Open TaxFlow instantly and start uploading statements right now.</div>
+        <ul class="access-perks">
+          <li><span class="perk-check">✓</span> Works in Chrome, Firefox, Edge, Safari</li>
+          <li><span class="perk-check">✓</span> No account required</li>
+          <li><span class="perk-check">✓</span> Data stays on your device</li>
+          <li><span class="perk-check">✓</span> Completely free to try</li>
+        </ul>
+        <a href="TaxFlow_App.html" target="_blank" class="btn btn-outline access-btn">Open in browser →</a>
+      </div>
+
+      <!-- Desktop card -->
+      <div class="access-card featured">
+        <div class="access-icon">🖥️</div>
+        <div class="access-title">Download desktop app</div>
+        <div class="access-desc">The full TaxFlow experience — native window, your own icon, works completely offline.</div>
+        <ul class="access-perks">
+          <li><span class="perk-check">✓</span> Windows &amp; Mac</li>
+          <li><span class="perk-check">✓</span> Native file Save dialog</li>
+          <li><span class="perk-check">✓</span> File menu with keyboard shortcuts</li>
+          <li><span class="perk-check">✓</span> Feels like a real app</li>
+        </ul>
+        <a href="#download" class="btn btn-primary access-btn">Download free →</a>
+      </div>
+
+    </div>
+    <p class="hero-note"><span>✓ 100% free to get started</span> &nbsp;·&nbsp; <span>✓ No credit card</span> &nbsp;·&nbsp; <span>✓ Your data never leaves your device</span></p>
+
+    <!-- APP MOCKUP -->
+    <div class="mockup-wrap">
+      <div class="mockup">
+        <div class="mockup-titlebar">
+          <div class="traffic t-red"></div>
+          <div class="traffic t-yellow"></div>
+          <div class="traffic t-green"></div>
+          <div class="mockup-title">TaxFlow — 2025</div>
+        </div>
+        <div class="mockup-header">
+          <div class="mockup-logo"><div class="mockup-lm">TF</div> TaxFlow</div>
+          <div style="color:rgba(255,255,255,0.7);font-size:11px">Tax Year 2025</div>
+        </div>
+        <div class="mockup-tabs">
+          <div class="mock-tab active">📋 Statements</div>
+          <div class="mock-tab">📊 Summary</div>
+          <div class="mock-tab">+ Add tab</div>
+        </div>
+        <div class="mockup-metrics">
+          <div class="mock-metric"><div class="mm-label">Income</div><div class="mm-val" style="color:var(--green)">$169,321</div></div>
+          <div class="mock-metric"><div class="mm-label">Deductible</div><div class="mm-val" style="color:var(--brand)">$99,320</div></div>
+          <div class="mock-metric"><div class="mm-label">Personal</div><div class="mm-val" style="color:var(--red)">$94,354</div></div>
+          <div class="mock-metric"><div class="mm-label">Net taxable</div><div class="mm-val" style="color:var(--amber)">$70,001</div></div>
+        </div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/20/25</div><div class="mr-desc">ATM Check Deposit — ENG Enterprise</div></div><span class="mr-badge badge-inc">Income</span><span class="mr-amt mr-pos">+$10,250</span></div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/22/25</div><div class="mr-desc">Amazon MKTPL — Work Tools</div></div><span class="mr-badge badge-ded">Deductible</span><span class="mr-amt mr-neg">-$48.76</span></div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/27/25</div><div class="mr-desc">Uber Eats — Job Site Delivery</div></div><span class="mr-badge badge-ded">Deductible</span><span class="mr-amt mr-neg">-$63.76</span></div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/29/25</div><div class="mr-desc">Netflix</div></div><span class="mr-badge badge-per">Personal</span><span class="mr-amt mr-neg">-$26.49</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- DOWNLOAD SECTION -->
+<section id="download" class="download-section">
+  <div class="download-inner">
+    <div class="download-header">
+      <div class="section-tag">Download</div>
+      <h2 class="section-title">Get the desktop app</h2>
+      <p class="section-sub">Available for Windows and Mac. Free download — premium plans unlock cloud sync and priority support.</p>
+      <div class="version-badge" style="margin:16px auto 0">✅ Version 1.0.0 — Latest release</div>
+    </div>
+
+    <div class="download-grid">
+
+      <!-- Windows -->
+      <div class="dl-card">
+        <div class="dl-os-icon">🪟</div>
+        <div class="dl-os-name">Windows</div>
+        <div class="dl-os-sub">Windows 10 / 11</div>
+        <a href="https://drive.google.com/uc?export=download&id=1ZPdtaDWMTB4BiKpRIJsJaMfeiXzS6TJT" class="btn btn-dark btn-lg" style="width:100%;justify-content:center">
+          ⬇ Download for Windows
+        </a>
+        <div class="dl-size">~85 MB · .exe installer</div>
+        <div class="dl-reqs">Requires Windows 10 or later · 64-bit</div>
+      </div>
+
+      <!-- Mac -->
+      <div class="dl-card">
+        <div class="dl-os-icon">🍎</div>
+        <div class="dl-os-name">macOS</div>
+        <div class="dl-os-sub">Mac Intel &amp; Apple Silicon</div>
+        <a href="#" onclick="alert('Mac version coming soon! Use the web app in the meantime.');return false;" class="btn btn-dark btn-lg" style="width:100%;justify-content:center">
+          ⬇ Download for Mac
+        </a>
+        <div class="dl-size">~90 MB · .dmg installer</div>
+        <div class="dl-reqs">Requires macOS 11 Big Sur or later</div>
+      </div>
+
+      <!-- Web version -->
+      <div class="dl-card">
+        <div class="dl-os-icon">🌐</div>
+        <div class="dl-os-name">Web Browser</div>
+        <div class="dl-os-sub">No download needed</div>
+        <a href="TaxFlow_App.html" target="_blank" class="btn btn-primary btn-lg" style="width:100%;justify-content:center">
+          ▶ Open in Browser
+        </a>
+        <div class="dl-size">Works instantly · No install</div>
+        <div class="dl-reqs">Chrome, Firefox, Edge, Safari · Any OS</div>
+      </div>
+
+    </div>
+
+    <div class="dl-also">
+      Not sure which to choose? &nbsp;<a href="#compare">See the comparison below</a> &nbsp;or&nbsp; <a href="TaxFlow_App.html" target="_blank">try the browser version first — it's free</a>
+    </div>
+  </div>
+</section>
+
+<!-- WEB vs DESKTOP COMPARISON -->
+<section id="compare">
+  <div class="section">
+    <div class="centered">
+      <div class="section-tag">Comparison</div>
+      <h2 class="section-title">Web app vs Desktop app</h2>
+      <p class="section-sub" style="margin-top:12px">Both versions have the full feature set. Here's what's different.</p>
+    </div>
+    <div class="compare-wrap" style="margin-top:36px">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th style="width:45%">Feature</th>
+            <th class="col-web">🌐 Web Version</th>
+            <th class="col-desk">🖥️ Desktop App</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Upload PDF bank statements</td><td class="check-y">✓</td><td class="check-y">✓</td></tr>
+          <tr><td>Auto-categorize transactions</td><td class="check-y">✓</td><td class="check-y">✓</td></tr>
+          <tr><td>Export to Excel</td><td class="check-y">✓</td><td class="check-y">✓</td></tr>
+          <tr><td>Two user profiles</td><td class="check-y">✓</td><td class="check-y">✓</td></tr>
+          <tr><td>Gambling W/L, Mileage, Home Office tabs</td><td class="check-y">✓</td><td class="check-y">✓</td></tr>
+          <tr><td>Works 100% offline</td><td class="check-p">Browser only</td><td class="check-y">✓</td></tr>
+          <tr><td>No installation needed</td><td class="check-y">✓</td><td class="check-n">—</td></tr>
+          <tr><td>Native Save dialog (choose where to save)</td><td class="check-n">—</td><td class="check-y">✓</td></tr>
+          <tr><td>File menu with keyboard shortcuts</td><td class="check-n">—</td><td class="check-y">✓</td></tr>
+          <tr><td>Desktop icon &amp; taskbar</td><td class="check-n">—</td><td class="check-y">✓</td></tr>
+          <tr><td>Ctrl+O to import, Ctrl+E to export</td><td class="check-n">—</td><td class="check-y">✓</td></tr>
+          <tr><td>Drag files from Windows Explorer / Finder</td><td class="check-n">—</td><td class="check-y">✓</td></tr>
+          <tr><td>Data stored in</td><td class="check-p">Browser storage</td><td class="check-y">Your computer</td></tr>
+          <tr><td>Price</td><td class="col-web">Free</td><td class="col-desk">Free download</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="text-align:center;margin-top:24px;font-size:14px;color:var(--text2)">
+      💡 <strong>Our recommendation:</strong> Try the web version first to see if TaxFlow works for you — then download the desktop app for the full experience.
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features" style="background:var(--bg2);border-top:1px solid var(--border)">
+  <div class="section">
+    <div class="centered">
+      <div class="section-tag">Features</div>
+      <h2 class="section-title">Everything you need. Nothing you don't.</h2>
+      <p class="section-sub" style="margin-top:12px">Built for contractors, freelancers, gig workers, and small business owners.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card"><div class="feature-icon">📄</div><div class="feature-title">PDF Statement Import</div><div class="feature-desc">Drop in your bank statement PDFs directly. Works with TD Bank, Bluevine, Chase, Bank of America, and most major banks.</div></div>
+      <div class="feature-card"><div class="feature-icon">🤖</div><div class="feature-title">Smart Auto-Categorization</div><div class="feature-desc">Every transaction is instantly sorted — income, deductible expense, or personal — based on smart keyword matching you can customize.</div></div>
+      <div class="feature-card"><div class="feature-icon">✏️</div><div class="feature-title">One-Click Reclassify</div><div class="feature-desc">Disagree with a category? Change it with a single dropdown. Bulk-reclassify entire vendors in seconds.</div></div>
+      <div class="feature-card"><div class="feature-icon">📊</div><div class="feature-title">Live Tax Dashboard</div><div class="feature-desc">See your income, deductions, and net taxable income update in real time as you work through your statements.</div></div>
+      <div class="feature-card"><div class="feature-icon">🎰</div><div class="feature-title">Gambling W/L Tracker</div><div class="feature-desc">Log casino and sportsbook win/loss statements. TaxFlow calculates net taxable gambling income and offsets losses against winnings.</div></div>
+      <div class="feature-card"><div class="feature-icon">🚗</div><div class="feature-title">Mileage Log</div><div class="feature-desc">Track every work trip and auto-calculate your IRS mileage deduction at $0.70/mile. Export to CSV for your records.</div></div>
+      <div class="feature-card"><div class="feature-icon">🏠</div><div class="feature-title">Home Office Calculator</div><div class="feature-desc">Enter your square footage and home expenses — TaxFlow calculates your exact home office deduction percentage instantly.</div></div>
+      <div class="feature-card"><div class="feature-icon">📅</div><div class="feature-title">Quarterly Tax Estimator</div><div class="feature-desc">Know what you owe before the IRS deadline. TaxFlow estimates your quarterly payments based on your real income and deductions.</div></div>
+      <div class="feature-card"><div class="feature-icon">⬇️</div><div class="feature-title">Accountant-Ready Export</div><div class="feature-desc">One click exports a full Excel workbook — income, deductions, personal, gambling W/L, mileage log, and summary — all organized.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works" class="how-bg">
+  <div class="section">
+    <div class="centered">
+      <div class="section-tag">How it works</div>
+      <h2 class="section-title">From statement to tax-ready in 4 steps.</h2>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-title">Upload your statements</div><div class="step-desc">Drop in PDF bank statements from TD Bank, Bluevine, Chase, or any major bank. Multiple files at once.</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-title">Auto-categorize</div><div class="step-desc">TaxFlow instantly reads every transaction and sorts income, deductible expenses, and personal spending.</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-title">Review &amp; adjust</div><div class="step-desc">Reclassify anything with a single click. Add missing transactions manually. Mark business expenses clearly.</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-title">Export &amp; hand off</div><div class="step-desc">Download a clean, fully organized Excel workbook and hand it to your accountant. Done in minutes.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section>
+  <div class="section">
+    <div class="centered">
+      <div class="section-tag">Testimonials</div>
+      <h2 class="section-title">Contractors love TaxFlow.</h2>
+    </div>
+    <div class="testimonials">
+      <div class="testimonial"><div class="stars">★★★★★</div><div class="testimonial-text">"I used to spend an entire weekend every January going through my bank statements. TaxFlow did it in about 10 minutes. Found over $30,000 in deductions I probably would have missed."</div><div class="testimonial-author"><div class="author-av">MR</div><div><div class="author-name">Mike R.</div><div class="author-role">General Contractor, Philadelphia PA</div></div></div></div>
+      <div class="testimonial"><div class="stars">★★★★★</div><div class="testimonial-text">"My accountant actually thanked me for the first time ever. The Excel file TaxFlow exports is exactly what she needs. This app paid for itself a hundred times over."</div><div class="testimonial-author"><div class="author-av">SL</div><div><div class="author-name">Sarah L.</div><div class="author-role">Freelance Designer, Austin TX</div></div></div></div>
+      <div class="testimonial"><div class="stars">★★★★★</div><div class="testimonial-text">"As a 1099 worker with multiple income streams, tax season used to be a nightmare. TaxFlow tracks everything so there are no surprises. I finally feel in control of my finances."</div><div class="testimonial-author"><div class="author-av">JT</div><div><div class="author-name">James T.</div><div class="author-role">Independent Sales Rep, Miami FL</div></div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing" style="background:var(--bg2);border-top:1px solid var(--border)">
+  <div class="section">
+    <div class="centered">
+      <div class="section-tag">Pricing</div>
+      <h2 class="section-title">Simple, honest pricing.</h2>
+      <p class="section-sub" style="margin-top:12px">Start completely free. Upgrade when you're ready.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-tag">Free forever</div>
+        <div class="price-amount"><sup>$</sup>0</div>
+        <div class="price-period">No credit card · No account</div>
+        <ul class="price-features">
+          <li><span class="pf-check">✓</span> Full web app access</li>
+          <li><span class="pf-check">✓</span> Unlimited PDF imports</li>
+          <li><span class="pf-check">✓</span> All tabs and features</li>
+          <li><span class="pf-check">✓</span> Excel export</li>
+          <li><span class="pf-check">✓</span> 2 user profiles</li>
+          <li><span class="pf-x">✗</span> Desktop app download</li>
+          <li><span class="pf-x">✗</span> Priority support</li>
+        </ul>
+        <a href="TaxFlow_App.html" target="_blank" class="btn btn-outline" style="width:100%;justify-content:center">Start free in browser</a>
+      </div>
+      <div class="price-card popular">
+        <div class="popular-pill">⭐ MOST POPULAR</div>
+        <div class="price-tag">Household</div>
+        <div class="price-amount"><sup>$</sup>20<span style="font-size:18px;font-weight:500;color:var(--text2)">/mo</span></div>
+        <div class="price-period">or $169/year — save 30%</div>
+        <ul class="price-features">
+          <li><span class="pf-check">✓</span> Everything in Free</li>
+          <li><span class="pf-check">✓</span> Desktop app (Windows &amp; Mac)</li>
+          <li><span class="pf-check">✓</span> 2 user profiles (you + spouse)</li>
+          <li><span class="pf-check">✓</span> Custom categorization rules</li>
+          <li><span class="pf-check">✓</span> Email support</li>
+          <li><span class="pf-check">✓</span> Free updates</li>
+        </ul>
+        <a href="#download" class="btn btn-primary" style="width:100%;justify-content:center">Get desktop app</a>
+      </div>
+      <div class="price-card">
+        <div class="price-tag">Business</div>
+        <div class="price-amount"><sup>$</sup>49<span style="font-size:18px;font-weight:500;color:var(--text2)">/mo</span></div>
+        <div class="price-period">or $399/year — save 32%</div>
+        <ul class="price-features">
+          <li><span class="pf-check">✓</span> Everything in Household</li>
+          <li><span class="pf-check">✓</span> Up to 5 user profiles</li>
+          <li><span class="pf-check">✓</span> Multiple business entities</li>
+          <li><span class="pf-check">✓</span> Priority support</li>
+          <li><span class="pf-check">✓</span> Early access to new features</li>
+        </ul>
+        <a href="mailto:support@taxflow.app" class="btn btn-outline" style="width:100%;justify-content:center">Contact us</a>
+      </div>
+    </div>
+    <p style="text-align:center;margin-top:20px;font-size:13px;color:var(--text3)">All plans include a 14-day free trial on paid features. Cancel anytime.</p>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="section">
+    <div class="section-tag">FAQ</div>
+    <h2 class="section-title">Common questions.</h2>
+    <div class="faq-list">
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">What's the difference between the web version and the desktop app? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Both versions have identical features — PDF import, auto-categorization, all tabs, Excel export. The desktop app adds a native window with its own icon, a proper File menu with keyboard shortcuts (Ctrl+O to import, Ctrl+E to export), a native Save dialog so you can choose exactly where your files go, and the ability to work completely offline. We recommend trying the web version first — it's free and takes 10 seconds to open.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">Is my financial data safe? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Yes. TaxFlow processes everything locally — your bank statements and transaction data are never sent to our servers. In the web version, data is stored in your browser's local storage. In the desktop app, everything stays on your computer. We never see your financial information.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">Which banks does TaxFlow support? <span class="faq-icon">+</span></button>
+        <div class="faq-a">TaxFlow supports PDF statements from TD Bank, Bluevine, Chase, Bank of America, Wells Fargo, Capital One, and most major US banks. You can also import CSV and Excel exports from any bank. If your bank isn't reading correctly, contact us and we'll add support for it.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">Do I need an accountant to use TaxFlow? <span class="faq-icon">+</span></button>
+        <div class="faq-a">No — TaxFlow is designed for anyone, with or without an accountant. That said, we strongly recommend working with a CPA for your actual tax filing. TaxFlow makes your accountant's job much easier and can significantly reduce the time (and cost) you spend with them.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">Can I try it before paying anything? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Absolutely — the web version is completely free with no account required. Just click "Open in Browser" and start uploading statements immediately. The desktop app download is also free. Paid plans unlock premium support and future cloud sync features.</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">Will TaxFlow work on my Mac with Apple Silicon (M1/M2/M3)? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Yes. The Mac download includes a universal binary that runs natively on both Intel Macs and Apple Silicon Macs (M1, M2, M3, and M4).</div>
+      </div>
+      <div class="faq-item">
+        <button class="faq-q" onclick="toggleFaq(this)">I see a security warning when I try to open the app. Is it safe? <span class="faq-icon">+</span></button>
+        <div class="faq-a">Yes, completely safe. On Windows you may see "Windows protected your PC" — click "More info" then "Run anyway." On Mac you may see "unidentified developer" — right-click the app and choose Open, then click Open. These warnings appear because we haven't yet purchased a code-signing certificate — something we're adding in a future update. The app itself is 100% safe.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<div style="max-width:1140px;margin:0 auto;padding:0 24px 80px">
+  <div class="cta-banner">
+    <h2>Ready to take control of your taxes?</h2>
+    <p>Start in your browser right now — no download, no account, no credit card.</p>
+    <div class="cta-btns">
+      <a href="TaxFlow_App.html" target="_blank" class="btn btn-white btn-xl">▶ Open in browser — free</a>
+      <a href="#download" class="btn btn-xl" style="background:rgba(255,255,255,0.15);color:#fff;border:1.5px solid rgba(255,255,255,0.35)">⬇ Download desktop app</a>
+    </div>
+    <div class="email-row">
+      <input class="email-input" type="email" placeholder="Get notified about updates — enter your email">
+      <button class="btn btn-white btn-lg">Notify me</button>
+    </div>
+    <p style="margin-top:12px;font-size:12px;opacity:0.6">No spam. Unsubscribe anytime.</p>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div>
+        <div class="footer-logo"><div class="logo-mark" style="width:28px;height:28px;font-size:11px">TF</div> TaxFlow</div>
+        <div class="footer-tagline">Smart accounting for self-employed professionals. Know what you owe before tax season hits.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+          <a href="TaxFlow_App.html" target="_blank" class="btn btn-outline" style="padding:7px 14px;font-size:12px">🌐 Open web app</a>
+          <a href="#download" class="btn btn-primary" style="padding:7px 14px;font-size:12px">⬇ Download</a>
+        </div>
+      </div>
+      <div>
+        <div class="footer-col-title">Product</div>
+        <ul class="footer-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#download">Download</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="TaxFlow_App.html" target="_blank">Web app</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="footer-col-title">Support</div>
+        <ul class="footer-links">
+          <li><a href="#faq">FAQ</a></li>
+          <li><a href="mailto:support@taxflow.app">Contact us</a></li>
+          <li><a href="mailto:support@taxflow.app">Help center</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="footer-col-title">Legal</div>
+        <ul class="footer-links">
+          <li><a href="TaxFlow_Privacy_Policy.html">Privacy Policy</a></li>
+          <li><a href="TaxFlow_Terms_of_Service.html">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div>© 2025 TaxFlow · VonderLinden Group LLC · Not tax advice — always consult a CPA.</div>
+      <div class="footer-legal">
+        <a href="TaxFlow_Privacy_Policy.html">Privacy</a>
+        <a href="TaxFlow_Terms_of_Service.html">Terms</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleFaq(btn){
+  const item=btn.closest('.faq-item');
+  const isOpen=item.classList.contains('open');
+  document.querySelectorAll('.faq-item').forEach(i=>i.classList.remove('open'));
+  if(!isOpen) item.classList.add('open');
+}
+document.querySelectorAll('a[href^="#"]').forEach(a=>{
+  a.addEventListener('click',e=>{
+    const t=document.querySelector(a.getAttribute('href'));
+    if(t){e.preventDefault();t.scrollIntoView({behavior:'smooth',block:'start'});}
+  });
+});
+</script>
+</body>
+</html>
