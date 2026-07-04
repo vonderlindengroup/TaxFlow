@@ -929,10 +929,15 @@ async function handleFiles(files){
   if(!list.length) return;
   showProg();
   let total=0;
+  const wTier=currentTier();
   for(const f of list){
     try{
-      if(f.name.toLowerCase().endsWith('.pdf')) total+=await parsePDF(f);
-      else {
+      if(f.name.toLowerCase().endsWith('.pdf')){
+        if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade for unlimited!');showUpgradeModal();break;}
+        const n=await parsePDF(f);
+        if(n>0)statementsUploaded++;
+        total+=n;
+      } else {
         const text=await readText(f);
         total+=f.name.toLowerCase().endsWith('.csv')?parseCSV(text,f.name):parseXLSX(text,f.name);
       }
@@ -1518,6 +1523,16 @@ function delRule(i){S.rules.splice(i,1);save();renderRules();}
 
 // ── EXPORT ─────────────────────────────────────────────────────────────────
 function exportAll(){
+  const tier=currentTier();
+  if(!tier.canExportExcel){
+    showUpgradeModal();
+    toast('Excel export requires a paid plan. Upgrade at gettaxflow.com!');
+    return;
+  }
+
+  _exportAllRun();
+}
+function _exportAllRun(){
   const u=U(); const txs=tx();
   if(!txs.length){ toast('No transactions to export'); return; }
   const wb=XLSX.utils.book_new();
@@ -1750,6 +1765,14 @@ function exportAll(){
   toast('\u2705 Exported: '+fname);
 }
 function exportCsv(){
+  const tier=currentTier();
+  if(!tier.canExportCsv){
+    showUpgradeModal();
+    toast('CSV export requires a paid plan. Upgrade at gettaxflow.com!');
+    return;
+  }
+
+  if(!tier.canExportCsv){showUpgradeModal();toast('CSV export requires a paid plan.');return;}
   const rows=['Date,Description,Amount,Category'];
   tx().forEach(t=>rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(',')));
   const blob=new Blob([rows.join('\n')],{type:'text/csv'});
@@ -1805,8 +1828,12 @@ const TIERS = {
   free: {
     label: 'Free', maxUsers: 1,
     optionalTabs: ['settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: false,
-    maxTransactions: 200, showUpgradeBanner: true,
+    maxStatements: 3,
+    maxTransactions: 50,
+    canExportExcel: false,
+    canExportCsv: false,
+    canImportPdf: true,
+    showUpgradeBanner: true,
   },
   household: {
     label: 'Household', maxUsers: 2,
@@ -1823,6 +1850,7 @@ const TIERS = {
 };
 
 let currentProfile = null;
+let statementsUploaded = 0;
 let selectedPlan = 'household';
 
 function currentTier() {
@@ -2069,9 +2097,9 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── INIT ─────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   load();
-  checkAuth();
+  await checkAuth();
 });
 </script>
 

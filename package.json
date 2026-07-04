@@ -13,11 +13,10 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "build:win": "electron-builder --win",
-    "build:mac": "electron-builder --mac"
+    "build:win": "electron-builder --win --publish never",
+    "build:mac": "electron-builder --mac --publish never"
   },
   "dependencies": {
-    "xlsx": "0.18.5",
     "pdfjs-dist": "4.9.155"
   },
   "devDependencies": {
@@ -37,7 +36,6 @@
       "preload.js",
       "src/**/*",
       "assets/**/*",
-      "node_modules/xlsx/**/*",
       "node_modules/pdfjs-dist/**/*",
       "node_modules/jszip/**/*",
       "node_modules/pako/**/*"
