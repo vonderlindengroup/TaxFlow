@@ -705,6 +705,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 
 <script>
 // Safe DOM helper — silently skips if element doesn't exist
+var statementsUploaded = 0; // tracks uploads for free tier limit
 function setEl(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
@@ -1850,7 +1851,6 @@ const TIERS = {
 };
 
 let currentProfile = null;
-let statementsUploaded = 0;
 let selectedPlan = 'household';
 
 function currentTier() {
