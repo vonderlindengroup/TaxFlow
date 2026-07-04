@@ -1,0 +1,7 @@
+TaxFlow — End User License Agreement
+Copyright © 2025 VonderLinden Group LLC. All rights reserved.
+
+This software is licensed, not sold. TaxFlow is a financial organization tool — NOT tax advice.
+Always consult a qualified CPA before filing your taxes.
+
+Support: support@taxflow.app | Website: https://gettaxflow.com

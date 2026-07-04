@@ -1,0 +1,93 @@
+{
+  "name": "taxflow",
+  "productName": "TaxFlow",
+  "version": "1.0.3",
+  "description": "Smart tax organizer for self-employed professionals",
+  "main": "main.js",
+  "author": {
+    "name": "VonderLinden Group LLC",
+    "email": "support@taxflow.app"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac"
+  },
+  "dependencies": {
+    "xlsx": "0.18.5",
+    "pdfjs-dist": "4.9.155"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.vonderlinden.taxflow",
+    "productName": "TaxFlow",
+    "copyright": "Copyright \u00a9 2025 VonderLinden Group LLC",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "node_modules/xlsx/**/*",
+      "node_modules/pdfjs-dist/**/*",
+      "node_modules/jszip/**/*",
+      "node_modules/pako/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "publisherName": "VonderLinden Group LLC"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "TaxFlow",
+      "license": "build/license.txt"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns",
+      "category": "public.app-category.finance",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    },
+    "dmg": {
+      "title": "TaxFlow ${version}",
+      "backgroundColor": "#eff6ff",
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    }
+  }
+}
