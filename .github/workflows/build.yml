@@ -3,7 +3,7 @@ name: Build TaxFlow Installers
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:  # allows manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
 
@@ -16,19 +16,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --ignore-scripts
 
       - name: Build Windows installer
         run: npm run build:win
+        env:
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          EP_PRE_RELEASE: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: TaxFlow-Windows
           path: dist/*.exe
+          if-no-files-found: warn
 
   build-mac:
     runs-on: macos-latest
@@ -39,18 +45,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --ignore-scripts
 
       - name: Build Mac installer
         run: npm run build:mac
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false  # skip code signing
+          ELECTRON_BUILDER_ALLOW_UNRESOLVED_DEPENDENCIES: true
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Mac installer
         uses: actions/upload-artifact@v4
         with:
           name: TaxFlow-Mac
           path: dist/*.dmg
+          if-no-files-found: warn
