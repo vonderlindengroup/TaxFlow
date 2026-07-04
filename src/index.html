@@ -701,6 +701,8 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
   </div>
 
 </div><!-- end .main -->
+<div id="prog" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:8888;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#2563eb">Reading statements...</div>
+<div id="diag-bar" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;margin:8px 16px;font-size:13px;align-items:center;gap:10px"><span id="diag-msg"></span></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -927,62 +929,80 @@ function bucket(cat){
 async function handleFiles(files){
   const list=[...files];
   if(!list.length) return;
+  // Restore session if visibilitychange wiped it during drag
+  if(window.electronAPI&&window.electronAPI.isElectron){
+    try{
+      const {data:{session}}=await sb.auth.getSession();
+      if(!session){toast('Please sign in to import files.');showAuthScreen();return;}
+    }catch(e){toast('No internet. Sign in required.');showAuthScreen();return;}
+  }
+  const tier=currentTier();
   showProg();
   let total=0;
   for(const f of list){
     try{
-      if(f.name.toLowerCase().endsWith('.pdf')) total+=await parsePDF(f);
-      else {
+      const ext=f.name.toLowerCase().split('.').pop();
+      if(ext==='pdf'){
+        // Check statement limit for free users
+        if(tier.maxStatements!==Infinity&&statementsUploaded>=tier.maxStatements){
+          toast('Free plan limited to '+tier.maxStatements+' statements. Upgrade for unlimited!');
+          showUpgradeModal(); break;
+        }
+        const n=await parsePDF(f);
+        if(n>0) statementsUploaded++;
+        total+=n;
+      } else if(ext==='csv'){
         const text=await readText(f);
-        total+=f.name.toLowerCase().endsWith('.csv')?parseCSV(text,f.name):parseXLSX(text,f.name);
+        total+=parseCSV(text,f.name);
+      } else {
+        if(window.electronAPI&&window.electronAPI.isElectron){
+          const arrayBuf=await readBuf(f);
+          const result=await window.electronAPI.parseXlsx(f.name,new Uint8Array(arrayBuf));
+          if(result&&result.csv) total+=parseCSV(result.csv,f.name);
+        } else {
+          const text=await readText(f);
+          total+=parseXLSX(text,f.name);
+        }
       }
-    }catch(e){console.error(e)}
+    }catch(e){console.error('File error:',e);toast('Error: '+e.message);}
+  }
+  // Enforce transaction limit for free users
+  if(tier.maxTransactions!==Infinity&&tx().length>tier.maxTransactions){
+    U().tx=tx().slice(0,tier.maxTransactions);
+    toast('Free plan: showing first '+tier.maxTransactions+' transactions. Upgrade for all!');
+    save();
   }
   hideProg();save();render();updateSummary();
-  toast(`✅ Imported ${total} transactions`);
-}
-
-function readText(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(f);})}
-function readBin(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsBinaryString(f);})}
-function readBuf(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsArrayBuffer(f);})}
-
-function parseCSV(text,fname){
-  const rows=text.trim().split('\n').map(l=>l.split(',').map(c=>c.replace(/^"|"$/g,'').trim()));
-  if(rows.length<2) return 0;
-  const h=rows[0].map(x=>x.toLowerCase());
-  const di=h.findIndex(x=>x.includes('date')||x.includes('posting'));
-  const ni=h.findIndex(x=>x.includes('desc')||x.includes('memo')||x.includes('name'));
-  const ai=h.findIndex(x=>x.includes('amount')||x.includes('debit')||x.includes('credit'));
-  if(di<0||ni<0||ai<0) return 0;
-  let n=0;
-  rows.slice(1).forEach(r=>{
-    const amt=parseFloat((r[ai]||'0').replace(/[$,()]/g,''));
-    if(isNaN(amt)||amt===0) return;
-    const desc=r[ni]||'Unknown';
-    tx().push({id:uid(),date:r[di]||'',desc,amount:amt,cat:autoCat(desc),src:fname});
-    n++;
-  });
-  return n;
-}
-
-function parseXLSX(bin,fname){
-  const wb=XLSX.read(bin,{type:'binary'});
-  const ws=wb.Sheets[wb.SheetNames[0]];
-  return parseCSV(XLSX.utils.sheet_to_csv(ws),fname);
+  if(total>0)toast('Imported '+total+' transactions');
 }
 
 async function parsePDF(f){
+  if(window.electronAPI && window.electronAPI.isElectron){
+    try{
+      toast('Reading '+f.name+'...');
+      const arrayBuf=await readBuf(f);
+      if(!arrayBuf||arrayBuf.byteLength===0){toast('Empty file: '+f.name);return 0;}
+      const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(arrayBuf));
+      if(!result){toast('No response from PDF engine');return 0;}
+      if(!result.success){toast('PDF error: '+(result.error||'unknown'));return 0;}
+      if(!result.text||result.text.trim().length===0){toast('No text found in '+f.name);return 0;}
+      const count=parseBankText(result.text,f.name);
+      if(count===0)toast('0 transactions found in '+f.name+' - check format');
+      return count;
+    }catch(e){toast('Error: '+e.message);console.error(e);return 0;}
+  }
+  if(typeof pdfjsLib==='undefined'){toast('PDF requires internet in browser version.');return 0;}
   pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const buf=await readBuf(f);
   const pdf=await pdfjsLib.getDocument({data:buf}).promise;
   let fullText='';
   for(let p=1;p<=pdf.numPages;p++){
     const page=await pdf.getPage(p);
-    const content=await page.getTextContent();
+    const ct=await page.getTextContent();
     const lines={};
-    content.items.forEach(item=>{
+    ct.items.forEach(item=>{
       const y=Math.round(item.transform[5]);
-      if(!lines[y]) lines[y]=[];
+      if(!lines[y])lines[y]=[];
       lines[y].push({x:Math.round(item.transform[4]),t:item.str});
     });
     Object.keys(lines).sort((a,b)=>b-a).forEach(y=>{
@@ -1518,6 +1538,16 @@ function delRule(i){S.rules.splice(i,1);save();renderRules();}
 
 // ── EXPORT ─────────────────────────────────────────────────────────────────
 function exportAll(){
+  const tier=currentTier();
+  if(!tier.canExportExcel){
+    showUpgradeModal();
+    toast('Export requires a paid plan. Upgrade at gettaxflow.com!');
+    return;
+  }
+  _exportAllStyled();
+}
+function _exportAllStyled(){
+
   const u=U(); const txs=tx();
   if(!txs.length){ toast('No transactions to export'); return; }
   const wb=XLSX.utils.book_new();
@@ -1750,6 +1780,13 @@ function exportAll(){
   toast('\u2705 Exported: '+fname);
 }
 function exportCsv(){
+  const tier=currentTier();
+  if(!tier.canExportCsv){
+    showUpgradeModal();
+    toast('CSV export requires a paid plan. Upgrade at gettaxflow.com!');
+    return;
+  }
+
   const rows=['Date,Description,Amount,Category'];
   tx().forEach(t=>rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(',')));
   const blob=new Blob([rows.join('\n')],{type:'text/csv'});
@@ -1758,8 +1795,8 @@ function exportCsv(){
 }
 
 // ── PROGRESS / TOAST ───────────────────────────────────────────────────────
-function showProg(){document.getElementById('prog').style.display='block'}
-function hideProg(){document.getElementById('prog').style.display='none'}
+function showProg(){const p=document.getElementById('prog');if(p)p.style.display='flex';}
+function hideProg(){const p=document.getElementById('prog');if(p)p.style.display='none';}
 function toast(msg){
   const el=document.getElementById('toast');
   el.textContent=msg;el.classList.add('show');
@@ -2069,9 +2106,9 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ── INIT ─────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   load();
-  checkAuth();
+  await checkAuth();
 });
 </script>
 
@@ -2080,33 +2117,36 @@ window.addEventListener('DOMContentLoaded', () => {
 // ── ELECTRON BRIDGE ───────────────────────────────────────────────────────
 if (window.electronAPI && window.electronAPI.isElectron) {
 
-  // ── Diagnostic check ─────────────────────────────────────────────────────
+  // Block visibilitychange from clearing Supabase session during drag
+  document.addEventListener('visibilitychange', (e) => { e.stopImmediatePropagation(); }, true);
+
+  // Diagnostic on startup
   window.addEventListener('DOMContentLoaded', () => {
     setTimeout(async () => {
       try {
         const r = await window.electronAPI.ping();
         const bar = document.getElementById('diag-bar');
         const msg = document.getElementById('diag-msg');
-        if (!r.pdfjsExists || !r.xlsxExists) {
-          if(msg) msg.textContent = (!r.pdfjsExists?'❌ pdfjs-dist missing':'') + (!r.xlsxExists?' ❌ xlsx missing':'') + ' — run npm install';
+        if (!r.pdfjsExists) {
+          if(msg) msg.textContent = 'pdfjs-dist missing — run npm install';
           if(bar) bar.style.display = 'flex';
         } else {
-          if(msg) msg.textContent = '✅ PDF import ready (v'+r.appVersion+')';
-          if(bar) { bar.style.display='flex'; setTimeout(()=>{ bar.style.display='none'; },3000); }
+          if(msg) msg.textContent = 'TaxFlow v'+r.appVersion+' ready';
+          if(bar) { bar.style.display='flex'; setTimeout(()=>{ bar.style.display='none'; },2500); }
         }
-      } catch(e) { console.error('Bridge ping failed:', e); }
+      } catch(e) { console.error('Bridge ping error:', e); }
     }, 1000);
   });
 
-  // ── Override exportAll — use styled export, save via native dialog ────────
-  const _origExportAll = window.exportAll;
-  window.exportAll = async function() {
+  // Override exportAll — check tier, then use native save dialog
+  const _origExportAllStyled = window._exportAllStyled;
+  window._exportAllStyled = async function() {
     const origCreate = URL.createObjectURL;
     const origRevoke = URL.revokeObjectURL;
     let captured = null;
     URL.createObjectURL = (blob) => { captured = blob; return 'blob:captured'; };
     URL.revokeObjectURL = () => {};
-    await _origExportAll();
+    if(_origExportAllStyled) await _origExportAllStyled();
     URL.createObjectURL = origCreate;
     URL.revokeObjectURL = origRevoke;
     if (captured) {
@@ -2114,39 +2154,55 @@ if (window.electronAPI && window.electronAPI.isElectron) {
       const u2 = U();
       const fname = ((u2.biz||u2.name||'TaxFlow').replace(/\s+/g,'_'))+'_'+S.year+'_TaxFlow.xlsx';
       const result = await window.electronAPI.saveFile(fname, new Uint8Array(arrayBuf), 'xlsx');
-      if (result && result.success) toast('\u2705 Saved: ' + result.filePath.split(/[\\/]/).pop());
-      else if (result && result.error) toast('\u274C Save failed: ' + result.error);
+      if (result&&result.success) toast('Saved: '+result.filePath.split(/[\/\\]/).pop());
+      else if (result&&result.error) toast('Save failed: '+result.error);
     }
   };
 
-  // ── Override exportCsv with native Save dialog ────────────────────────────
+  // Override exportCsv with native save dialog
+  const _origExportCsvBody = window.exportCsv;
   window.exportCsv = async function() {
+    const tier = currentTier();
+    if(!tier.canExportCsv){ showUpgradeModal(); toast('CSV export requires a paid plan.'); return; }
     const rows = ['Date,Description,Amount,Category'];
     tx().forEach(t => rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(',')));
     const buf = new TextEncoder().encode(rows.join('\n'));
     const result = await window.electronAPI.saveFile('transactions_'+S.year+'.csv', buf, 'csv');
-    if (result && result.success) toast('\u2705 CSV saved');
+    if (result&&result.success) toast('CSV saved');
   };
 
-  // ── Handle File > Import (Ctrl+O) ─────────────────────────────────────────
+  // File > Import (Ctrl+O)
   window.electronAPI.onImportFiles(async (filePaths) => {
     showProg();
     let total = 0;
+    const tier = currentTier();
     for (const filePath of filePaths) {
       const fname = filePath.split(/[\/\\]/).pop();
+      const ext = fname.toLowerCase().split('.').pop();
+      if(ext==='pdf'&&tier.maxStatements!==Infinity&&statementsUploaded>=tier.maxStatements){
+        toast('Free plan limited to '+tier.maxStatements+' statements. Upgrade for unlimited!');
+        showUpgradeModal(); break;
+      }
       try {
         const result = await window.electronAPI.readFile(filePath);
-        if (!result || !result.success) { toast('\u274C Could not read: ' + fname); continue; }
-        if (result.isPdf)        total += parseBankText(result.text||'', fname);
-        else if (result.isXlsx)  total += parseCSV(result.csv||'', fname);
-        else                     total += parseCSV(result.text||'', fname);
-      } catch(e) { toast('\u274C Error: ' + e.message); }
+        if (!result||!result.success) { toast('Could not read: '+fname); continue; }
+        let n = 0;
+        if (result.isPdf)       n = parseBankText(result.text||'', fname);
+        else if (result.isXlsx) n = parseCSV(result.csv||'', fname);
+        else                    n = parseCSV(result.text||'', fname);
+        if(ext==='pdf'&&n>0) statementsUploaded++;
+        total += n;
+      } catch(e) { toast('Error: '+e.message); }
+    }
+    if(tier.maxTransactions!==Infinity&&tx().length>tier.maxTransactions){
+      U().tx=tx().slice(0,tier.maxTransactions);
+      toast('Free plan: showing first '+tier.maxTransactions+' transactions.');
+      save();
     }
     hideProg(); save(); render(); updateSummary();
-    toast('\u2705 Imported ' + total + ' transactions');
+    if(total>0) toast('Imported '+total+' transactions');
   });
 
-  // ── Mac traffic light padding ─────────────────────────────────────────────
   if (window.electronAPI.platform === 'darwin') {
     document.addEventListener('DOMContentLoaded', () => {
       const hi = document.querySelector('.header-inner');
@@ -2154,11 +2210,7 @@ if (window.electronAPI && window.electronAPI.isElectron) {
     });
   }
 
-  // ── Disable visibilitychange logout (fires during drag from Explorer) ─────
-  // Keep only beforeunload; override the visibilitychange handler
-  document.removeEventListener('visibilitychange', ()=>{});
-
-  console.log('TaxFlow: Electron bridge active');
+  console.log('TaxFlow Electron bridge active');
 }
 </script>
 </body>
