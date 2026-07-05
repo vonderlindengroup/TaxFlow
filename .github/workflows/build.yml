@@ -51,8 +51,9 @@ jobs:
         run: npx electron-builder --mac --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          USE_HARD_LINKS: false
 
-      - name: Upload Mac installer
+      - name: Upload Mac installers
         uses: actions/upload-artifact@v4
         with:
           name: TaxFlow-Mac
