@@ -8,6 +8,7 @@
 <title>TaxFlow — Smart Tax Organizer</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -320,11 +321,11 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div id="form-login">
       <div class="auth-field">
         <label>Email address</label>
-        <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email">
+        <input type="email" id="login-email" placeholder="you@email.com" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()" autocomplete="email">
       </div>
       <div class="auth-field">
         <label>Password</label>
-        <input type="password" id="login-pass" placeholder="Your password" autocomplete="current-password">
+        <input type="password" id="login-pass" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
       <button class="auth-btn" onclick="doLogin()">Sign in to TaxFlow</button>
       <div class="auth-note">
@@ -348,7 +349,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       </div>
       <div class="auth-field">
         <label>Confirm password</label>
-        <input type="password" id="reg-pass2" placeholder="Repeat password" autocomplete="new-password">
+        <input type="password" id="reg-pass2" placeholder="Repeat password" onkeydown="if(event.key==='Enter')doRegister()" autocomplete="new-password">
       </div>
       <div class="auth-field">
         <label>Second user's name <span style="font-weight:400;color:var(--text3)">(optional — for spouse/partner)</span></label>
@@ -702,39 +703,11 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 
 </div><!-- end .main -->
 <div id="prog" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:8888;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#2563eb">Reading statements...</div>
-<div id="diag-bar" style="display:none;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 14px;margin:8px 16px;font-size:13px;align-items:center;gap:10px"><span id="diag-msg"></span></div>
 <div class="toast" id="toast"></div>
 
 <script>
 // Safe DOM helper — silently skips if element doesn't exist
 var statementsUploaded = 0; // tracks uploads for free tier limit
-function readBuf(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsArrayBuffer(f);})}
-function readText(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(f);})}
-function parseCSV(text,fname){
-  const rows=text.trim().split('\n').map(l=>l.split(',').map(c=>c.replace(/^"|"$/g,'').trim()));
-  if(rows.length<2) return 0;
-  const h=rows[0].map(x=>x.toLowerCase());
-  const di=h.findIndex(x=>x.includes('date')||x.includes('posting'));
-  const ni=h.findIndex(x=>x.includes('desc')||x.includes('memo')||x.includes('name'));
-  const ai=h.findIndex(x=>x.includes('amount')||x.includes('debit')||x.includes('credit'));
-  if(di<0||ni<0||ai<0) return 0;
-  let n=0;
-  rows.slice(1).forEach(r=>{
-    const amt=parseFloat((r[ai]||'0').replace(/[$,()]/g,''));
-    if(isNaN(amt)||amt===0) return;
-    const desc=r[ni]||'Unknown';
-    tx().push({id:uid(),date:r[di]||'',desc,amount:amt,cat:autoCat(desc),src:fname});
-    n++;
-  });
-  return n;
-}
-
-function parseXLSX(bin,fname){
-  const wb=XLSX.read(bin,{type:'binary'});
-  const ws=wb.Sheets[wb.SheetNames[0]];
-  return parseCSV(XLSX.utils.sheet_to_csv(ws),fname);
-}
-function readBin(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsBinaryString(f);})}
 function setEl(id, val) {
   const el = document.getElementById(id);
   if (el) el.textContent = val;
@@ -957,7 +930,6 @@ function bucket(cat){
 async function handleFiles(files){
   const list=[...files];
   if(!list.length) return;
-  // Restore session if visibilitychange wiped it during drag
   if(window.electronAPI&&window.electronAPI.isElectron){
     try{
       const {data:{session}}=await sb.auth.getSession();
@@ -971,7 +943,6 @@ async function handleFiles(files){
     try{
       const ext=f.name.toLowerCase().split('.').pop();
       if(ext==='pdf'){
-        // Check statement limit for free users
         if(hTier.maxStatements!==Infinity&&statementsUploaded>=hTier.maxStatements){
           toast('Free plan limited to '+hTier.maxStatements+' statements. Upgrade for unlimited!');
           showUpgradeModal(); break;
@@ -994,10 +965,9 @@ async function handleFiles(files){
       }
     }catch(e){console.error('File error:',e);toast('Error: '+e.message);}
   }
-  // Enforce transaction limit for free users
   if(hTier.maxTransactions!==Infinity&&tx().length>hTier.maxTransactions){
     U().tx=tx().slice(0,hTier.maxTransactions);
-    toast('Free plan: showing first '+hTier.maxTransactions+' transactions. Upgrade for all!');
+    toast('Free plan: showing first '+hTier.maxTransactions+' transactions.');
     save();
   }
   hideProg();save();render();updateSummary();
@@ -1015,7 +985,7 @@ async function parsePDF(f){
       if(!result.success){toast('PDF error: '+(result.error||'unknown'));return 0;}
       if(!result.text||result.text.trim().length===0){toast('No text found in '+f.name);return 0;}
       const count=parseBankText(result.text,f.name);
-      if(count===0)toast('0 transactions found in '+f.name+' - check format');
+      if(count===0)toast('0 transactions found in '+f.name);
       return count;
     }catch(e){toast('Error: '+e.message);console.error(e);return 0;}
   }
@@ -1569,244 +1539,299 @@ function exportAll(){
   const tier=currentTier();
   if(!tier.canExportExcel){
     showUpgradeModal();
-    toast('Export requires a paid plan. Upgrade at gettaxflow.com!');
+    toast('Excel export requires a paid plan. Upgrade at gettaxflow.com!');
     return;
   }
-  _exportAllStyled();
-}
-function _exportAllStyled(){
 
+  _exportAllRun();
+}
+function _exportAllRun(){
   const u=U(); const txs=tx();
   if(!txs.length){ toast('No transactions to export'); return; }
-  const wb=XLSX.utils.book_new();
 
-  // ── Color palette matching original spreadsheet ──────────────────────────
-  // Headers
-  const H_BLUE   = '2E74B5'; // All Transactions header
-  const H_GREEN  = '375623'; // Income header
-  const H_RED    = 'C00000'; // Deductible header
-  const H_PURPLE = '7030A0'; // Personal header
-  const H_DARK   = '203864'; // Summary header
-  const H_ORANGE = 'ED7D31'; // Gambling header
-  const H_TEAL   = '00B0F0'; // Mileage header
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'TaxFlow';
+  wb.created = new Date();
 
-  // Row alternating fills
-  const ROW_BLUE1='D6E4F0'; const ROW_BLUE2='EBF5EB';
-  const ROW_GRN1 ='F0FFF0'; const ROW_GRN2 ='FFFFFF';
-  const ROW_RED1 ='FFE7E7'; const ROW_RED2 ='FFFFFF';
-  const ROW_PUR1 ='F3ECFF'; const ROW_PUR2 ='FFFFFF';
-  const ROW_ALT1 ='F5F5F5'; const ROW_ALT2 ='FFFFFF';
-
-  function hdrStyle(rgb){ return {font:{bold:true,color:{rgb:'FFFFFF'},name:'Arial',sz:11},fill:{fgColor:{rgb}},alignment:{horizontal:'center',vertical:'center'},border:{bottom:{style:'medium',color:{rgb:'000000'}}}}; }
-  function cellStyle(rgb,align){ return {font:{name:'Arial',sz:10,color:{rgb:'000000'}},fill:{fgColor:{rgb}},alignment:{horizontal:align||'left',vertical:'center'}}; }
-  function numStyle(rgb){ return {font:{name:'Arial',sz:10,color:{rgb:'000000'}},fill:{fgColor:{rgb}},alignment:{horizontal:'right',vertical:'center'},numFmt:'"$"#,##0.00;[Red]"$"(#,##0.00)'}; }
-  function totalStyle(){ return {font:{bold:true,name:'Arial',sz:11,color:{rgb:'000000'}},fill:{fgColor:{rgb:'BDD7EE'}},alignment:{horizontal:'right',vertical:'center'},numFmt:'"$"#,##0.00',border:{top:{style:'thin',color:{rgb:'000000'}},bottom:{style:'double',color:{rgb:'000000'}}}}; }
-
-  function applyStyles(ws, rows, hdrColor, row1Color, row2Color, colWidths, numCols){
-    // Header row
-    const hdr = rows[0];
-    hdr.forEach((v,ci) => {
-      const cell = ws[XLSX.utils.encode_cell({r:0,c:ci})];
-      if(cell) cell.s = hdrStyle(hdrColor);
-    });
-    // Data rows
-    for(let ri=1; ri<rows.length; ri++){
-      const fill = ri%2===1 ? row1Color : row2Color;
-      rows[ri].forEach((v,ci) => {
-        const cell = ws[XLSX.utils.encode_cell({r:ri,c:ci})];
-        if(!cell) return;
-        if(numCols && numCols.includes(ci)){
-          cell.s = numStyle(fill);
-        } else {
-          cell.s = cellStyle(fill, ci===0?'center':'left');
-        }
-      });
-    }
-    // Column widths
-    ws['!cols'] = colWidths.map(w=>({wch:w}));
-    // Row heights
-    ws['!rows'] = rows.map((_,i)=>({hpt: i===0 ? 20 : 16}));
-  }
-
-  // ── ALL TRANSACTIONS sheet ────────────────────────────────────────────────
-  const allHdr = ['Date','Description','Amount','Category','Type','Source'];
-  const allRows = [allHdr, ...txs.map(t=>[
-    t.date, t.desc,
-    {v:t.amount, t:'n'},
-    t.cat,
-    bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Deductible':'Personal',
-    t.src||''
-  ])];
-  // Totals row
-  const inc=txs.filter(t=>bucket(t.cat)==='income').reduce((s,t)=>s+Math.abs(t.amount),0);
-  const ded=txs.filter(t=>bucket(t.cat)==='deductible').reduce((s,t)=>s+Math.abs(t.amount),0);
-  const per=txs.filter(t=>bucket(t.cat)==='personal').reduce((s,t)=>s+Math.abs(t.amount),0);
-
-  const wsAll = XLSX.utils.aoa_to_sheet(allRows);
-  applyStyles(wsAll, allRows, H_BLUE, ROW_BLUE1, ROW_BLUE2, [12,45,14,28,14,18], [2]);
-  XLSX.utils.book_append_sheet(wb, wsAll, 'All Transactions');
-
-  // ── INCOME sheet ──────────────────────────────────────────────────────────
-  const incTx = txs.filter(t=>bucket(t.cat)==='income');
-  const incHdr = ['Date','Description','Amount','Category','Source'];
-  const incRows = [incHdr, ...incTx.map(t=>[t.date,t.desc,{v:t.amount,t:'n'},t.cat,t.src||''])];
-  incRows.push(['','TOTAL INCOME',{v:inc,t:'n'},'','']);
-  const wsInc = XLSX.utils.aoa_to_sheet(incRows);
-  applyStyles(wsInc, incRows, H_GREEN, ROW_GRN1, ROW_GRN2, [12,45,14,28,18], [2]);
-  // Style total row
-  const tr = incRows.length-1;
-  ['A','B','C','D','E'].forEach((col,ci)=>{
-    const cell = wsInc[col+(tr+1)];
-    if(cell) cell.s = totalStyle();
-  });
-  XLSX.utils.book_append_sheet(wb, wsInc, 'Income');
-
-  // ── DEDUCTIBLE EXPENSES sheet ─────────────────────────────────────────────
-  const dedTx = txs.filter(t=>bucket(t.cat)==='deductible');
-  const dedHdr = ['Date','Description','Amount','Category','Source'];
-  const dedRows = [dedHdr, ...dedTx.map(t=>[t.date,t.desc,{v:Math.abs(t.amount),t:'n'},t.cat,t.src||''])];
-  dedRows.push(['','TOTAL DEDUCTIBLE',{v:ded,t:'n'},'','']);
-  const wsDed = XLSX.utils.aoa_to_sheet(dedRows);
-  applyStyles(wsDed, dedRows, H_RED, ROW_RED1, ROW_RED2, [12,45,14,28,18], [2]);
-  const dr = dedRows.length-1;
-  ['A','B','C','D','E'].forEach(col=>{
-    const cell = wsDed[col+(dr+1)];
-    if(cell) cell.s = totalStyle();
-  });
-  XLSX.utils.book_append_sheet(wb, wsDed, 'Deductible Expenses');
-
-  // ── PERSONAL EXPENSES sheet ───────────────────────────────────────────────
-  const perTx = txs.filter(t=>bucket(t.cat)==='personal');
-  const perHdr = ['Date','Description','Amount','Category','Source'];
-  const perRows = [perHdr, ...perTx.map(t=>[t.date,t.desc,{v:Math.abs(t.amount),t:'n'},t.cat,t.src||''])];
-  perRows.push(['','TOTAL PERSONAL',{v:per,t:'n'},'','']);
-  const wsPer = XLSX.utils.aoa_to_sheet(perRows);
-  applyStyles(wsPer, perRows, H_PURPLE, ROW_PUR1, ROW_PUR2, [12,45,14,28,18], [2]);
-  const pr = perRows.length-1;
-  ['A','B','C','D','E'].forEach(col=>{
-    const cell = wsPer[col+(pr+1)];
-    if(cell) cell.s = totalStyle();
-  });
-  XLSX.utils.book_append_sheet(wb, wsPer, 'Personal Expenses');
-
-  // ── SUMMARY sheet ─────────────────────────────────────────────────────────
-  const mi = u.mileage.reduce((s,m)=>s+m.miles,0);
-  const miVal = +(mi*0.70).toFixed(2);
-  const gLoss = u.gambling.reduce((s,v)=>s+(v.loss||0),0);
-  const netTax = Math.max(0, inc-ded-miVal);
-
-  const sumRows = [
-    ['TAXFLOW — TAX SUMMARY', S.year],
-    [''],
-    ['Prepared for:', u.name||''],
-    ['Business:', u.biz||''],
-    ['Tax Year:', S.year],
-    [''],
-    ['INCOME',''],
-    ['Total Gross Income', {v:inc,t:'n'}],
-    [''],
-    ['DEDUCTIBLE EXPENSES',''],
-    ['Total Business Deductions', {v:ded,t:'n'}],
-    ['Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70/mi)', {v:miVal,t:'n'}],
-    ['Total Deductions', {v:ded+miVal,t:'n'}],
-    [''],
-    ['PERSONAL EXPENSES',''],
-    ['Total Personal Spending', {v:per,t:'n'}],
-    [''],
-    ['GAMBLING',''],
-    ['Total Gambling Losses', {v:gLoss,t:'n'}],
-    ['Net Taxable Gambling Income', {v:Math.max(0,gLoss),t:'n'}],
-    [''],
-    ['NET TAXABLE INCOME', {v:netTax,t:'n'}],
-    [''],
-    ['Transaction Count', txs.length],
-    ['Income Transactions', incTx.length],
-    ['Deductible Transactions', dedTx.length],
-    ['Personal Transactions', perTx.length],
-  ];
-
-  const wsSum = XLSX.utils.aoa_to_sheet(sumRows);
-
-  // Style summary sheet manually
-  const sumStyles = {
-    title:   {font:{bold:true,sz:16,name:'Arial',color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:H_DARK}},alignment:{horizontal:'left'}},
-    section: {font:{bold:true,sz:12,name:'Arial',color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:H_BLUE}},alignment:{horizontal:'left'}},
-    label:   {font:{sz:11,name:'Arial'},alignment:{horizontal:'left'}},
-    total:   {font:{bold:true,sz:12,name:'Arial'},fill:{fgColor:{rgb:'BDD7EE'}},alignment:{horizontal:'right'},numFmt:'"$"#,##0.00',border:{top:{style:'thin'},bottom:{style:'double'}}},
-    num:     {font:{sz:11,name:'Arial'},alignment:{horizontal:'right'},numFmt:'"$"#,##0.00'},
-    net:     {font:{bold:true,sz:14,name:'Arial',color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'C00000'}},alignment:{horizontal:'right'},numFmt:'"$"#,##0.00'},
+  const C = {
+    BLUE_HDR:  '2E74B5',
+    GREEN_HDR: '375623',
+    NAVY_HDR:  '1F4E79',
+    PURP_HDR:  '7030A0',
+    ORG_HDR:   'ED7D31',
+    TEAL_HDR:  '00B0F0',
+    RED_NET:   'C00000',
+    ROW_LTBL:  'EBF5EB',
+    ROW_LTGN:  'F0FFF0',
+    ROW_LTBL2: 'D6E4F0',
+    ROW_PEACH: 'FCE4D6',
+    ROW_WHITE: 'FFFFFF',
+    ROW_FAINT: 'FAFAFA',
+    TOT_INC:   'D6E4F0',
+    TOT_DED:   'E2EFDA',
+    TOT_PER:   'FCE4D6',
   };
 
-  // Row 1: title
-  if(wsSum['A1']) wsSum['A1'].s = sumStyles.title;
-  // Section headers
-  [7,10,15,18].forEach(r=>{
-    const cell = wsSum['A'+r];
-    if(cell) cell.s = sumStyles.section;
-  });
-  // NET TAXABLE INCOME row (row 22)
-  if(wsSum['A22']) wsSum['A22'].s = {font:{bold:true,sz:14,name:'Arial',color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'C00000'}},alignment:{horizontal:'left'}};
-  if(wsSum['B22']) wsSum['B22'].s = sumStyles.net;
+  const FONT = 'Arial';
+  const AMT_FMT = '"$"#,##0.00;"($"#,##0.00)';
 
-  // Amount cells
-  [8,11,12,13,16,19,20].forEach(r=>{
-    const cell = wsSum['B'+r];
-    if(cell) cell.s = sumStyles.num;
-  });
-  // Total deductions
-  if(wsSum['B13']) wsSum['B13'].s = sumStyles.total;
+  function fill(hex){ return {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+hex}}; }
 
-  wsSum['!cols'] = [{wch:40},{wch:18}];
-  wsSum['!rows'] = sumRows.map((_,i)=>({hpt: i===0?28:i===6||i===9||i===14||i===17?20:16}));
-  XLSX.utils.book_append_sheet(wb, wsSum, 'Summary');
-
-  // ── GAMBLING sheet (if data exists) ───────────────────────────────────────
-  if(u.gambling.length){
-    const gHdr = ['Venue / Casino','Account #','Net Loss','Total Wagered'];
-    const gRows = [gHdr, ...u.gambling.map(v=>[v.name,v.acc||'',{v:v.loss,t:'n'},{v:v.wagered||0,t:'n'}])];
-    gRows.push(['TOTAL LOSSES','',{v:gLoss,t:'n'},'']);
-    const wsG = XLSX.utils.aoa_to_sheet(gRows);
-    applyStyles(wsG, gRows, H_ORANGE, ROW_ALT1, ROW_ALT2, [32,16,14,16], [2,3]);
-    XLSX.utils.book_append_sheet(wb, wsG, 'Gambling W-L');
+  function styleHdrRow(row, hdrColor){
+    row.height = 22;
+    row.eachCell(cell => {
+      cell.fill = fill(hdrColor);
+      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FFFFFFFF'}};
+      cell.alignment = {vertical:'middle', horizontal:'center', wrapText:false};
+      cell.border = {bottom:{style:'thin', color:{argb:'FF000000'}}};
+    });
   }
 
-  // ── MILEAGE sheet (if data exists) ────────────────────────────────────────
-  if(u.mileage.length){
-    const mHdr = ['Date','From','To','Miles','Purpose','Value ($0.70/mi)'];
-    const mRows = [mHdr, ...u.mileage.map(m=>[m.date,m.from,m.to,{v:m.miles,t:'n'},m.purpose,{v:+(m.miles*0.70).toFixed(2),t:'n'}])];
-    mRows.push(['TOTAL','','',{v:mi,t:'n'},'',{v:miVal,t:'n'}]);
-    const wsM = XLSX.utils.aoa_to_sheet(mRows);
-    applyStyles(wsM, mRows, H_TEAL, ROW_ALT1, ROW_ALT2, [12,20,20,10,28,16], [3,5]);
-    XLSX.utils.book_append_sheet(wb, wsM, 'Mileage Log');
+  function styleDataRow(row, bg, amtCols){
+    row.height = 16;
+    row.eachCell({includeEmpty:false}, (cell, colNum) => {
+      if(bg) cell.fill = fill(bg);
+      cell.font = {name:FONT, size:10, color:{argb:'FF000000'}};
+      if(amtCols.includes(colNum)){
+        cell.alignment = {vertical:'middle', horizontal:'right'};
+        cell.numFmt = AMT_FMT;
+        // Round to 2 decimal places to avoid floating point display issues
+        if(typeof cell.value === 'number') cell.value = Math.round(cell.value * 100) / 100;
+      } else if(colNum === 1){
+        cell.alignment = {vertical:'middle', horizontal:'center'};
+      } else {
+        cell.alignment = {vertical:'middle', horizontal:'left'};
+      }
+    });
   }
 
-  // ── 1099 sheet (if data exists) ───────────────────────────────────────────
+  function styleTotalRow(row, bg, amtCols){
+    row.height = 18;
+    row.eachCell({includeEmpty:false}, (cell, colNum) => {
+      cell.fill = fill(bg);
+      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FF000000'}};
+      cell.border = {top:{style:'thin',color:{argb:'FF000000'}}, bottom:{style:'double',color:{argb:'FF000000'}}};
+      if(amtCols.includes(colNum)){
+        cell.alignment = {vertical:'middle', horizontal:'right'};
+        cell.numFmt = AMT_FMT;
+        if(typeof cell.value === 'number') cell.value = Math.round(cell.value * 100) / 100;
+      } else {
+        cell.alignment = {vertical:'middle', horizontal:'left'};
+      }
+    });
+  }
+
+  function addSheet(name, headers, rows, hdrColor, alt1, alt2, colWidths, amtCols){
+    const ws = wb.addWorksheet(name);
+    ws.columns = colWidths.map((w,i) => ({key:'c'+i, width:w}));
+
+    // Header row — no blank row before it
+    const hdrRow = ws.addRow(headers);
+    styleHdrRow(hdrRow, hdrColor);
+
+    // Data rows
+    rows.forEach((rowData, i) => {
+      const row = ws.addRow(rowData);
+      styleDataRow(row, i%2===0 ? alt1 : alt2, amtCols);
+    });
+
+    return ws;
+  }
+
+  function getMonth(date){
+    const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return m[(parseInt((date||'').split('/')[0])||1)-1]||'';
+  }
+  function getYear(date){
+    // Always return 4-digit year
+    const p=(date||'').split('/');
+    if(!p[2]) return S.year;
+    return p[2].length===2 ? '20'+p[2] : p[2];
+  }
+  function roundAmt(n){ return Math.round((n||0)*100)/100; }
+
+  const incTxs = txs.filter(t=>bucket(t.cat)==='income');
+  const dedTxs = txs.filter(t=>bucket(t.cat)==='deductible');
+  const perTxs = txs.filter(t=>bucket(t.cat)==='personal');
+  const incTotal = roundAmt(incTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
+  const dedTotal = roundAmt(dedTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
+  const perTotal = roundAmt(perTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
+  const mi    = roundAmt(u.mileage.reduce((s,m)=>s+m.miles,0));
+  const miVal = roundAmt(mi*0.70);
+  const gLoss = roundAmt(u.gambling.reduce((s,v)=>s+(v.loss||0),0));
+  const netTax = roundAmt(Math.max(0, incTotal - dedTotal - miVal));
+
+  // ── ALL TRANSACTIONS ───────────────────────────────────────────────────
+  addSheet('All Transactions',
+    ['Date','Month','Year','Description','Amount ($)','Type','Category'],
+    txs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc,
+      roundAmt(Math.abs(t.amount)),
+      bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',
+      t.cat]),
+    C.BLUE_HDR, C.ROW_LTBL, C.ROW_FAINT, [12,8,7,45,14,10,42], [5]
+  );
+
+  // ── INCOME ─────────────────────────────────────────────────────────────
+  const wsInc = addSheet('Income',
+    ['Date','Month','Year','Description','Amount ($)','Category'],
+    incTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
+    C.GREEN_HDR, C.ROW_LTGN, C.ROW_WHITE, [12,8,7,45,14,42], [5]
+  );
+  const incTotalRow = wsInc.addRow(['','','','TOTAL INCOME', incTotal, '']);
+  styleTotalRow(incTotalRow, C.TOT_INC, [5]);
+
+  // ── DEDUCTIBLE ─────────────────────────────────────────────────────────
+  const wsDed = addSheet('Deductible Expenses',
+    ['Date','Month','Year','Description','Amount ($)','Category'],
+    dedTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
+    C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,8,7,45,14,42], [5]
+  );
+  const dedTotalRow = wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES', dedTotal, '']);
+  styleTotalRow(dedTotalRow, C.TOT_DED, [5]);
+
+  // ── PERSONAL ───────────────────────────────────────────────────────────
+  const wsPer = addSheet('Personal Expenses',
+    ['Date','Month','Year','Description','Amount ($)','Category'],
+    perTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
+    C.PURP_HDR, C.ROW_PEACH, C.ROW_WHITE, [12,8,7,45,14,42], [5]
+  );
+  const perTotalRow = wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES', perTotal, '']);
+  styleTotalRow(perTotalRow, C.TOT_PER, [5]);
+
+  // ── SUMMARY ────────────────────────────────────────────────────────────
+  const wsSum = wb.addWorksheet('Summary');
+  wsSum.columns = [{width:46},{width:18}];
+
+  function sumAddRow(vals, opts){
+    const row = wsSum.addRow(vals);
+    row.height = opts.height || 16;
+    const c1 = row.getCell(1);
+    const c2 = row.getCell(2);
+    c1.font = {name:FONT, bold:opts.bold||false, size:opts.sz||11, color:{argb:'FF'+(opts.c1color||'000000')}};
+    c2.font = {name:FONT, bold:opts.bold||false, size:opts.sz||11, color:{argb:'FF'+(opts.c2color||'000000')}};
+    c1.alignment = {horizontal:'left', vertical:'middle'};
+    c2.alignment = {horizontal:'right', vertical:'middle'};
+    if(opts.bg1) c1.fill = fill(opts.bg1);
+    if(opts.bg2) c2.fill = fill(opts.bg2);
+    if(opts.numFmt && vals[1]!==undefined) { c2.numFmt = opts.numFmt; if(typeof vals[1]==='number') c2.value = roundAmt(vals[1]); }
+    if(opts.border){ c1.border={top:{style:'thin'},bottom:{style:'double'}}; c2.border={top:{style:'thin'},bottom:{style:'double'}}; }
+    return row;
+  }
+  function sumHdr(label){
+    const row = wsSum.addRow([label, '']);
+    row.height = 20;
+    [1,2].forEach(c => {
+      const cell = row.getCell(c);
+      cell.fill = fill(C.NAVY_HDR);
+      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FFFFFFFF'}};
+      cell.alignment = {horizontal:'left', vertical:'middle'};
+    });
+    return row;
+  }
+
+  // Title block
+  sumAddRow([(u.biz||'TaxFlow')+' \u2014 '+S.year+' Tax Year Summary', ''], {bold:true, sz:14, height:28});
+  sumAddRow(['Prepared for: '+(u.name||''), ''], {sz:11});
+  sumAddRow(['Tax Year: '+S.year, ''], {sz:11});
+  wsSum.addRow([]);
+
+  // Income
+  sumHdr('INCOME');
+  sumAddRow(['Total Gross Income', incTotal], {numFmt:AMT_FMT});
+  sumAddRow(['TOTAL TAXABLE INCOME', incTotal], {bold:true, bg1:C.TOT_INC, bg2:C.TOT_INC, numFmt:AMT_FMT, border:true, height:18});
+  wsSum.addRow([]);
+
+  // Deductions
+  sumHdr('DEDUCTIBLE EXPENSES');
+  sumAddRow(['Total Business Deductions', dedTotal], {numFmt:AMT_FMT});
+  sumAddRow(['Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70/mi)', miVal], {numFmt:AMT_FMT});
+  sumAddRow(['TOTAL DEDUCTIBLE EXPENSES', dedTotal+miVal], {bold:true, bg1:C.TOT_DED, bg2:C.TOT_DED, numFmt:AMT_FMT, border:true, height:18});
+  wsSum.addRow([]);
+
+  // Personal
+  sumHdr('PERSONAL EXPENSES');
+  sumAddRow(['Total Personal Spending', perTotal], {numFmt:AMT_FMT});
+  sumAddRow(['TOTAL PERSONAL EXPENSES', perTotal], {bold:true, bg1:C.TOT_PER, bg2:C.TOT_PER, numFmt:AMT_FMT, border:true, height:18});
+  wsSum.addRow([]);
+
+  // Gambling
+  sumHdr('GAMBLING');
+  sumAddRow(['Total Gambling Losses', gLoss], {numFmt:AMT_FMT});
+  sumAddRow(['Net Taxable Gambling Income', Math.max(0,gLoss)], {numFmt:AMT_FMT});
+  wsSum.addRow([]);
+
+  // NET TAXABLE — big red
+  const netRow = wsSum.addRow(['NET TAXABLE INCOME', netTax]);
+  netRow.height = 30;
+  [1,2].forEach(c => {
+    const cell = netRow.getCell(c);
+    cell.fill  = fill(C.RED_NET);
+    cell.font  = {name:FONT, bold:true, size:14, color:{argb:'FFFFFFFF'}};
+    cell.alignment = {horizontal: c===1?'left':'right', vertical:'middle'};
+  });
+  netRow.getCell(2).numFmt = AMT_FMT;
+  netRow.getCell(2).value  = roundAmt(netTax);
+  wsSum.addRow([]);
+
+  // Transaction counts
+  sumHdr('TRANSACTION SUMMARY');
+  sumAddRow(['Total Transactions', txs.length], {});
+  sumAddRow(['Income Transactions', incTxs.length], {c1color:'375623', c2color:'375623'});
+  sumAddRow(['Deductible Transactions', dedTxs.length], {c1color:'1F4E79', c2color:'1F4E79'});
+  sumAddRow(['Personal Transactions', perTxs.length], {c1color:'7030A0', c2color:'7030A0'});
+  wsSum.addRow([]);
+
+  const discRow = wsSum.addRow(['TaxFlow is a financial organization tool \u2014 NOT tax advice. Always consult a qualified CPA before filing.']);
+  discRow.getCell(1).font = {name:FONT, italic:true, size:9, color:{argb:'FF94A3B8'}};
+
+  // ── GAMBLING SHEET ─────────────────────────────────────────────────────
+  if(u.gambling && u.gambling.length){
+    const wsG = addSheet('Gambling W-L',
+      ['Venue / Casino','Account #','Net Loss','Total Wagered'],
+      u.gambling.map(v=>[v.name, v.acc||'', roundAmt(v.loss), roundAmt(v.wagered||0)]),
+      C.ORG_HDR, C.ROW_LTBL2, C.ROW_WHITE, [32,16,14,16], [3,4]
+    );
+    const gTotalRow = wsG.addRow(['TOTAL LOSSES','', gLoss, '']);
+    styleTotalRow(gTotalRow, C.TOT_DED, [3]);
+  }
+
+  // ── MILEAGE SHEET ──────────────────────────────────────────────────────
+  if(u.mileage && u.mileage.length){
+    const wsM = addSheet('Mileage Log',
+      ['Date','From','To','Miles','Purpose','Value ($0.70/mi)'],
+      u.mileage.map(m=>[m.date, m.from, m.to, roundAmt(m.miles), m.purpose, roundAmt(m.miles*0.70)]),
+      C.TEAL_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,20,20,10,28,16], [4,6]
+    );
+    const mTotalRow = wsM.addRow(['TOTAL','','', roundAmt(mi),'', roundAmt(miVal)]);
+    styleTotalRow(mTotalRow, C.TOT_DED, [4,6]);
+  }
+
+  // ── 1099 SHEET ─────────────────────────────────────────────────────────
   if(u.c1099 && u.c1099.length){
-    const cHdr = ['Client / Payer','Type','EIN / SSN','Amount'];
-    const cRows = [cHdr, ...u.c1099.map(c=>[c.name,c.type,c.ein,{v:c.amt,t:'n'}])];
-    const wsC = XLSX.utils.aoa_to_sheet(cRows);
-    applyStyles(wsC, cRows, H_DARK, ROW_ALT1, ROW_ALT2, [32,16,16,14], [3]);
-    XLSX.utils.book_append_sheet(wb, wsC, '1099 Tracker');
+    addSheet('1099 Tracker',
+      ['Client / Payer','Type','EIN / SSN','Amount'],
+      u.c1099.map(c=>[c.name, c.type, c.ein, roundAmt(c.amt)]),
+      C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [32,16,16,14], [4]
+    );
   }
 
-  // ── Generate and download ─────────────────────────────────────────────────
-  const wbOpts = { bookType:'xlsx', type:'array', cellStyles:true };
-  const buf = XLSX.write(wb, wbOpts);
+  // ── EXPORT ─────────────────────────────────────────────────────────────
   const fname = ((u.biz||u.name||'TaxFlow').replace(/\s+/g,'_'))+'_'+S.year+'_TaxFlow.xlsx';
-
-  if(window.electronAPI && window.electronAPI.isElectron){
-    window.electronAPI.saveFile(fname, new Uint8Array(buf), 'xlsx')
-      .then(r=>{ if(r&&r.success) toast('\u2705 Saved: '+r.filePath.split(/[\\/]/).pop()); });
-    return;
-  }
-
-  const blob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href=url; a.download=fname; a.click();
-  URL.revokeObjectURL(url);
-  toast('\u2705 Exported: '+fname);
+  wb.xlsx.writeBuffer().then(function(buffer){
+    if(window.electronAPI && window.electronAPI.isElectron){
+      window.electronAPI.saveFile(fname, new Uint8Array(buffer), 'xlsx')
+        .then(r=>{ if(r&&r.success) toast('Saved: '+r.filePath.split(/[\\/]/).pop()); else if(r&&r.error) toast('Save failed: '+r.error); });
+      return;
+    }
+    const blob = new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download=fname; a.click();
+    URL.revokeObjectURL(url);
+    toast('Exported: '+fname);
+  }).catch(function(err){ toast('Export error: '+err.message); console.error(err); });
 }
+
 function exportCsv(){
   const tier=currentTier();
   if(!tier.canExportCsv){
@@ -1815,6 +1840,7 @@ function exportCsv(){
     return;
   }
 
+  if(!tier.canExportCsv){showUpgradeModal();toast('CSV export requires a paid plan.');return;}
   const rows=['Date,Description,Amount,Category'];
   tx().forEach(t=>rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(',')));
   const blob=new Blob([rows.join('\n')],{type:'text/csv'});
@@ -1870,8 +1896,12 @@ const TIERS = {
   free: {
     label: 'Free', maxUsers: 1,
     optionalTabs: ['settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: false,
-    maxTransactions: 200, showUpgradeBanner: true,
+    maxStatements: 3,
+    maxTransactions: 50,
+    canExportExcel: false,
+    canExportCsv: false,
+    canImportPdf: true,
+    showUpgradeBanner: true,
   },
   household: {
     label: 'Household', maxUsers: 2,
@@ -2145,10 +2175,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 // ── ELECTRON BRIDGE ───────────────────────────────────────────────────────
 if (window.electronAPI && window.electronAPI.isElectron) {
 
-  // Block visibilitychange from clearing Supabase session during drag
   document.addEventListener('visibilitychange', (e) => { e.stopImmediatePropagation(); }, true);
 
-  // Diagnostic on startup
   window.addEventListener('DOMContentLoaded', () => {
     setTimeout(async () => {
       try {
@@ -2162,33 +2190,10 @@ if (window.electronAPI && window.electronAPI.isElectron) {
           if(msg) msg.textContent = 'TaxFlow v'+r.appVersion+' ready';
           if(bar) { bar.style.display='flex'; setTimeout(()=>{ bar.style.display='none'; },2500); }
         }
-      } catch(e) { console.error('Bridge ping error:', e); }
+      } catch(e) { console.error('Bridge error:', e); }
     }, 1000);
   });
 
-  // Override exportAll — check tier, then use native save dialog
-  const _origExportAllStyled = window._exportAllStyled;
-  window._exportAllStyled = async function() {
-    const origCreate = URL.createObjectURL;
-    const origRevoke = URL.revokeObjectURL;
-    let captured = null;
-    URL.createObjectURL = (blob) => { captured = blob; return 'blob:captured'; };
-    URL.revokeObjectURL = () => {};
-    if(_origExportAllStyled) await _origExportAllStyled();
-    URL.createObjectURL = origCreate;
-    URL.revokeObjectURL = origRevoke;
-    if (captured) {
-      const arrayBuf = await captured.arrayBuffer();
-      const u2 = U();
-      const fname = ((u2.biz||u2.name||'TaxFlow').replace(/\s+/g,'_'))+'_'+S.year+'_TaxFlow.xlsx';
-      const result = await window.electronAPI.saveFile(fname, new Uint8Array(arrayBuf), 'xlsx');
-      if (result&&result.success) toast('Saved: '+result.filePath.split(/[\/\\]/).pop());
-      else if (result&&result.error) toast('Save failed: '+result.error);
-    }
-  };
-
-  // Override exportCsv with native save dialog
-  const _origExportCsvBody = window.exportCsv;
   window.exportCsv = async function() {
     const tier = currentTier();
     if(!tier.canExportCsv){ showUpgradeModal(); toast('CSV export requires a paid plan.'); return; }
@@ -2199,7 +2204,6 @@ if (window.electronAPI && window.electronAPI.isElectron) {
     if (result&&result.success) toast('CSV saved');
   };
 
-  // File > Import (Ctrl+O)
   window.electronAPI.onImportFiles(async (filePaths) => {
     showProg();
     let total = 0;
@@ -2237,7 +2241,6 @@ if (window.electronAPI && window.electronAPI.isElectron) {
       if (hi) hi.style.paddingLeft = '80px';
     });
   }
-
   console.log('TaxFlow Electron bridge active');
 }
 </script>
