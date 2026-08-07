@@ -300,19 +300,6 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:10px;font-size:20px;font-weight:900;z-index:99999;letter-spacing:2px">🚨 TEST MODE v5.0 🚨</div>
-<div style="height:44px"></div>
-<div id="err-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;padding:12px 16px;font-size:13px;font-family:monospace;z-index:99999;white-space:pre-wrap;max-height:200px;overflow:auto"></div>
-<script>
-window.addEventListener('error', function(e) {
-  const b = document.getElementById('err-banner');
-  if(b) { b.style.display='block'; b.textContent += 'ERROR: ' + e.message + ' (line ' + e.lineno + ')\n'; }
-});
-window.addEventListener('unhandledrejection', function(e) {
-  const b = document.getElementById('err-banner');
-  if(b) { b.style.display='block'; b.textContent += 'PROMISE ERROR: ' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '\n'; }
-});
-</script>
 
 <!-- ── AUTH SCREEN ── -->
 <div id="auth-screen">
@@ -334,11 +321,11 @@ window.addEventListener('unhandledrejection', function(e) {
     <div id="form-login">
       <div class="auth-field">
         <label>Email address</label>
-        <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email">
+        <input type="email" id="login-email" placeholder="you@email.com" onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()" autocomplete="email">
       </div>
       <div class="auth-field">
         <label>Password</label>
-        <input type="password" id="login-pass" placeholder="Your password" autocomplete="current-password">
+        <input type="password" id="login-pass" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
       <button class="auth-btn" onclick="doLogin()">Sign in to TaxFlow</button>
       <div class="auth-note">
@@ -362,7 +349,7 @@ window.addEventListener('unhandledrejection', function(e) {
       </div>
       <div class="auth-field">
         <label>Confirm password</label>
-        <input type="password" id="reg-pass2" placeholder="Repeat password" autocomplete="new-password">
+        <input type="password" id="reg-pass2" placeholder="Repeat password" onkeydown="if(event.key==='Enter')doRegister()" autocomplete="new-password">
       </div>
       <div class="auth-field">
         <label>Second user's name <span style="font-weight:400;color:var(--text3)">(optional — for spouse/partner)</span></label>
