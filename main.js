@@ -10,23 +10,22 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) { app.quit(); }
 else { app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); } }); }
 
-// ── pdfjs ─────────────────────────────────────────────────────────────────
 let _pdfjs = null;
 async function getPdfjs() {
   if (_pdfjs) return _pdfjs;
   const base   = path.join(__dirname, 'node_modules', 'pdfjs-dist', 'legacy', 'build');
   const main   = path.join(base, 'pdf.mjs');
   const worker = path.join(base, 'pdf.worker.mjs');
-  if (!fs.existsSync(main)) { console.error('pdfjs-dist not found at:', main); return null; }
+  if (!fs.existsSync(main)) { console.error('pdfjs-dist not found'); return null; }
   try {
     if (typeof globalThis.DOMMatrix === 'undefined') globalThis.DOMMatrix = class { constructor(){this.a=1;this.b=0;this.c=0;this.d=1;this.e=0;this.f=0;} };
-    if (typeof globalThis.ImageData === 'undefined') globalThis.ImageData = class { constructor(w,h){this.width=w;this.height=h;this.data=new Uint8ClampedArray(w*h*4);} };
+    if (typeof globalThis.ImageData === 'undefined') globalThis.ImageData = class { constructor(w,h){this.data=new Uint8ClampedArray(w*h*4);} };
     if (typeof globalThis.Path2D === 'undefined') globalThis.Path2D = class {};
     _pdfjs = await import(pathToFileURL(main).href);
     _pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(worker).href;
-    console.log('pdfjs loaded, version:', _pdfjs.version);
+    console.log('pdfjs loaded v'+_pdfjs.version);
     return _pdfjs;
-  } catch(e) { console.error('pdfjs load error:', e.message); return null; }
+  } catch(e) { console.error('pdfjs error:', e.message); return null; }
 }
 
 async function extractPdfText(buffer) {
@@ -35,7 +34,6 @@ async function extractPdfText(buffer) {
   try {
     const data = new Uint8Array(buffer);
     const pdf  = await pdfjs.getDocument({ data, useSystemFonts:true, verbosity:0, disableFontFace:true, isEvalSupported:false, useWorkerFetch:false }).promise;
-    console.log('PDF pages:', pdf.numPages);
     let text = '';
     for (let p = 1; p <= pdf.numPages; p++) {
       const page = await pdf.getPage(p);
@@ -78,10 +76,8 @@ ipcMain.handle('ping', async () => ({
 ipcMain.handle('extract-pdf-text', async (event, {fileName, buffer}) => {
   try {
     const buf = Buffer.isBuffer(buffer)?buffer:buffer instanceof Uint8Array?Buffer.from(buffer):Buffer.from(Object.values(buffer));
-    console.log('extract-pdf-text:', fileName, buf.length, 'bytes');
     const text = await extractPdfText(buf);
-    if (!text) return {success:false, error:'Could not extract text — may be a scanned image PDF'};
-    console.log('Extracted', text.length, 'chars');
+    if (!text) return {success:false, error:'Could not extract text'};
     return {success:true, text};
   } catch(e) { return {success:false, error:e.message}; }
 });

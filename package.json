@@ -77,8 +77,7 @@
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "darkModeSupport": false
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "dmg": {
       "title": "TaxFlow ${version}",
