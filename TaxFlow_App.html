@@ -714,6 +714,7 @@ window.addEventListener('unhandledrejection', function(e) {
   </div>
 
 </div><!-- end .main -->
+<div id="prog" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:8888;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#2563eb">Reading statements...</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1808,8 +1809,8 @@ function exportCsv(){
 }
 
 // ── PROGRESS / TOAST ───────────────────────────────────────────────────────
-function showProg(){document.getElementById('prog').style.display='block'}
-function hideProg(){document.getElementById('prog').style.display='none'}
+function showProg(){const p=document.getElementById('prog');if(p)p.style.display='flex';}
+function hideProg(){const p=document.getElementById('prog');if(p)p.style.display='none';}
 function toast(msg){
   const el=document.getElementById('toast');
   el.textContent=msg;el.classList.add('show');
