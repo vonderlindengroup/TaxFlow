@@ -300,7 +300,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 </style>
 </head>
 <body>
-<div style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:10px;font-size:20px;font-weight:900;z-index:99999;letter-spacing:2px">🚨 TEST MODE v4.0 🚨</div>
+<div style="position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;text-align:center;padding:10px;font-size:20px;font-weight:900;z-index:99999;letter-spacing:2px">🚨 TEST MODE v5.0 🚨</div>
 <div style="height:44px"></div>
 <div id="err-banner" style="display:none;position:fixed;top:0;left:0;right:0;background:#dc2626;color:#fff;padding:12px 16px;font-size:13px;font-family:monospace;z-index:99999;white-space:pre-wrap;max-height:200px;overflow:auto"></div>
 <script>
@@ -1671,14 +1671,14 @@ function _exportAllRun(){
       roundAmt(Math.abs(t.amount)),
       bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',
       t.cat]),
-    C.BLUE_HDR, C.ROW_LTBL, C.ROW_FAINT, [12,8,7,45,14,10,30], [5]
+    C.BLUE_HDR, C.ROW_LTBL, C.ROW_FAINT, [12,8,7,45,14,10,42], [5]
   );
 
   // ── INCOME ─────────────────────────────────────────────────────────────
   const wsInc = addSheet('Income',
     ['Date','Month','Year','Description','Amount ($)','Category'],
     incTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
-    C.GREEN_HDR, C.ROW_LTGN, C.ROW_WHITE, [12,8,7,45,14,30], [5]
+    C.GREEN_HDR, C.ROW_LTGN, C.ROW_WHITE, [12,8,7,45,14,42], [5]
   );
   const incTotalRow = wsInc.addRow(['','','','TOTAL INCOME', incTotal, '']);
   styleTotalRow(incTotalRow, C.TOT_INC, [5]);
@@ -1687,7 +1687,7 @@ function _exportAllRun(){
   const wsDed = addSheet('Deductible Expenses',
     ['Date','Month','Year','Description','Amount ($)','Category'],
     dedTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
-    C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,8,7,45,14,30], [5]
+    C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,8,7,45,14,42], [5]
   );
   const dedTotalRow = wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES', dedTotal, '']);
   styleTotalRow(dedTotalRow, C.TOT_DED, [5]);
@@ -1696,7 +1696,7 @@ function _exportAllRun(){
   const wsPer = addSheet('Personal Expenses',
     ['Date','Month','Year','Description','Amount ($)','Category'],
     perTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
-    C.PURP_HDR, C.ROW_PEACH, C.ROW_WHITE, [12,8,7,45,14,30], [5]
+    C.PURP_HDR, C.ROW_PEACH, C.ROW_WHITE, [12,8,7,45,14,42], [5]
   );
   const perTotalRow = wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES', perTotal, '']);
   styleTotalRow(perTotalRow, C.TOT_PER, [5]);
