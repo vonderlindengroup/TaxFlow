@@ -1201,7 +1201,7 @@ function toggleSec(id,head){
   head.classList.toggle('collapsed',open);
 }
 
-function setCat(id,cat){const t=tx().find(x=>x.id===id);if(t){t.cat=cat;save();updateMetrics(getFiltered());updateSummary();}}
+function setCat(id,cat){const t=tx().find(x=>x.id===id);if(t){t.cat=cat;save();render();updateSummary();toast("Category updated");}}
 function delTx(id){U().tx=tx().filter(x=>x.id!==id);save();render();updateSummary();}
 
 function updateMetrics(filtered){
@@ -1515,11 +1515,49 @@ function renderRules(){
 }
 
 function addRule(){
-  const kw=prompt('Keyword or phrase to match (case-insensitive):');if(!kw) return;
-  const cat=prompt('Category to assign:\n\n'+CATS.join('\n'));
-  if(!cat||!CATS.includes(cat)){toast('Invalid category — copy exactly from the list');return;}
-  S.rules.unshift({kw:kw.toLowerCase(),cat});
-  save();renderRules();toast('Rule added');
+  // Build a modal with proper keyword input + category dropdown
+  const existing = document.getElementById('rule-modal');
+  if(existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'rule-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <h3 style="margin:0 0 20px;font-size:17px;font-weight:800;color:var(--text1)">Add Categorization Rule</h3>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Keyword or phrase to match</label>
+        <input id="rule-kw-input" type="text" placeholder="e.g. Amazon, Uber, Stripe..." style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none">
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Will match any transaction description containing this text</div>
+      </div>
+      <div style="margin-bottom:24px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Assign to category</label>
+        <select id="rule-cat-input" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;background:#fff;box-sizing:border-box;outline:none">
+          <option value="">— Select a category —</option>
+          ${CATS.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('rule-modal').remove()" style="padding:10px 20px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:var(--text1)">Cancel</button>
+        <button onclick="submitRule()" style="padding:10px 20px;background:var(--brand);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Add Rule</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('rule-kw-input').focus();
+  // Allow pressing Enter to submit
+  document.getElementById('rule-kw-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('rule-cat-input').focus(); });
+  document.getElementById('rule-cat-input').addEventListener('keydown', e => { if(e.key==='Enter') submitRule(); });
+}
+
+function submitRule(){
+  const kw  = (document.getElementById('rule-kw-input').value||'').trim();
+  const cat = document.getElementById('rule-cat-input').value;
+  if(!kw){ toast('Please enter a keyword'); return; }
+  if(!cat){ toast('Please select a category'); return; }
+  document.getElementById('rule-modal').remove();
+  S.rules.unshift({kw:kw.toLowerCase(), cat});
+  save(); renderRules(); toast('Rule added: "'+kw+'" → '+cat.split(' — ')[1]||cat);
 }
 
 function delRule(i){S.rules.splice(i,1);save();renderRules();}
