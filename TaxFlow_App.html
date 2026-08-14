@@ -392,7 +392,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">BETA</span>
+      <span class="logo-beta">v1.53</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -701,7 +701,38 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     </div>
   </div>
 
-</div><!-- end .main -->
+
+    <!-- ── RETIREMENT PANEL ──────────────────────────────────────────── -->
+    <div class="panel" id="panel-retirement" style="display:none">
+      <div class="panel-header">
+        <h2 class="panel-title">🏦 Retirement Contributions</h2>
+        <button class="btn btn-primary" onclick="addRetirement()">+ Add Contribution</button>
+      </div>
+      <div class="info-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1d4ed8">
+        <strong>2025 Contribution Limits:</strong> SEP-IRA up to 25% of net earnings (max $70,000) · Solo 401k up to $23,500 employee + 25% employer · Traditional/Roth IRA up to $7,000 ($8,000 if 50+)
+      </div>
+      <table class="tx-table" id="retirement-table">
+        <thead><tr><th>Account Type</th><th>Institution</th><th>Date</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="retirement-body"></tbody>
+      </table>
+      <div class="summary-row" id="retirement-total" style="margin-top:12px;font-weight:700;font-size:15px;color:var(--brand)"></div>
+    </div>
+    <!-- ── EQUIPMENT PANEL ───────────────────────────────────────────── -->
+    <div class="panel" id="panel-equipment" style="display:none">
+      <div class="panel-header">
+        <h2 class="panel-title">💻 Equipment & Assets</h2>
+        <button class="btn btn-primary" onclick="addEquipment()">+ Add Asset</button>
+      </div>
+      <div class="info-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1d4ed8">
+        <strong>Section 179 Deduction:</strong> You can deduct the full cost of qualifying business equipment in the year purchased (up to $1,220,000 for 2024). Computers, phones, cameras, tools, and vehicles all qualify if used for business.
+      </div>
+      <table class="tx-table" id="equipment-table">
+        <thead><tr><th>Asset Description</th><th>Purchase Date</th><th>Cost</th><th>Business %</th><th>Deductible Amount</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="equipment-body"></tbody>
+      </table>
+      <div class="summary-row" id="equipment-total" style="margin-top:12px;font-weight:700;font-size:15px;color:var(--brand)"></div>
+    </div>
+    </div><!-- end .main -->
 <div id="prog" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:8888;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#2563eb">Reading statements...</div>
 <div class="toast" id="toast"></div>
 
@@ -733,16 +764,18 @@ const CATS=[
 ];
 
 const OPTIONAL_TABS=[
-  {id:'gambling', icon:'🎰', name:'Gambling W/L',       desc:'Track casino and sportsbook win/loss statements'},
-  {id:'mileage',  icon:'🚗', name:'Vehicle Mileage',    desc:'Log work trips and calculate your mileage deduction'},
-  {id:'homeoffice',icon:'🏠',name:'Home Office',        desc:'Calculate your home office deduction'},
-  {id:'1099',     icon:'📄', name:'1099 Tracker',       desc:'Track 1099 income from each client or platform'},
-  {id:'quarterly',icon:'📅', name:'Quarterly Taxes',    desc:'Estimate your quarterly tax payments'},
-  {id:'settings', icon:'⚙️', name:'Settings',           desc:'Manage profiles, rules, and data'},
+  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
+  {id:'mileage',     icon:'🚗', name:'Vehicle Mileage',     desc:'Log work trips and calculate your mileage deduction'},
+  {id:'homeoffice',  icon:'🏠', name:'Home Office',         desc:'Calculate your home office deduction'},
+  {id:'1099',        icon:'📄', name:'1099 Tracker',        desc:'Track 1099 income from each client or platform'},
+  {id:'quarterly',   icon:'📅', name:'Quarterly Taxes',     desc:'Estimate your quarterly tax payments'},
+  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
+  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
 ];
 
 const TAB_LABELS={
   gambling:'🎰 Gambling W/L', mileage:'🚗 Mileage', homeoffice:'🏠 Home Office',
+  retirement:'🏦 Retirement', equipment:'💻 Equipment',
   '1099':'📄 1099s', quarterly:'📅 Quarterly', settings:'⚙️ Settings'
 };
 
@@ -773,13 +806,13 @@ const DEFAULT_RULES=[
 // ── STATE ──────────────────────────────────────────────────────────────────
 let S={
   users:{
-    herbert:{name:'',biz:'',avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[]},
-    spouse:  {name:'',biz:'',avatar:'U2',color:'green',tx:[],gambling:[],mileage:[],c1099:[]}
+    herbert:{name:'',biz:'',avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[]},
+    spouse:  {name:'',biz:'',avatar:'U2',color:'green',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[]}
   },
   cur:'herbert',
   rules:[...DEFAULT_RULES],
   year:'2025',
-  activeTabs:[],  // no optional tabs shown by default
+  activeTabs:['settings'],  // settings always visible
   currentTab:'statements'
 };
 
@@ -809,10 +842,12 @@ function renderTabs(){
   const dynTabs=S.activeTabs.map(function(id){
     const active=S.currentTab===id?' active':'';
     const label=TAB_LABELS[id]||id;
+    // Settings tab has no close button — it's always permanent
+    const closeBtn = id==='settings' ? '' : ' <span class="tab-close" onclick="removeTab(\'' +id+ '\',event)">×</span>';
     return [
       '<button class="tab-btn'+active+'" id="tab-btn-'+id+'"',
       ' onclick="showTab(\'' +id+ '\')">' + label,
-      ' <span class="tab-close" onclick="removeTab(\'' +id+ '\',event)">×</span>',
+      closeBtn,
       '</button>'
     ].join('');
   }).join('');
@@ -837,6 +872,8 @@ function showTab(id){
   if(id==='summary'){updateSummary();}
   if(id==='gambling'){renderGambling();}
   if(id==='settings'){renderRules();loadSettings();}
+  if(id==='retirement'){renderRetirement();}
+  if(id==='equipment'){renderEquipment();}
   save();
 }
 
@@ -1562,6 +1599,88 @@ function submitRule(){
 
 function delRule(i){S.rules.splice(i,1);save();renderRules();}
 
+
+// ── RETIREMENT ────────────────────────────────────────────────────────────
+function renderRetirement(){
+  const rows = U().retirement || [];
+  const total = rows.reduce((s,r)=>s+(r.amt||0),0);
+  const tbody = document.getElementById('retirement-body');
+  if(!tbody) return;
+  tbody.innerHTML = rows.map((r,i)=>`
+    <tr>
+      <td>${esc(r.type||'')}</td>
+      <td>${esc(r.institution||'')}</td>
+      <td>${esc(r.date||'')}</td>
+      <td style="text-align:right">$${(r.amt||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td>${esc(r.notes||'')}</td>
+      <td><button class="del-btn" onclick="delRetirement(${i})">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">No contributions yet — click "+ Add Contribution" to get started</td></tr>';
+  const tot = document.getElementById('retirement-total');
+  if(tot) tot.textContent = rows.length ? 'Total Contributions: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+}
+
+function addRetirement(){
+  const types = ['SEP-IRA','Solo 401(k) — Employee','Solo 401(k) — Employer','Traditional IRA','Roth IRA','SIMPLE IRA'];
+  const type = prompt('Account type:\n\n'+types.join('\n')+'\n\n(or type your own)');
+  if(!type) return;
+  const institution = prompt('Institution (e.g. Fidelity, Vanguard, Schwab):') || '';
+  const dateStr = prompt('Date of contribution (MM/DD/YYYY):') || '';
+  const amtStr = prompt('Amount contributed ($):');
+  if(!amtStr) return;
+  const amt = parseFloat(amtStr.replace(/[$,]/g,''));
+  if(isNaN(amt)||amt<=0){ toast('Invalid amount'); return; }
+  const notes = prompt('Notes (optional):') || '';
+  if(!U().retirement) U().retirement=[];
+  U().retirement.push({type,institution,date:dateStr,amt,notes});
+  save(); renderRetirement();
+  toast('Contribution added: $'+amt.toLocaleString());
+}
+
+function delRetirement(i){
+  U().retirement.splice(i,1); save(); renderRetirement();
+}
+
+// ── EQUIPMENT ─────────────────────────────────────────────────────────────
+function renderEquipment(){
+  const rows = U().equipment || [];
+  const total = rows.reduce((s,r)=>s+(r.deductible||0),0);
+  const tbody = document.getElementById('equipment-body');
+  if(!tbody) return;
+  tbody.innerHTML = rows.map((r,i)=>`
+    <tr>
+      <td>${esc(r.desc||'')}</td>
+      <td>${esc(r.date||'')}</td>
+      <td style="text-align:right">$${(r.cost||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="text-align:center">${r.biz||100}%</td>
+      <td style="text-align:right;color:var(--green);font-weight:700">$${(r.deductible||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td>${esc(r.notes||'')}</td>
+      <td><button class="del-btn" onclick="delEquipment(${i})">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px">No assets yet — click "+ Add Asset" to get started</td></tr>';
+  const tot = document.getElementById('equipment-total');
+  if(tot) tot.textContent = rows.length ? 'Total Section 179 Deduction: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+}
+
+function addEquipment(){
+  const desc = prompt('Asset description (e.g. MacBook Pro, iPhone 15, Camera):');
+  if(!desc) return;
+  const dateStr = prompt('Purchase date (MM/DD/YYYY):') || '';
+  const costStr = prompt('Total purchase cost ($):');
+  if(!costStr) return;
+  const cost = parseFloat(costStr.replace(/[$,]/g,''));
+  if(isNaN(cost)||cost<=0){ toast('Invalid cost'); return; }
+  const bizPct = parseFloat(prompt('Business use percentage (e.g. 100 for fully business, 50 for half):') || '100');
+  const deductible = Math.round(cost*(bizPct/100)*100)/100;
+  const notes = prompt('Notes (optional, e.g. Section 179, Used for video production):') || '';
+  if(!U().equipment) U().equipment=[];
+  U().equipment.push({desc,date:dateStr,cost,biz:bizPct,deductible,notes});
+  save(); renderEquipment();
+  toast('Asset added — deductible amount: $'+deductible.toLocaleString());
+}
+
+function delEquipment(i){
+  U().equipment.splice(i,1); save(); renderEquipment();
+}
+
 // ── EXPORT ─────────────────────────────────────────────────────────────────
 function exportAll(){
   const tier=currentTier();
@@ -1788,6 +1907,18 @@ function _exportAllRun(){
   sumAddRow(['Net Taxable Gambling Income', Math.max(0,gLoss)], {numFmt:AMT_FMT});
   wsSum.addRow([]);
 
+  // RETIREMENT
+  const retTotal = roundAmt((u.retirement||[]).reduce((s,r)=>s+(r.amt||0),0));
+  const eqTotal  = roundAmt((u.equipment||[]).reduce((s,e)=>s+(e.deductible||0),0));
+  if(retTotal > 0 || eqTotal > 0){
+    wsSum.addRow([]);
+    sumHdr('RETIREMENT & EQUIPMENT');
+    if(retTotal > 0) sumAddRow(['Total Retirement Contributions', retTotal], {numFmt:AMT_FMT});
+    if(eqTotal > 0)  sumAddRow(['Total Section 179 Equipment Deductions', eqTotal], {numFmt:AMT_FMT});
+    const retEqTotal = roundAmt(retTotal + eqTotal);
+    sumAddRow(['TOTAL ADDITIONAL DEDUCTIONS', retEqTotal], {bold:true, bg1:'E2EFDA', bg2:'E2EFDA', numFmt:AMT_FMT, border:true, height:18});
+  }
+
   // NET TAXABLE — big red
   const netRow = wsSum.addRow(['NET TAXABLE INCOME', netTax]);
   netRow.height = 30;
@@ -1841,6 +1972,30 @@ function _exportAllRun(){
       u.c1099.map(c=>[c.name, c.type, c.ein, roundAmt(c.amt)]),
       C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [32,16,16,14], [4]
     );
+  }
+
+  // ── RETIREMENT SHEET ─────────────────────────────────────────────────────
+  if(u.retirement && u.retirement.length){
+    const retTotal = u.retirement.reduce((s,r)=>s+(r.amt||0),0);
+    const wsRet = addSheet('Retirement Contributions',
+      ['Account Type','Institution','Date','Amount ($)','Notes'],
+      u.retirement.map(r=>[r.type||'', r.institution||'', r.date||'', roundAmt(r.amt||0), r.notes||'']),
+      '1F4E79', 'EBF5EB', 'FFFFFF', [22,20,12,14,30], [4]
+    );
+    const retTotalRow = wsRet.addRow(['','','','TOTAL CONTRIBUTIONS', roundAmt(retTotal)]);
+    styleTotalRow(retTotalRow, 'D6E4F0', [5]);
+  }
+
+  // ── EQUIPMENT SHEET ───────────────────────────────────────────────────────
+  if(u.equipment && u.equipment.length){
+    const eqTotal = u.equipment.reduce((s,e)=>s+(e.deductible||0),0);
+    const wsEq = addSheet('Equipment & Assets',
+      ['Asset Description','Purchase Date','Cost ($)','Business %','Deductible Amount ($)','Notes'],
+      u.equipment.map(e=>[e.desc||'', e.date||'', roundAmt(e.cost||0), (e.biz||100)+'%', roundAmt(e.deductible||0), e.notes||'']),
+      '375623', 'F0FFF0', 'FFFFFF', [35,12,14,12,18,25], [3,5]
+    );
+    const eqTotalRow = wsEq.addRow(['','','','','TOTAL SEC. 179 DEDUCTION', roundAmt(eqTotal)]);
+    styleTotalRow(eqTotalRow, 'E2EFDA', [6]);
   }
 
   // ── EXPORT ─────────────────────────────────────────────────────────────
@@ -2096,6 +2251,8 @@ async function signOut() {
 function applyTierRestrictions() {
   const tier = currentTier();
   S.activeTabs = S.activeTabs.filter(t => tier.optionalTabs.includes(t));
+  // Settings tab is always visible regardless of tier
+  if(!S.activeTabs.includes('settings')) S.activeTabs.push('settings');
   showUpgradeBanners(tier);
   const ud2 = document.getElementById('ud-spouse');
   if (ud2) {

@@ -49,7 +49,7 @@ async function extractPdfText(buffer) {
       });
     }
     return text;
-  } catch(e) { console.error('PDF extract error:', e.message); return null; }
+  } catch(e) { console.error('PDF error:', e.message); return null; }
 }
 
 function createWindow() {
@@ -68,7 +68,7 @@ function createWindow() {
 }
 
 ipcMain.handle('ping', async () => ({
-  ok:true, appVersion:'1.0.3', platform:process.platform, nodeVersion:process.version,
+  ok:true, appVersion:'1.53', platform:process.platform, nodeVersion:process.version,
   pdfjsExists: fs.existsSync(path.join(__dirname,'node_modules','pdfjs-dist','legacy','build','pdf.mjs')),
   xlsxExists:  fs.existsSync(path.join(__dirname,'node_modules','xlsx')),
 }));
