@@ -1127,20 +1127,37 @@ async function handleFiles(files){
   let total=0;
   const wTier=currentTier();
   for(const f of list){
+    const ext=f.name.toLowerCase().split('.').pop();
     try{
-      if(f.name.toLowerCase().endsWith('.pdf')){
-        if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade for unlimited!');showUpgradeModal();break;}
+      if(ext==='pdf'){
+        if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){
+          toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade for unlimited!');
+          showUpgradeModal(); break;
+        }
         const n=await parsePDF(f);
-        if(n>0)statementsUploaded++;
+        if(n>0) statementsUploaded++;
+        total+=n;
+      } else if(ext==='csv'){
+        const text=await readText(f);
+        const n=parseCSV(text,f.name);
+        if(n===0) toast('0 transactions found in '+f.name+' — check CSV format');
+        total+=n;
+      } else if(ext==='xlsx'||ext==='xls'){
+        const bin=await readBin(f);
+        const n=parseXLSX(bin,f.name);
+        if(n===0) toast('0 transactions found in '+f.name);
         total+=n;
       } else {
-        const text=await readText(f);
-        total+=f.name.toLowerCase().endsWith('.csv')?parseCSV(text,f.name):parseXLSX(text,f.name);
+        toast('Unsupported file type: '+f.name);
       }
-    }catch(e){console.error(e)}
+    }catch(e){
+      console.error('handleFiles error for '+f.name,e);
+      toast('Error importing '+f.name+': '+(e.message||'unknown error'));
+    }
   }
-  hideProg();save();render();updateSummary();
-  toast(`✅ Imported ${total} transactions`);
+  hideProg();
+  if(total>0){ save();render();updateSummary(); }
+  toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions imported — check file format or try a different statement');
 }
 
 function readText(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(f);})}
@@ -1173,24 +1190,44 @@ function parseXLSX(bin,fname){
 }
 
 async function parsePDF(f){
-  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const buf=await readBuf(f);
-  const pdf=await pdfjsLib.getDocument({data:buf}).promise;
-  let fullText='';
-  for(let p=1;p<=pdf.numPages;p++){
-    const page=await pdf.getPage(p);
-    const content=await page.getTextContent();
-    const lines={};
-    content.items.forEach(item=>{
-      const y=Math.round(item.transform[5]);
-      if(!lines[y]) lines[y]=[];
-      lines[y].push({x:Math.round(item.transform[4]),t:item.str});
-    });
-    Object.keys(lines).sort((a,b)=>b-a).forEach(y=>{
-      fullText+=lines[y].sort((a,b)=>a.x-b.x).map(i=>i.t).join(' ')+'\n';
-    });
+  // Check pdfjs is loaded
+  if(typeof pdfjsLib==='undefined'){
+    toast('PDF reader not loaded — check your internet connection and reload the page.');
+    return 0;
   }
-  return parseBankText(fullText,f.name);
+  try{
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const buf=await readBuf(f);
+    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    let fullText='';
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const ct=await page.getTextContent();
+      const lines={};
+      ct.items.forEach(item=>{
+        const y=Math.round(item.transform[5]);
+        if(!lines[y]) lines[y]=[];
+        lines[y].push({x:Math.round(item.transform[4]),t:item.str});
+      });
+      Object.keys(lines).sort((a,b)=>b-a).forEach(y=>{
+        fullText+=lines[y].sort((a,b)=>a.x-b.x).map(i=>i.t).join(' ')+'\n';
+      });
+    }
+    if(!fullText.trim()){
+      toast('No text found in '+f.name+' — it may be a scanned image PDF.');
+      return 0;
+    }
+    const count=parseBankText(fullText,f.name);
+    if(count===0){
+      toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
+    }
+    return count;
+  }catch(e){
+    console.error('parsePDF error:',e);
+    toast('Error reading '+f.name+': '+(e.message||'unknown error'));
+    return 0;
+  }
 }
 
 function parseBankText(text,fname){
@@ -1318,6 +1355,8 @@ function parseGeneric(lines,fname){
   return added;
 }
 
+function showProg(){const p=document.getElementById('prog');if(p)p.style.display='flex';}
+function hideProg(){const p=document.getElementById('prog');if(p)p.style.display='none';}
 function onDragOver(e){e.preventDefault();document.getElementById('dropzone').classList.add('drag')}
 function onDragLeave(){document.getElementById('dropzone').classList.remove('drag')}
 function onDrop(e){e.preventDefault();document.getElementById('dropzone').classList.remove('drag');handleFiles(e.dataTransfer.files)}
