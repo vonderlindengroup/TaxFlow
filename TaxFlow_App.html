@@ -396,7 +396,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v1.53</span>
+      <span class="logo-beta">v2.0.1</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -411,15 +411,14 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
             <div class="ud-avatar" style="background:rgba(37,99,235,0.15);color:var(--brand)">U1</div>
             <div><div style="font-weight:700" id="ud-name1">User 1</div><div style="font-size:11px;color:var(--text3)" id="ud-biz1">Primary Account</div></div>
           </div>
-          <div class="ud-item" onclick="switchUser('spouse',event)" id="ud-spouse">
-            <div class="ud-avatar" style="background:rgba(22,163,74,0.15);color:var(--green)">U2</div>
-            <div><div style="font-weight:700" id="ud-name2">User 2</div><div style="font-size:11px;color:var(--text3)" id="ud-biz2">Secondary Account</div></div>
-          </div>
+          <div id="ud-extra-users"></div>
           <div class="ud-divider"></div>
+          <div id="ud-add-user-btn"></div>
           <div class="ud-item" onclick="showTab('settings');toggleUD()">⚙️ &nbsp;Settings</div>
         </div>
       </div>
       <button class="btn btn-white" onclick="exportAll()">⬇ Export Excel</button>
+      <button class="btn btn-white" onclick="exportCPAPackage()" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.4)">📦 CPA Package</button>
     </div>
   </div>
 </header>
@@ -700,8 +699,10 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="settings-title">👤 User profiles</div>
       <div class="setting-row"><div><div class="setting-label">Primary user name</div><div class="setting-sub">Appears in header and exports</div></div><input type="text" id="s-n1" style="width:180px" value=""></div>
       <div class="setting-row"><div><div class="setting-label">Business name</div><div class="setting-sub">Shown on all Excel exports</div></div><input type="text" id="s-biz" style="width:200px" value=""></div>
-      <div class="setting-row"><div><div class="setting-label">Second user name</div><div class="setting-sub">For spouse or business partner</div></div><input type="text" id="s-n2" style="width:180px" value=""></div>
-      <div style="margin-top:12px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
+      <div style="margin-top:12px;margin-bottom:16px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
+      <div class="settings-title" style="margin-top:8px">👥 Additional users</div>
+      <div id="settings-extra-users" style="margin-bottom:12px"></div>
+      <div id="settings-add-user-area"></div>
     </div>
     <div class="settings-card">
       <div class="settings-title">🤖 Auto-categorization rules</div>
@@ -893,15 +894,18 @@ function emptyUser(avatar,color){
   return {name:'',biz:'',avatar,color,tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]};
 }
 
+const USER_COLORS = ['brand','green','purple','amber','red'];
+const USER_AVATARS = ['U1','U2','U3','U4','U5'];
+
 let S={
   users:{
     herbert: emptyUser('U1','brand'),
-    spouse:  emptyUser('U2','green'),
   },
   cur:'herbert',
+  extraUsers: [],  // [{id:'user2',name:'',biz:'',...}, ...] up to 4 more
   rules:[...DEFAULT_RULES],
   year: new Date().getFullYear().toString(),
-  years:{},  // multi-year storage: { '2024': { herbert:{...}, spouse:{...} } }
+  years:{},
   activeTabs:['settings'],
   currentTab:'statements',
   profile:{filingStatus:'single',state:''}
@@ -917,12 +921,25 @@ function load(){
       if(!S.years) S.years={};
       if(!S.activeTabs) S.activeTabs=['settings'];
       if(!S.profile) S.profile={filingStatus:'single',state:''};
-      // Ensure invoices array exists on users
-      ['herbert','spouse'].forEach(u=>{
-        if(!S.users[u]) S.users[u]=emptyUser(u==='herbert'?'U1':'U2',u==='herbert'?'brand':'green');
-        if(!S.users[u].invoices) S.users[u].invoices=[];
-        if(!S.users[u].retirement) S.users[u].retirement=[];
-        if(!S.users[u].equipment) S.users[u].equipment=[];
+      if(!S.extraUsers) S.extraUsers=[];
+      // Migrate old 'spouse' to extraUsers if present
+      if(S.users && S.users.spouse && !S.extraUsers.find(u=>u.id==='user2')){
+        const sp=S.users.spouse;
+        if(sp.name||sp.tx&&sp.tx.length){
+          S.extraUsers.push(Object.assign({id:'user2'},sp));
+        }
+        delete S.users.spouse;
+      }
+      // Ensure primary user fields
+      if(!S.users.herbert) S.users.herbert=emptyUser('U1','brand');
+      ['invoices','retirement','equipment'].forEach(f=>{
+        if(!S.users.herbert[f]) S.users.herbert[f]=[];
+      });
+      // Ensure extraUsers fields
+      S.extraUsers.forEach(u=>{
+        ['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(f=>{
+          if(!u[f]) u[f]=[];
+        });
       });
     } else {
       // Try migrating from old tf_v2 format
@@ -950,9 +967,21 @@ function load(){
   render1099();
   render();
   updateSummary();
+  renderUserDropdown();
 }
 function save(){try{localStorage.setItem('tf_v3',JSON.stringify(S));}catch(e){}}
-function U(){return S.users[S.cur]}
+function U(){
+  if(S.cur==='herbert') return S.users.herbert;
+  const eu=S.extraUsers.find(u=>u.id===S.cur);
+  return eu || S.users.herbert;
+}
+function allUsers(){
+  return [S.users.herbert, ...S.extraUsers];
+}
+function maxUsers(){
+  const tier=currentTier();
+  return tier.maxUsers||1;
+}
 function tx(){return U().tx}
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
 function fmt(n){return'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
@@ -1653,1550 +1682,874 @@ function setYear(y){S.year=y;save();updateSummary();setEl('s-year', y);}
 
 // ── SETTINGS ───────────────────────────────────────────────────────────────
 function loadSettings(){
-  document.getElementById('s-n1').value=S.users.herbert.name;
-  document.getElementById('s-biz').value=S.users.herbert.biz;
-  document.getElementById('s-n2').value=S.users.spouse.name;
+  const h=S.users.herbert;
+  const n1=document.getElementById('s-n1'); if(n1) n1.value=h.name||'';
+  const bz=document.getElementById('s-biz'); if(bz) bz.value=h.biz||'';
+  renderYearBtns();
+  renderSettingsUsers();
 }
+
+function renderSettingsUsers(){
+  const tier=currentTier();
+  const maxU=maxUsers();
+  const el=document.getElementById('settings-extra-users');
+  const addArea=document.getElementById('settings-add-user-area');
+  if(!el) return;
+  
+  if(S.extraUsers.length===0){
+    el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0">No additional users yet.</div>';
+  } else {
+    el.innerHTML=S.extraUsers.map((eu,i)=>`
+      <div class="setting-row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <div class="setting-label">${esc(eu.name||'User '+(i+2))}</div>
+          <div class="setting-sub">${esc(eu.biz||'Secondary Account')}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" value="${esc(eu.name||'')}" placeholder="Name" 
+            style="width:130px;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px"
+            onchange="S.extraUsers[${i}].name=this.value;save();renderUserDropdown()">
+          <input type="text" value="${esc(eu.biz||'')}" placeholder="Label"
+            style="width:120px;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px"
+            onchange="S.extraUsers[${i}].biz=this.value;save();renderUserDropdown()">
+          <button class="del-btn" onclick="removeUser('${eu.id}')" title="Remove user">✕</button>
+        </div>
+      </div>`).join('');
+  }
+  
+  if(addArea){
+    const totalUsers=1+S.extraUsers.length;
+    if(totalUsers<maxU){
+      addArea.innerHTML=`<button class="btn btn-outline" onclick="addUser()" style="margin-top:4px">+ Add User (${totalUsers}/${maxU})</button>`;
+    } else if(maxU<=1){
+      addArea.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-top:4px">Upgrade to Household or Business to add more users.</div><button class="btn btn-primary" onclick="showUpgradeModal()" style="margin-top:8px">Upgrade Plan ⭐</button>`;
+    } else {
+      addArea.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-top:4px">Maximum ${maxU} users reached for your plan.</div>`;
+    }
+  }
+}
+
 
 function saveSettings(){
-  S.users.herbert.name=document.getElementById('s-n1').value||'User 1';
-  S.users.herbert.biz=document.getElementById('s-biz').value||'';
-  S.users.spouse.name=document.getElementById('s-n2').value||'User 2';
-  const ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=S.users.herbert.name||'User 1';
-  const ud2=document.getElementById('ud-name2');if(ud2)ud2.textContent=S.users.spouse.name||'User 2';
-  const ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
-  const ub2=document.getElementById('ud-biz2');if(ub2)ub2.textContent=S.users.spouse.biz||'Secondary Account';
-  updateHeaderUser();save();toast('Settings saved');
-}
-
-function renderRules(){
-  const el=document.getElementById('rule-list');
-  if(!el) return;
-  el.innerHTML=S.rules.map((r,i)=>`
-    <div class="rule-item">
-      <span class="rule-kw">${esc(r.kw)}</span>
-      <span class="rule-arrow">→</span>
-      <span class="rule-cat">${esc(r.cat)}</span>
-      <button class="del-btn" onclick="delRule(${i})">✕</button>
-    </div>`).join('');
-}
-
-function addRule(){
-  // Build a modal with proper keyword input + category dropdown
-  const existing = document.getElementById('rule-modal');
-  if(existing) existing.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'rule-modal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-      <h3 style="margin:0 0 20px;font-size:17px;font-weight:800;color:var(--text1)">Add Categorization Rule</h3>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Keyword or phrase to match</label>
-        <input id="rule-kw-input" type="text" placeholder="e.g. Amazon, Uber, Stripe..." style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none">
-        <div style="font-size:11px;color:var(--text2);margin-top:4px">Will match any transaction description containing this text</div>
-      </div>
-      <div style="margin-bottom:24px">
-        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Assign to category</label>
-        <select id="rule-cat-input" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;background:#fff;box-sizing:border-box;outline:none">
-          <option value="">— Select a category —</option>
-          ${CATS.map(c=>`<option value="${c}">${c}</option>`).join('')}
-        </select>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="document.getElementById('rule-modal').remove()" style="padding:10px 20px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:var(--text1)">Cancel</button>
-        <button onclick="submitRule()" style="padding:10px 20px;background:var(--brand);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Add Rule</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  document.getElementById('rule-kw-input').focus();
-  // Allow pressing Enter to submit
-  document.getElementById('rule-kw-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('rule-cat-input').focus(); });
-  document.getElementById('rule-cat-input').addEventListener('keydown', e => { if(e.key==='Enter') submitRule(); });
-}
-
-function submitRule(){
-  const kw  = (document.getElementById('rule-kw-input').value||'').trim();
-  const cat = document.getElementById('rule-cat-input').value;
-  if(!kw){ toast('Please enter a keyword'); return; }
-  if(!cat){ toast('Please select a category'); return; }
-  document.getElementById('rule-modal').remove();
-  S.rules.unshift({kw:kw.toLowerCase(), cat});
-  save(); renderRules(); toast('Rule added: "'+kw+'" → '+cat.split(' — ')[1]||cat);
-}
-
-function delRule(i){S.rules.splice(i,1);save();renderRules();}
-
-
-// ── RETIREMENT ────────────────────────────────────────────────────────────
-function renderRetirement(){
-  const rows = U().retirement || [];
-  const total = rows.reduce((s,r)=>s+(r.amt||0),0);
-  const tbody = document.getElementById('retirement-body');
-  if(!tbody) return;
-  tbody.innerHTML = rows.map((r,i)=>`
-    <tr>
-      <td>${esc(r.type||'')}</td>
-      <td>${esc(r.institution||'')}</td>
-      <td>${esc(r.date||'')}</td>
-      <td style="text-align:right">$${(r.amt||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td>${esc(r.notes||'')}</td>
-      <td><button class="del-btn" onclick="delRetirement(${i})">✕</button></td>
-    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">No contributions yet — click "+ Add Contribution" to get started</td></tr>';
-  const tot = document.getElementById('retirement-total');
-  if(tot) tot.textContent = rows.length ? 'Total Contributions: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
-}
-
-function addRetirement(){
-  const types = ['SEP-IRA','Solo 401(k) — Employee','Solo 401(k) — Employer','Traditional IRA','Roth IRA','SIMPLE IRA'];
-  const type = prompt('Account type:\n\n'+types.join('\n')+'\n\n(or type your own)');
-  if(!type) return;
-  const institution = prompt('Institution (e.g. Fidelity, Vanguard, Schwab):') || '';
-  const dateStr = prompt('Date of contribution (MM/DD/YYYY):') || '';
-  const amtStr = prompt('Amount contributed ($):');
-  if(!amtStr) return;
-  const amt = parseFloat(amtStr.replace(/[$,]/g,''));
-  if(isNaN(amt)||amt<=0){ toast('Invalid amount'); return; }
-  const notes = prompt('Notes (optional):') || '';
-  if(!U().retirement) U().retirement=[];
-  U().retirement.push({type,institution,date:dateStr,amt,notes});
-  save(); renderRetirement();
-  toast('Contribution added: $'+amt.toLocaleString());
-}
-
-function delRetirement(i){
-  U().retirement.splice(i,1); save(); renderRetirement();
-}
-
-// ── EQUIPMENT ─────────────────────────────────────────────────────────────
-function renderEquipment(){
-  const rows = U().equipment || [];
-  const total = rows.reduce((s,r)=>s+(r.deductible||0),0);
-  const tbody = document.getElementById('equipment-body');
-  if(!tbody) return;
-  tbody.innerHTML = rows.map((r,i)=>`
-    <tr>
-      <td>${esc(r.desc||'')}</td>
-      <td>${esc(r.date||'')}</td>
-      <td style="text-align:right">$${(r.cost||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td style="text-align:center">${r.biz||100}%</td>
-      <td style="text-align:right;color:var(--green);font-weight:700">$${(r.deductible||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td>${esc(r.notes||'')}</td>
-      <td><button class="del-btn" onclick="delEquipment(${i})">✕</button></td>
-    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px">No assets yet — click "+ Add Asset" to get started</td></tr>';
-  const tot = document.getElementById('equipment-total');
-  if(tot) tot.textContent = rows.length ? 'Total Section 179 Deduction: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
-}
-
-function addEquipment(){
-  const desc = prompt('Asset description (e.g. MacBook Pro, iPhone 15, Camera):');
-  if(!desc) return;
-  const dateStr = prompt('Purchase date (MM/DD/YYYY):') || '';
-  const costStr = prompt('Total purchase cost ($):');
-  if(!costStr) return;
-  const cost = parseFloat(costStr.replace(/[$,]/g,''));
-  if(isNaN(cost)||cost<=0){ toast('Invalid cost'); return; }
-  const bizPct = parseFloat(prompt('Business use percentage (e.g. 100 for fully business, 50 for half):') || '100');
-  const deductible = Math.round(cost*(bizPct/100)*100)/100;
-  const notes = prompt('Notes (optional, e.g. Section 179, Used for video production):') || '';
-  if(!U().equipment) U().equipment=[];
-  U().equipment.push({desc,date:dateStr,cost,biz:bizPct,deductible,notes});
-  save(); renderEquipment();
-  toast('Asset added — deductible amount: $'+deductible.toLocaleString());
-}
-
-function delEquipment(i){
-  U().equipment.splice(i,1); save(); renderEquipment();
+  S.users.herbert.name=document.getElementById('s-n1').value.trim()||'Primary User';
+  S.users.herbert.biz=document.getElementById('s-biz').value.trim()||'';
+  save();
+  renderUserDropdown();
+  updateHeaderUser();
+  updateDropdownNames();
+  toast('Settings saved');
 }
 
 
-// ── YEAR MANAGEMENT ───────────────────────────────────────────────────────
-
-function renderYearBtns(){
-  const el = document.getElementById('year-btns');
-  if(!el) return;
-  const years = getAvailableYears();
-  el.innerHTML = years.map(y => `
-    <button class="btn ${y===S.year?'btn-primary':'btn-outline'}" 
-      onclick="switchYear('${y}')" style="min-width:70px">${y}</button>
-  `).join('');
-}
 
 function getAvailableYears(){
-  const ys = new Set([S.year]);
-  Object.keys(S.years||{}).forEach(y=>ys.add(y));
-  return Array.from(ys).sort((a,b)=>b-a);
+  var ys=new Set([S.year]);
+  Object.keys(S.years||{}).forEach(function(y){ys.add(y);});
+  return Array.from(ys).sort(function(a,b){return b-a;});
 }
-
+function renderYearBtns(){
+  var el=document.getElementById('year-btns');if(!el)return;
+  var years=getAvailableYears();
+  el.innerHTML=years.map(function(y){
+    return '<button class="btn '+(y===S.year?'btn-primary':'btn-outline')+'" onclick="switchYear(\''+y+'\')" style="min-width:70px">'+y+'</button>';
+  }).join('');
+}
 function switchYear(y){
-  // Save current year data into S.years
-  if(!S.years) S.years={};
-  S.years[S.year]={
-    herbert: JSON.parse(JSON.stringify(S.users.herbert)),
-    spouse:  JSON.parse(JSON.stringify(S.users.spouse)),
-  };
-  // Load new year data (or create fresh)
+  if(!S.years)S.years={};
+  S.years[S.year]={herbert:JSON.parse(JSON.stringify(S.users.herbert)),extraUsers:JSON.parse(JSON.stringify(S.extraUsers||[]))};
   if(S.years[y]){
-    S.users.herbert = S.years[y].herbert;
-    S.users.spouse  = S.years[y].spouse;
-    // Ensure new fields
-    ['herbert','spouse'].forEach(u=>{
-      if(!S.users[u].invoices)   S.users[u].invoices=[];
-      if(!S.users[u].retirement) S.users[u].retirement=[];
-      if(!S.users[u].equipment)  S.users[u].equipment=[];
-    });
-  } else {
-    S.users.herbert = emptyUser('U1','brand');
-    S.users.spouse  = emptyUser('U2','green');
-    // Keep names from current user
-    S.users.herbert.name = S.users.spouse.name ? S.users.herbert.name : S.users.herbert.name;
+    S.users.herbert=S.years[y].herbert;
+    S.extraUsers=S.years[y].extraUsers||[];
+    ['invoices','retirement','equipment'].forEach(function(f){if(!S.users.herbert[f])S.users.herbert[f]=[];});
+    (S.extraUsers||[]).forEach(function(u){['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(function(f){if(!u[f])u[f]=[];});});
+  }else{
+    var n=S.users.herbert.name,b=S.users.herbert.biz;
+    S.users.herbert=emptyUser('U1','brand');S.users.herbert.name=n;S.users.herbert.biz=b;S.extraUsers=[];
   }
-  S.year=y;
-  save();
-  render(); updateSummary(); renderTabs(); renderYearBtns();
-  toast('Switched to '+y);
-  // Update header year display
-  updateHeaderUser();
+  if(S.cur!=='herbert'&&!(S.extraUsers||[]).find(function(u){return u.id===S.cur;}))S.cur='herbert';
+  S.year=y;save();render();updateSummary();renderTabs();renderYearBtns();renderUserDropdown();toast('Switched to '+y);updateHeaderUser();
 }
-
 function addYear(){
-  const input = document.getElementById('new-year-input');
-  const y = (input.value||'').trim();
-  if(!y||isNaN(y)||y<2018||y>2030){ toast('Enter a valid year (2018–2030)'); return; }
-  if(getAvailableYears().includes(y)){ switchYear(y); input.value=''; return; }
-  // Create new year with same user names
-  if(!S.years) S.years={};
-  S.years[y]={
-    herbert: emptyUser('U1','brand'),
-    spouse:  emptyUser('U2','green'),
-  };
-  S.years[y].herbert.name = S.users.herbert.name;
-  S.years[y].spouse.name  = S.users.spouse.name;
-  S.years[y].herbert.biz  = S.users.herbert.biz;
-  save();
-  switchYear(y);
-  input.value='';
-  toast('Tax year '+y+' created');
+  var input=document.getElementById('new-year-input');
+  var y=(input?input.value:'').trim();
+  if(!y||isNaN(y)||+y<2018||+y>2030){toast('Enter a valid year (2018-2030)');return;}
+  if(getAvailableYears().includes(y)){switchYear(y);if(input)input.value='';return;}
+  if(!S.years)S.years={};
+  S.years[y]={herbert:emptyUser('U1','brand'),extraUsers:[]};
+  S.years[y].herbert.name=S.users.herbert.name;S.years[y].herbert.biz=S.users.herbert.biz;
+  save();switchYear(y);if(input)input.value='';toast('Tax year '+y+' created');
 }
-
-// Override loadSettings to also render year buttons
-const _origLoadSettings = typeof loadSettings === 'function' ? loadSettings : ()=>{};
-function loadSettings(){
-  _origLoadSettings();
-  renderYearBtns();
-}
-
-// ── INVOICE TRACKER ────────────────────────────────────────────────────────
-
-function renderInvoices(){
-  const invs = U().invoices || [];
-  const today = new Date();
-  let paid=0, paidCount=0, out=0, outCount=0, over=0, overCount=0, total=0;
-  
-  invs.forEach(inv => {
-    total += inv.amount||0;
-    if(inv.status==='paid'){
-      paid += inv.amount||0; paidCount++;
-    } else {
-      const due = inv.due ? new Date(inv.due) : null;
-      if(due && due < today){ over += inv.amount||0; overCount++; }
-      else { out += inv.amount||0; outCount++; }
-    }
-  });
-
-  const fmt = n => '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  setEl('inv-paid-total', fmt(paid));
-  setEl('inv-paid-count', paidCount+' invoice'+(paidCount!==1?'s':''));
-  setEl('inv-out-total', fmt(out));
-  setEl('inv-out-count', outCount+' invoice'+(outCount!==1?'s':''));
-  setEl('inv-over-total', fmt(over));
-  setEl('inv-over-count', overCount+' invoice'+(overCount!==1?'s':''));
-  setEl('inv-total-total', fmt(total));
-  setEl('inv-total-count', invs.length+' invoice'+(invs.length!==1?'s':''));
-
-  const tbody = document.getElementById('invoice-body');
-  if(!tbody) return;
-  if(!invs.length){
-    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">No invoices yet — click "+ Add Invoice" to get started</td></tr>';
-    return;
+function renderUserDropdown(){
+  var maxU=maxUsers(),totalUsers=1+(S.extraUsers||[]).length;
+  var extraEl=document.getElementById('ud-extra-users');
+  if(extraEl){
+    extraEl.innerHTML=(S.extraUsers||[]).map(function(eu){
+      var colorMap={brand:'rgba(37,99,235,0.15)',green:'rgba(22,163,74,0.15)',purple:'rgba(124,58,237,0.15)',amber:'rgba(217,119,6,0.15)',red:'rgba(220,38,38,0.15)'};
+      var textMap={brand:'var(--brand)',green:'var(--green)',purple:'var(--purple)',amber:'var(--amber)',red:'var(--red)'};
+      var isCur=S.cur===eu.id;
+      return '<div class="ud-item'+(isCur?' active':'')+'" onclick="switchUserDyn(\''+eu.id+'\',event)">'+
+        '<div class="ud-avatar" style="background:'+(colorMap[eu.color]||'rgba(37,99,235,0.15)')+';color:'+(textMap[eu.color]||'var(--brand)')+'">'+  (eu.avatar||'U?')+'</div>'+
+        '<div><div style="font-weight:700">'+(eu.name||'User '+(eu.avatar||'?'))+'</div>'+
+        '<div style="font-size:11px;color:var(--text3)">'+(eu.biz||'Secondary Account')+'</div></div>'+
+        '<button onclick="removeUser(\''+eu.id+'\',event)" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:4px">&#x2715;</button></div>';
+    }).join('');
   }
+  var addBtn=document.getElementById('ud-add-user-btn');
+  if(addBtn){
+    if(totalUsers<maxU){addBtn.innerHTML='<div class="ud-item" onclick="addUser()" style="color:var(--brand);font-weight:600">+ Add User</div>';}
+    else if(maxU<=1){addBtn.innerHTML='<div class="ud-item" style="color:var(--text3);font-size:12px;cursor:default">Upgrade to add more users</div>';}
+    else{addBtn.innerHTML='';}
+  }
+  var h=S.users.herbert;
+  var ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=h.name||'Primary User';
+  var ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=h.biz||'Primary Account';
+}
+function switchUserDyn(id,event){
+  if(event)event.stopPropagation();
+  S.cur=id;save();render();updateSummary();renderUserDropdown();
+  var el=document.getElementById('user-dropdown');if(el)el.classList.remove('open');
+  updateHeaderUser();var u=U();toast('Switched to '+(u.name||id));
+}
+function addUser(){
+  var tier=typeof currentTier==='function'?currentTier():{maxUsers:1};
+  var maxU=tier.maxUsers||1,totalUsers=1+(S.extraUsers||[]).length;
+  if(totalUsers>=maxU){if(maxU<=1&&typeof showUpgradeModal==='function')showUpgradeModal();else toast('Maximum '+maxU+' users reached');return;}
+  var modal=document.createElement('div');
+  modal.id='add-user-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
+    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add User</h3>'+
+    '<div><label class="field-label">Full Name</label>'+
+    '<input id="new-user-name" type="text" placeholder="e.g. Jane Smith" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Business / Account Label (optional)</label>'+
+    '<input id="new-user-biz" type="text" placeholder="e.g. Spouse, Partner" class="field-input"></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+    '<button onclick="document.getElementById(\'add-user-modal\').remove()" class="btn btn-outline">Cancel</button>'+
+    '<button onclick="submitAddUser()" class="btn btn-primary">Add User</button></div></div>';
+  document.body.appendChild(modal);
+  var ni=document.getElementById('new-user-name');
+  if(ni){ni.focus();ni.addEventListener('keydown',function(e){if(e.key==='Enter'){var bi=document.getElementById('new-user-biz');if(bi)bi.focus();}});}
+  var bi=document.getElementById('new-user-biz');
+  if(bi)bi.addEventListener('keydown',function(e){if(e.key==='Enter')submitAddUser();});
+  var ud=document.getElementById('user-dropdown');if(ud)ud.classList.remove('open');
+}
+function submitAddUser(){
+  var nameEl=document.getElementById('new-user-name'),bizEl=document.getElementById('new-user-biz');
+  var name=(nameEl?nameEl.value:'').trim(),biz=(bizEl?bizEl.value:'').trim();
+  if(!name){toast('Please enter a name');return;}
+  if(!S.extraUsers)S.extraUsers=[];
+  var idx=S.extraUsers.length;
+  var colors=['green','purple','amber','red'],avatars=['U2','U3','U4','U5'];
+  var newUser=emptyUser(avatars[idx]||'U?',colors[idx]||'green');
+  newUser.id='user'+(idx+2);newUser.name=name;newUser.biz=biz;
+  S.extraUsers.push(newUser);
+  var m=document.getElementById('add-user-modal');if(m)m.remove();
+  save();renderUserDropdown();renderSettingsUsers();toast('User added: '+name);
+}
+function removeUser(id,event){
+  if(event){event.stopPropagation();event.preventDefault();}
+  if(!S.extraUsers)return;
+  var u=S.extraUsers.find(function(u){return u.id===id;});if(!u)return;
+  if(!confirm('Remove '+(u.name||id)+'? Their data will be deleted.'))return;
+  S.extraUsers=S.extraUsers.filter(function(u){return u.id!==id;});
+  if(S.cur===id)S.cur='herbert';
+  save();render();updateSummary();renderUserDropdown();updateHeaderUser();toast('User removed');
+}
+function renderInvoices(){
+  var invs=U().invoices||[],today=new Date();
+  var paid=0,paidC=0,out=0,outC=0,over=0,overC=0,total=0;
+  invs.forEach(function(inv){
+    total+=inv.amount||0;
+    if(inv.status==='paid'){paid+=inv.amount||0;paidC++;}
+    else{var due=inv.due?new Date(inv.due):null;if(due&&due<today){over+=inv.amount||0;overC++;}else{out+=inv.amount||0;outC++;}}
+  });
+  function fmt(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  setEl('inv-paid-total',fmt(paid));setEl('inv-paid-count',paidC+' invoice'+(paidC!==1?'s':''));
+  setEl('inv-out-total',fmt(out));setEl('inv-out-count',outC+' invoice'+(outC!==1?'s':''));
+  setEl('inv-over-total',fmt(over));setEl('inv-over-count',overC+' invoice'+(overC!==1?'s':''));
+  setEl('inv-total-total',fmt(total));setEl('inv-total-count',invs.length+' invoice'+(invs.length!==1?'s':''));
+  var tbody=document.getElementById('invoice-body');if(!tbody)return;
+  if(!invs.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">No invoices yet</td></tr>';return;}
+  tbody.innerHTML=invs.map(function(inv,i){
+    var due=inv.due?new Date(inv.due):null,isOv=inv.status!=='paid'&&due&&due<today;
+    var sC=inv.status==='paid'?'var(--green)':isOv?'var(--red)':'var(--amber)';
+    var sB=inv.status==='paid'?'var(--green-bg)':isOv?'var(--red-bg)':'var(--amber-bg)';
+    return '<tr style="'+(isOv?'background:var(--red-bg)':'')+'">'+
+      '<td style="font-weight:700;color:var(--brand)">'+esc(inv.num||'#'+(i+1))+'</td>'+
+      '<td>'+esc(inv.client||'')+'</td><td>'+esc(inv.desc||'')+'</td>'+
+      '<td>'+esc(inv.sent||'')+'</td><td style="'+(isOv?'color:var(--red);font-weight:700':'')+'">'+esc(inv.due||'--')+'</td>'+
+      '<td style="text-align:right;font-weight:700">$'+(inv.amount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
+      '<td><select onchange="updateInvoiceStatus('+i+',this.value)" style="background:'+sB+';color:'+sC+';border:1px solid '+sC+';border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700">'+
+        '<option value="outstanding"'+(inv.status==='outstanding'?' selected':'')+'>Outstanding</option>'+
+        '<option value="paid"'+(inv.status==='paid'?' selected':'')+'>Paid</option>'+
+        '<option value="overdue"'+(inv.status==='overdue'?' selected':'')+'>Overdue</option>'+
+        '<option value="cancelled"'+(inv.status==='cancelled'?' selected':'')+'>Cancelled</option>'+
+      '</select></td><td style="font-size:12px;color:var(--text2)">'+esc(inv.notes||'')+'</td>'+
+      '<td><button class="del-btn" onclick="delInvoice('+i+')">&#x2715;</button></td></tr>';
+  }).join('');
+}
+function addInvoice(){
+  var modal=document.createElement('div');modal.id='inv-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  var t2=new Date().toISOString().split('T')[0];
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto">'+
+    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Invoice</h3>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'+
+    '<div><label class="field-label">Invoice #</label><input id="inv-num" type="text" placeholder="INV-001" class="field-input"></div>'+
+    '<div><label class="field-label">Client</label><input id="inv-client" type="text" placeholder="Client name" class="field-input"></div>'+
+    '<div><label class="field-label">Date Sent</label><input id="inv-sent" type="date" class="field-input" value="'+t2+'"></div>'+
+    '<div><label class="field-label">Due Date</label><input id="inv-due" type="date" class="field-input"></div>'+
+    '<div style="grid-column:1/-1"><label class="field-label">Description</label><input id="inv-desc" type="text" placeholder="e.g. Web design services" class="field-input"></div>'+
+    '<div><label class="field-label">Amount ($)</label><input id="inv-amount" type="number" placeholder="0.00" min="0" step="0.01" class="field-input"></div>'+
+    '<div><label class="field-label">Status</label><select id="inv-status" class="field-input"><option value="outstanding">Outstanding</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></div>'+
+    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="inv-notes" type="text" placeholder="e.g. Net 30" class="field-input"></div>'+
+    '</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">'+
+    '<button onclick="document.getElementById(\'inv-modal\').remove()" class="btn btn-outline">Cancel</button>'+
+    '<button onclick="submitInvoice()" class="btn btn-primary">Save Invoice</button></div></div>';
+  document.body.appendChild(modal);
+  var ni=document.getElementById('inv-num');if(ni)ni.focus();
+}
+function submitInvoice(){
+  var num=(document.getElementById('inv-num').value||'').trim();
+  var client=(document.getElementById('inv-client').value||'').trim();
+  var sent=document.getElementById('inv-sent').value;
+  var due=document.getElementById('inv-due').value;
+  var desc=(document.getElementById('inv-desc').value||'').trim();
+  var amount=parseFloat(document.getElementById('inv-amount').value)||0;
+  var status=document.getElementById('inv-status').value;
+  var notes=(document.getElementById('inv-notes').value||'').trim();
+  if(!client){toast('Please enter a client name');return;}
+  if(!amount||amount<=0){toast('Please enter a valid amount');return;}
+  if(!U().invoices)U().invoices=[];
+  U().invoices.push({num:num,client:client,sent:sent,due:due,desc:desc,amount:Math.round(amount*100)/100,status:status,notes:notes});
+  var m=document.getElementById('inv-modal');if(m)m.remove();
+  save();renderInvoices();toast('Invoice added');
+}
+function updateInvoiceStatus(i,status){if(U().invoices&&U().invoices[i]){U().invoices[i].status=status;save();renderInvoices();}}
+function delInvoice(i){if(!confirm('Delete this invoice?'))return;U().invoices.splice(i,1);save();renderInvoices();}
+function renderPL(){
+  var el=document.getElementById('pl-content');if(!el)return;
+  var txs=tx(),u=U();
+  var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
+  var miVal=roundAmt(mi*0.70);
+  var retT=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
+  var eqT=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
+  var incByCat={},dedByCat={},totalInc=0,totalDed=0,totalPer=0;
+  txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income'){incByCat[t.cat]=(incByCat[t.cat]||0)+a;totalInc+=a;}else if(bucket(t.cat)==='deductible'){dedByCat[t.cat]=(dedByCat[t.cat]||0)+a;totalDed+=a;}else totalPer+=a;});
+  totalInc=roundAmt(totalInc);totalDed=roundAmt(totalDed);totalPer=roundAmt(totalPer);
+  var totalExp=roundAmt(totalDed+miVal+retT+eqT);
+  var netInc=roundAmt(totalInc-totalExp);
+  function fmt(n){return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  var incRows=Object.entries(incByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' -- ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">'+fmt(e[1])+'</td></tr>';}).join('');
+  var dedRows=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' -- ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">('+fmt(e[1])+')</td></tr>';}).join('');
+  el.innerHTML='<div style="border:1px solid var(--border);border-radius:14px;overflow:hidden">'+
+    '<div style="background:#1F4E79;color:#fff;padding:20px 24px"><div style="font-size:18px;font-weight:800">'+esc(u.biz||u.name||'Business')+' Profit & Loss</div>'+
+    '<div style="font-size:13px;opacity:0.8;margin-top:4px">Tax Year '+S.year+' · Generated by TaxFlow</div></div>'+
+    '<div style="padding:16px 24px;background:var(--green-bg);border-bottom:1px solid var(--border)">'+
+    '<div style="font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:8px">Revenue</div>'+
+    '<table style="width:100%;border-collapse:collapse">'+incRows+'</table>'+
+    '<div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--green);color:#fff;border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Revenue</span><span>'+fmt(totalInc)+'</span></div></div>'+
+    '<div style="padding:16px 24px;border-bottom:1px solid var(--border)">'+
+    '<div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:8px">Operating Expenses</div>'+
+    '<table style="width:100%;border-collapse:collapse">'+dedRows+
+    (miVal>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Vehicle Mileage</td><td style="text-align:right;padding:8px 12px">('+fmt(miVal)+')</td></tr>':'')+
+    (retT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Retirement Contributions</td><td style="text-align:right;padding:8px 12px">('+fmt(retT)+')</td></tr>':'')+
+    (eqT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Section 179 Equipment</td><td style="text-align:right;padding:8px 12px">('+fmt(eqT)+')</td></tr>':'')+'</table>'+
+    '<div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Expenses</span><span>('+fmt(totalExp)+')</span></div></div>'+
+    '<div style="padding:20px 24px;background:'+(netInc>=0?'#1F4E79':'#C00000')+';color:#fff;display:flex;justify-content:space-between;align-items:center">'+
+    '<span style="font-size:18px;font-weight:800">Net '+(netInc>=0?'Profit':'Loss')+'</span><span style="font-size:22px;font-weight:900">'+(netInc<0?'-':'')+fmt(netInc)+'</span></div>'+
+    '<div style="padding:12px 24px;background:var(--bg2);font-size:12px;color:var(--text2)">Personal spending of '+fmt(totalPer)+' excluded. TaxFlow is not tax advice.</div></div>';
+}
+function exportPL(){
+  var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
+  if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();return;}
+  exportAll();
+}
+function renderClients(){
+  var el=document.getElementById('clients-content');if(!el)return;
+  var txs=tx().filter(function(t){return bucket(t.cat)==='income';});
+  if(!txs.length){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px">No income transactions yet.</div>';return;}
+  var sources={};
+  txs.forEach(function(t){
+    var source=t.desc;
+    if(/stripe/i.test(source))source='Stripe';
+    else if(/paypal/i.test(source))source='PayPal';
+    else if(/venmo/i.test(source)){var m=source.match(/venmo[^,]*?([A-Z][a-z]+)/i);source=m?m[1]:'Venmo';}
+    else if(/zelle/i.test(source))source='Zelle';
+    else if(/ach|deposit|transfer|direct dep/i.test(source)){var m2=source.replace(/ACH|DEPOSIT|TRANSFER|DIRECT DEP/gi,'').trim();source=(m2.length>3&&m2.length<40)?m2.replace(/^\s*[,.-]+\s*/,'').trim():'Bank Transfer';}
+    else if(/check|ccd|ppd/i.test(source))source='Check / Wire';
+    else source=source.length>30?source.substring(0,30)+'...':source;
+    if(!sources[source])sources[source]={total:0,count:0};
+    sources[source].total+=Math.abs(t.amount);sources[source].count++;
+  });
+  var totalInc=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
+  var sorted=Object.entries(sources).sort(function(a,b){return b[1].total-a[1].total;});
+  function fmt(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function pct(n){return (n/totalInc*100).toFixed(1)+'%';}
+  el.innerHTML='<div style="margin-bottom:20px;padding:16px;background:var(--green-bg);border:1px solid var(--green-mid);border-radius:12px;display:flex;justify-content:space-between;align-items:center">'+
+    '<div><div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase">Total Income '+S.year+'</div>'+
+    '<div style="font-size:24px;font-weight:800;color:var(--green)">'+fmt(totalInc)+'</div></div>'+
+    '<div style="font-size:13px;color:var(--text2)">'+txs.length+' transactions</div></div>'+
+    sorted.map(function(e){
+      var name=e[0],data=e[1],barW=Math.round(data.total/totalInc*100);
+      return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+        '<div style="font-weight:700;font-size:15px">'+esc(name)+'</div>'+
+        '<div style="text-align:right"><div style="font-weight:800;font-size:16px;color:var(--green)">'+fmt(data.total)+'</div>'+
+        '<div style="font-size:12px;color:var(--text2)">'+pct(data.total)+' &middot; '+data.count+' transaction'+(data.count!==1?'s':'')+'</div></div></div>'+
+        '<div style="background:var(--bg3);border-radius:99px;height:8px;overflow:hidden">'+
+        '<div style="background:var(--green);height:100%;width:'+barW+'%;border-radius:99px"></div></div></div>';
+    }).join('');
+}
+function renderYOY(){
+  var el=document.getElementById('yoy-content');if(!el)return;
+  var years=getAvailableYears();
+  if(years.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px"><div style="font-size:48px;margin-bottom:12px">📅</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Only one year of data</div><div>Go to Settings to add a previous year.</div></div>';return;}
+  function calcY(ud){
+    if(!ud)return{inc:0,ded:0,per:0,net:0,txCount:0};
+    var inc=0,ded=0,per=0;
+    (ud.tx||[]).forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});
+    var mi=roundAmt((ud.mileage||[]).reduce(function(s,m){return s+m.miles;},0)*0.70);
+    var ret=roundAmt((ud.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
+    var eq=roundAmt((ud.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
+    var td=roundAmt(ded+mi+ret+eq);
+    return{inc:roundAmt(inc),ded:td,per:roundAmt(per),net:Math.max(0,roundAmt(inc-td)),txCount:(ud.tx||[]).length};
+  }
+  var data={};data[S.year]=calcY(S.users.herbert);
+  Object.entries(S.years||{}).forEach(function(e){data[e[0]]=calcY(e[1].herbert);});
+  function fmt(n){return '$'+Math.round(n).toLocaleString();}
+  function arrow(curr,prev){if(!prev&&prev!==0)return '';var pct=((curr-prev)/(prev||1)*100),up=pct>=0;return '<span style="font-size:11px;color:'+(up?'var(--green)':'var(--red)')+';margin-left:6px">'+(up?'▲':'▼')+Math.abs(pct).toFixed(1)+'%</span>';}
+  var metrics=[{key:'inc',label:'Total Income',color:'var(--green)'},{key:'ded',label:'Total Deductions',color:'var(--brand)'},{key:'net',label:'Net Taxable',color:'#C00000'},{key:'per',label:'Personal Spending',color:'var(--text2)'}];
+  var sy=years.sort(function(a,b){return b-a;});
+  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:400px">'+
+    '<thead><tr style="background:#1F4E79"><th style="padding:12px 16px;text-align:left;color:#fff;font-size:13px">Metric</th>'+
+    sy.map(function(y){return '<th style="padding:12px 16px;text-align:right;color:#fff;font-size:13px">'+y+(y===S.year?' (current)':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
+    metrics.map(function(m,mi){
+      return '<tr style="background:'+(mi%2===0?'#fff':'var(--bg2)')+'"><td style="padding:14px 16px;font-weight:600;color:'+m.color+'">'+m.label+'</td>'+
+        sy.map(function(y,yi){var val=(data[y]&&data[y][m.key])||0,prevY=sy[yi+1],prev=prevY&&data[prevY]&&data[prevY][m.key];return '<td style="padding:14px 16px;text-align:right;font-weight:700;color:'+m.color+'">'+fmt(val)+(yi<sy.length-1?arrow(val,prev):'')+'</td>';}).join('')+'</tr>';
+    }).join('')+
+    '<tr style="background:var(--bg3);border-top:2px solid var(--border)"><td style="padding:14px 16px;font-weight:600;color:var(--text2)">Transactions</td>'+
+    sy.map(function(y){return '<td style="padding:14px 16px;text-align:right;color:var(--text2)">'+((data[y]&&data[y].txCount)||0).toLocaleString()+'</td>';}).join('')+'</tr></tbody></table></div>';
+}
+function toggleReceipt(id){
+  var t=tx().find(function(x){return x.id===id;});if(!t)return;
+  t.receipt=!t.receipt;save();
+  var btn=document.getElementById('rcpt-'+id);
+  if(btn){btn.textContent=t.receipt?'🧾':'📎';btn.style.opacity=t.receipt?'1':'0.3';}
+  toast(t.receipt?'Receipt marked':'Receipt tag removed');
+}
+function roundAmt(n){return Math.round((n||0)*100)/100;}
+function exportCPAPackage(){
+  var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
+  if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();toast('CPA Export requires a paid plan.');return;}
+  exportAll();
+  var u=U(),txs=tx();
+  var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
+  var miVal=roundAmt(mi*0.70);
+  var ret=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
+  var eq=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
+  var invPaid=roundAmt((u.invoices||[]).filter(function(i){return i.status==='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
+  var invOut=roundAmt((u.invoices||[]).filter(function(i){return i.status!=='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
+  var inc=0,ded=0,per=0;
+  txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});
+  inc=roundAmt(inc);ded=roundAmt(ded);per=roundAmt(per);
+  var totalDed=roundAmt(ded+miVal+ret+eq);
+  var netTax=roundAmt(Math.max(0,inc-totalDed));
+  var receiptCount=txs.filter(function(t){return t.receipt;}).length;
+  function fmt(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  var dedByCat={};
+  txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){var k=t.cat.split(' -- ')[1]||t.cat;dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);});
+  var dedRows=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:6px 0;color:#555">'+esc(e[0])+'</td><td style="text-align:right;padding:6px 0;font-weight:600">'+fmt(e[1])+'</td></tr>';}).join('');
+  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TaxFlow CPA Package</title>'+
+    '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#222;background:#fff;padding:40px;max-width:800px;margin:0 auto}'+
+    '.hdr{background:#1F4E79;color:#fff;padding:32px 36px;border-radius:12px;margin-bottom:28px}.hdr h1{font-size:28px;font-weight:800;margin-bottom:4px}.hdr p{font-size:14px;opacity:0.8}'+
+    '.sec{margin-bottom:24px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.sh{background:#f8fafc;padding:12px 18px;font-size:13px;font-weight:800;color:#1F4E79;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0}.sb{padding:16px 18px}'+
+    '.kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:14px}.kv:last-child{border-bottom:none}.kv .l{color:#555}.kv .v{font-weight:700}'+
+    '.net{background:#C00000;color:#fff;padding:16px 18px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-top:16px}'+
+    '.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mb{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px}.ml{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px}.mv{font-size:18px;font-weight:800;color:#222;margin-top:4px}'+
+    '.disc{margin-top:28px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e}table{width:100%;border-collapse:collapse}</style></head><body>'+
+    '<div class="hdr"><h1>Tax Preparation Package</h1><p>'+esc(u.biz||u.name||'TaxFlow User')+' &middot; Tax Year '+S.year+' &middot; '+today+'</p></div>'+
+    '<div class="g2" style="margin-bottom:24px">'+
+    '<div class="mb"><div class="ml">Total Transactions</div><div class="mv">'+txs.length.toLocaleString()+'</div></div>'+
+    '<div class="mb"><div class="ml">Receipts on File</div><div class="mv">'+receiptCount+' / '+txs.length+'</div></div>'+
+    '<div class="mb"><div class="ml">Outstanding Invoices</div><div class="mv" style="color:#d97706">'+fmt(invOut)+'</div></div>'+
+    '<div class="mb"><div class="ml">Paid Invoices</div><div class="mv" style="color:#16a34a">'+fmt(invPaid)+'</div></div></div>'+
+    '<div class="sec"><div class="sh">Income</div><div class="sb"><div class="kv"><span class="l">Total Gross Income</span><span class="v" style="color:#16a34a">'+fmt(inc)+'</span></div></div></div>'+
+    '<div class="sec"><div class="sh">Deductions</div><div class="sb"><table>'+dedRows+'</table>'+
+    (mi>0?'<div class="kv" style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px"><span class="l">Vehicle Mileage</span><span class="v">'+fmt(miVal)+'</span></div>':'')+
+    (ret>0?'<div class="kv"><span class="l">Retirement</span><span class="v">'+fmt(ret)+'</span></div>':'')+
+    (eq>0?'<div class="kv"><span class="l">Section 179 Equipment</span><span class="v">'+fmt(eq)+'</span></div>':'')+
+    '<div class="kv" style="font-size:16px;font-weight:800;padding:12px 0"><span class="l" style="color:#1F4E79">Total Deductions</span><span class="v">'+fmt(totalDed)+'</span></div></div></div>'+
+    '<div class="sec"><div class="sh">Personal Spending</div><div class="sb"><div class="kv"><span class="l">Total Personal Expenses</span><span class="v" style="color:#dc2626">'+fmt(per)+'</span></div></div></div>'+
+    '<div class="net"><span style="font-size:18px;font-weight:800">NET TAXABLE INCOME</span><span style="font-size:22px;font-weight:900">'+fmt(netTax)+'</span></div>'+
+    '<div class="disc"><strong>Disclaimer:</strong> TaxFlow is a financial organization tool, not tax advice. Always review with a qualified CPA before filing.</div>'+
+    '<div style="margin-top:20px;text-align:center;font-size:12px;color:#94a3b8">Generated by TaxFlow &middot; gettaxflow.com &middot; '+today+'</div>'+
+    '</body></html>';
+  var w=window.open('','_blank','width=900,height=700');
+  if(w){w.document.write(html);w.document.close();setTimeout(function(){try{w.print();}catch(e){}},600);}
+  else toast('Please allow popups to generate the CPA package');
+}
 
-  tbody.innerHTML = invs.map((inv,i)=>{
-    const today = new Date();
-    const due = inv.due ? new Date(inv.due) : null;
-    const isOverdue = inv.status!=='paid' && due && due < today;
-    const statusColor = inv.status==='paid'?'var(--green)':isOverdue?'var(--red)':'var(--amber)';
-    const statusBg    = inv.status==='paid'?'var(--green-bg)':isOverdue?'var(--red-bg)':'var(--amber-bg)';
-    const statusLabel = inv.status==='paid'?'✅ Paid':isOverdue?'🔴 Overdue':'🟡 Outstanding';
-    return `<tr style="${isOverdue?'background:var(--red-bg)':''}">
-      <td style="font-weight:700;color:var(--brand)">${esc(inv.num||'#'+( i+1))}</td>
-      <td>${esc(inv.client||'')}</td>
-      <td>${esc(inv.desc||'')}</td>
-      <td>${esc(inv.sent||'')}</td>
-      <td style="${isOverdue?'color:var(--red);font-weight:700':''}">${esc(inv.due||'—')}</td>
-      <td style="text-align:right;font-weight:700">$${(inv.amount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
-      <td>
-        <select onchange="updateInvoiceStatus(${i},this.value)" 
-          style="background:${statusBg};color:${statusColor};border:1px solid ${statusColor};border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700;cursor:pointer">
-          <option value="outstanding" ${inv.status==='outstanding'?'selected':''}>🟡 Outstanding</option>
-          <option value="paid"        ${inv.status==='paid'?'selected':''}>✅ Paid</option>
-          <option value="overdue"     ${inv.status==='overdue'||isOverdue?'selected':''}>🔴 Overdue</option>
-          <option value="cancelled"   ${inv.status==='cancelled'?'selected':''}>⬛ Cancelled</option>
-        </select>
-      </td>
-      <td style="font-size:12px;color:var(--text2)">${esc(inv.notes||'')}</td>
-      <td><button class="del-btn" onclick="delInvoice(${i})">✕</button></td>
-    </tr>`;
+
+
+
+// ── RETIREMENT CONTRIBUTIONS ─────────────────────────────────────────────
+function renderRetirement(){
+  var rows=U().retirement||[];
+  var total=rows.reduce(function(s,r){return s+(r.amt||0);},0);
+  var tbody=document.getElementById('retirement-body');if(!tbody)return;
+  tbody.innerHTML=rows.map(function(r,i){
+    return '<tr><td>'+esc(r.type||'')+'</td><td>'+esc(r.institution||'')+'</td><td>'+esc(r.date||'')+'</td>'+
+      '<td style="text-align:right">$'+(r.amt||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
+      '<td>'+esc(r.notes||'')+'</td>'+
+      '<td><button class="del-btn" onclick="delRetirement('+i+')">&#x2715;</button></td></tr>';
+  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">No contributions yet</td></tr>';
+  var tot=document.getElementById('retirement-total');
+  if(tot)tot.textContent=rows.length?'Total Contributions: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+}
+function addRetirement(){
+  var types=['SEP-IRA','Solo 401(k) Employee','Solo 401(k) Employer','Traditional IRA','Roth IRA','SIMPLE IRA'];
+  var modal=document.createElement('div');modal.id='ret-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
+    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Retirement Contribution</h3>'+
+    '<div><label class="field-label">Account Type</label>'+
+    '<select id="ret-type" class="field-input" style="margin-bottom:12px">'+types.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select>'+
+    '<label class="field-label">Institution</label><input id="ret-inst" type="text" placeholder="e.g. Fidelity, Vanguard" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Date</label><input id="ret-date" type="date" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Amount ($)</label><input id="ret-amt" type="number" placeholder="0.00" min="0" step="0.01" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Notes (optional)</label><input id="ret-notes" type="text" placeholder="Optional notes" class="field-input"></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+    '<button onclick="closeModal(&quot;ret-modal&quot;)" class="btn btn-outline">Cancel</button>'+
+    '<button onclick="submitRetirement()" class="btn btn-primary">Add</button></div></div>';
+  document.body.appendChild(modal);
+}
+function submitRetirement(){
+  var type=document.getElementById('ret-type').value;
+  var inst=(document.getElementById('ret-inst').value||'').trim();
+  var date=document.getElementById('ret-date').value;
+  var amt=parseFloat(document.getElementById('ret-amt').value)||0;
+  var notes=(document.getElementById('ret-notes').value||'').trim();
+  if(!amt||amt<=0){toast('Please enter a valid amount');return;}
+  if(!U().retirement)U().retirement=[];
+  U().retirement.push({type:type,institution:inst,date:date,amt:Math.round(amt*100)/100,notes:notes});
+  var m=document.getElementById('ret-modal');if(m)m.remove();
+  save();renderRetirement();toast('Contribution added');
+}
+function addRetirement(){ addRetirement(); } // alias
+function delRetirement(i){U().retirement.splice(i,1);save();renderRetirement();}
+
+// ── EQUIPMENT & ASSETS ────────────────────────────────────────────────────
+function renderEquipment(){
+  var rows=U().equipment||[];
+  var total=rows.reduce(function(s,e){return s+(e.deductible||0);},0);
+  var tbody=document.getElementById('equipment-body');if(!tbody)return;
+  tbody.innerHTML=rows.map(function(e,i){
+    return '<tr><td>'+esc(e.desc||'')+'</td><td>'+esc(e.date||'')+'</td>'+
+      '<td style="text-align:right">$'+(e.cost||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
+      '<td style="text-align:center">'+(e.biz||100)+'%</td>'+
+      '<td style="text-align:right;color:var(--green);font-weight:700">$'+(e.deductible||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
+      '<td>'+esc(e.notes||'')+'</td>'+
+      '<td><button class="del-btn" onclick="delEquipment('+i+')">&#x2715;</button></td></tr>';
+  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px">No assets yet</td></tr>';
+  var tot=document.getElementById('equipment-total');
+  if(tot)tot.textContent=rows.length?'Total Section 179 Deduction: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
+}
+function addEquipment(){
+  var modal=document.createElement('div');modal.id='eq-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
+    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Equipment / Asset</h3>'+
+    '<div><label class="field-label">Asset Description</label><input id="eq-desc" type="text" placeholder="e.g. MacBook Pro, iPhone 15" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Purchase Date</label><input id="eq-date" type="date" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Total Cost ($)</label><input id="eq-cost" type="number" placeholder="0.00" min="0" step="0.01" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Business Use % (0-100)</label><input id="eq-biz" type="number" value="100" min="0" max="100" class="field-input" style="margin-bottom:12px">'+
+    '<label class="field-label">Notes (optional)</label><input id="eq-notes" type="text" placeholder="e.g. Section 179" class="field-input"></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
+    '<button onclick="closeModal(&quot;eq-modal&quot;)" class="btn btn-outline">Cancel</button>'+
+    '<button onclick="submitEquipment()" class="btn btn-primary">Add</button></div></div>';
+  document.body.appendChild(modal);
+}
+function submitEquipment(){
+  var desc=(document.getElementById('eq-desc').value||'').trim();
+  var date=document.getElementById('eq-date').value;
+  var cost=parseFloat(document.getElementById('eq-cost').value)||0;
+  var biz=parseFloat(document.getElementById('eq-biz').value)||100;
+  var notes=(document.getElementById('eq-notes').value||'').trim();
+  if(!desc){toast('Please enter a description');return;}
+  if(!cost||cost<=0){toast('Please enter a valid cost');return;}
+  var deductible=Math.round(cost*(biz/100)*100)/100;
+  if(!U().equipment)U().equipment=[];
+  U().equipment.push({desc:desc,date:date,cost:Math.round(cost*100)/100,biz:biz,deductible:deductible,notes:notes});
+  var m=document.getElementById('eq-modal');if(m)m.remove();
+  save();renderEquipment();toast('Asset added — deductible: $'+deductible.toLocaleString());
+}
+function delEquipment(i){U().equipment.splice(i,1);save();renderEquipment();}
+
+// ── AUTO-CATEGORIZATION RULES ─────────────────────────────────────────────
+function addRule(){
+  var modal=document.createElement('div');modal.id='rule-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
+    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Categorization Rule</h3>'+
+    '<div style="margin-bottom:16px"><label class="field-label">Keyword or phrase to match</label>'+
+    '<input id="rule-kw-input" type="text" placeholder="e.g. Amazon, Uber, Stripe..." class="field-input">'+
+    '<div style="font-size:11px;color:var(--text2);margin-top:4px">Case-insensitive, matches any transaction containing this text</div></div>'+
+    '<div style="margin-bottom:24px"><label class="field-label">Assign to category</label>'+
+    '<select id="rule-cat-input" class="field-input">'+
+    '<option value="">— Select a category —</option>'+
+    CATS.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
+    '</select></div>'+
+    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+    '<button onclick="closeModal(&quot;rule-modal&quot;)" class="btn btn-outline">Cancel</button>'+
+    '<button onclick="submitRule()" class="btn btn-primary">Add Rule</button></div></div>';
+  document.body.appendChild(modal);
+  var ki=document.getElementById('rule-kw-input');if(ki){ki.focus();ki.addEventListener('keydown',function(e){if(e.key==='Enter'){var ci=document.getElementById('rule-cat-input');if(ci)ci.focus();}});}
+  var ci=document.getElementById('rule-cat-input');if(ci)ci.addEventListener('keydown',function(e){if(e.key==='Enter')submitRule();});
+}
+function submitRule(){
+  var kw=(document.getElementById('rule-kw-input').value||'').trim();
+  var cat=document.getElementById('rule-cat-input').value;
+  if(!kw){toast('Please enter a keyword');return;}
+  if(!cat){toast('Please select a category');return;}
+  var m=document.getElementById('rule-modal');if(m)m.remove();
+  S.rules.unshift({kw:kw.toLowerCase(),cat:cat});
+  save();renderRules();toast('Rule added: "'+kw+'"');
+}
+function delRule(i){S.rules.splice(i,1);save();renderRules();}
+function renderRules(){
+  var el=document.getElementById('rule-list');if(!el)return;
+  if(!S.rules||!S.rules.length){el.innerHTML='<div style="font-size:13px;color:var(--text2)">No custom rules yet.</div>';return;}
+  el.innerHTML=S.rules.map(function(r,i){
+    return '<div class="rule-item"><span class="rule-kw">'+esc(r.kw)+'</span><span class="rule-arrow">→</span><span class="rule-cat">'+esc(r.cat)+'</span><button class="del-btn" onclick="delRule('+i+')">&#x2715;</button></div>';
   }).join('');
 }
 
-function addInvoice(){
-  const modal = document.createElement('div');
-  modal.id = 'inv-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML=`
-    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto">
-      <h3 style="margin:0 0 20px;font-size:17px;font-weight:800">🧾 Add Invoice</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-        <div>
-          <label class="field-label">Invoice #</label>
-          <input id="inv-num" type="text" placeholder="INV-001" class="field-input">
-        </div>
-        <div>
-          <label class="field-label">Client Name</label>
-          <input id="inv-client" type="text" placeholder="Client or company" class="field-input">
-        </div>
-        <div>
-          <label class="field-label">Date Sent</label>
-          <input id="inv-sent" type="date" class="field-input">
-        </div>
-        <div>
-          <label class="field-label">Due Date</label>
-          <input id="inv-due" type="date" class="field-input">
-        </div>
-        <div style="grid-column:1/-1">
-          <label class="field-label">Description of Work</label>
-          <input id="inv-desc" type="text" placeholder="e.g. Web design services - March 2025" class="field-input">
-        </div>
-        <div>
-          <label class="field-label">Amount ($)</label>
-          <input id="inv-amount" type="number" placeholder="0.00" min="0" step="0.01" class="field-input">
-        </div>
-        <div>
-          <label class="field-label">Status</label>
-          <select id="inv-status" class="field-input">
-            <option value="outstanding">🟡 Outstanding</option>
-            <option value="paid">✅ Paid</option>
-            <option value="overdue">🔴 Overdue</option>
-          </select>
-        </div>
-        <div style="grid-column:1/-1">
-          <label class="field-label">Notes (optional)</label>
-          <input id="inv-notes" type="text" placeholder="e.g. Net 30, partial payment received" class="field-input">
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
-        <button onclick="document.getElementById('inv-modal').remove()" class="btn btn-outline">Cancel</button>
-        <button onclick="submitInvoice()" class="btn btn-primary">Save Invoice</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-  document.getElementById('inv-num').focus();
-  // Set today as sent date default
-  document.getElementById('inv-sent').value = new Date().toISOString().split('T')[0];
-}
+function closeModal(id){var m=document.getElementById(id);if(m)m.remove();}
 
-function submitInvoice(){
-  const num    = document.getElementById('inv-num').value.trim();
-  const client = document.getElementById('inv-client').value.trim();
-  const sent   = document.getElementById('inv-sent').value;
-  const due    = document.getElementById('inv-due').value;
-  const desc   = document.getElementById('inv-desc').value.trim();
-  const amount = parseFloat(document.getElementById('inv-amount').value)||0;
-  const status = document.getElementById('inv-status').value;
-  const notes  = document.getElementById('inv-notes').value.trim();
-  if(!client){ toast('Please enter a client name'); return; }
-  if(!amount||amount<=0){ toast('Please enter a valid amount'); return; }
-  if(!U().invoices) U().invoices=[];
-  U().invoices.push({num,client,sent,due,desc,amount:Math.round(amount*100)/100,status,notes});
-  document.getElementById('inv-modal').remove();
-  save(); renderInvoices();
-  toast('Invoice added: '+client+' — $'+amount.toLocaleString());
-}
-
-function updateInvoiceStatus(i, status){
-  if(!U().invoices||!U().invoices[i]) return;
-  U().invoices[i].status = status;
-  save(); renderInvoices();
-}
-
-function delInvoice(i){
-  if(!confirm('Delete this invoice?')) return;
-  U().invoices.splice(i,1);
-  save(); renderInvoices();
-}
-
-// ── PROFIT & LOSS ─────────────────────────────────────────────────────────
-
-function renderPL(){
-  const el = document.getElementById('pl-content');
-  if(!el) return;
-  const txs = tx();
-  const u = U();
-  const mi    = (u.mileage||[]).reduce((s,m)=>s+m.miles,0);
-  const miVal = +(mi*0.70).toFixed(2);
-  const retTotal = (u.retirement||[]).reduce((s,r)=>s+(r.amt||0),0);
-  const eqTotal  = (u.equipment||[]).reduce((s,e)=>s+(e.deductible||0),0);
-
-  // Group income by category
-  const incByCat={}, dedByCat={};
-  let totalInc=0, totalDed=0, totalPer=0;
-  txs.forEach(t=>{
-    const a=Math.abs(t.amount);
-    if(bucket(t.cat)==='income'){
-      incByCat[t.cat]=(incByCat[t.cat]||0)+a; totalInc+=a;
-    } else if(bucket(t.cat)==='deductible'){
-      dedByCat[t.cat]=(dedByCat[t.cat]||0)+a; totalDed+=a;
-    } else {
-      totalPer+=a;
-    }
-  });
-
-  const totalExpenses = totalDed + miVal + retTotal + eqTotal;
-  const netIncome = totalInc - totalExpenses;
-  const fmt = n => '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const neg = n => n<0;
-
-  const incRows = Object.entries(incByCat).sort((a,b)=>b[1]-a[1])
-    .map(([cat,amt])=>`<tr><td style="padding:8px 12px;color:var(--text2)">${esc(cat.split(' — ')[1]||cat)}</td><td style="text-align:right;padding:8px 12px">${fmt(amt)}</td></tr>`).join('');
-  const dedRows = Object.entries(dedByCat).sort((a,b)=>b[1]-a[1])
-    .map(([cat,amt])=>`<tr><td style="padding:8px 12px;color:var(--text2)">${esc(cat.split(' — ')[1]||cat)}</td><td style="text-align:right;padding:8px 12px">(${fmt(amt)})</td></tr>`).join('');
-
-  el.innerHTML=`
-    <div style="border:1px solid var(--border);border-radius:14px;overflow:hidden;font-family:'Arial',sans-serif">
-      <!-- Header -->
-      <div style="background:#1F4E79;color:#fff;padding:20px 24px">
-        <div style="font-size:18px;font-weight:800">${esc(u.biz||u.name||'Business')} — Profit & Loss</div>
-        <div style="font-size:13px;opacity:0.8;margin-top:4px">Tax Year ${S.year} · Generated by TaxFlow</div>
-      </div>
-      <!-- INCOME section -->
-      <div style="padding:16px 24px;background:var(--green-bg);border-bottom:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">Revenue / Income</div>
-        <table style="width:100%;border-collapse:collapse">${incRows}</table>
-        <div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--green);color:#fff;border-radius:8px;margin-top:8px;font-weight:800;font-size:15px">
-          <span>Total Revenue</span><span>${fmt(totalInc)}</span>
-        </div>
-      </div>
-      <!-- EXPENSES section -->
-      <div style="padding:16px 24px;border-bottom:1px solid var(--border)">
-        <div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px">Operating Expenses</div>
-        <table style="width:100%;border-collapse:collapse">
-          ${dedRows}
-          ${miVal>0?`<tr><td style="padding:8px 12px;color:var(--text2)">Vehicle Mileage (${mi.toFixed(1)} mi @ $0.70)</td><td style="text-align:right;padding:8px 12px">(${fmt(miVal)})</td></tr>`:''}
-          ${retTotal>0?`<tr><td style="padding:8px 12px;color:var(--text2)">Retirement Contributions</td><td style="text-align:right;padding:8px 12px">(${fmt(retTotal)})</td></tr>`:''}
-          ${eqTotal>0?`<tr><td style="padding:8px 12px;color:var(--text2)">Section 179 Equipment</td><td style="text-align:right;padding:8px 12px">(${fmt(eqTotal)})</td></tr>`:''}
-        </table>
-        <div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin-top:8px;font-weight:800;font-size:15px">
-          <span>Total Expenses</span><span>(${fmt(totalExpenses)})</span>
-        </div>
-      </div>
-      <!-- NET INCOME -->
-      <div style="padding:20px 24px;background:${netIncome>=0?'#1F4E79':'#C00000'};color:#fff;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:18px;font-weight:800">Net ${netIncome>=0?'Profit':'Loss'}</span>
-        <span style="font-size:22px;font-weight:900">${netIncome>=0?'':'-'}${fmt(netIncome)}</span>
-      </div>
-      <!-- Personal spending note -->
-      <div style="padding:12px 24px;background:var(--bg2);font-size:12px;color:var(--text2)">
-        Personal spending of ${fmt(totalPer)} excluded from P&L. <em>TaxFlow is not tax advice — consult a CPA.</em>
-      </div>
-    </div>`;
-}
-
-function exportPL(){
-  const tier=currentTier();
-  if(!tier.canExportExcel){ showUpgradeModal(); toast('Export requires a paid plan.'); return; }
-  const el = document.getElementById('pl-content');
-  if(!el||!el.innerHTML){ toast('Open the P&L tab first'); return; }
-  // Export P&L as part of the Excel workbook
-  exportAll();
-  toast('P&L included in your Excel export');
-}
-
-// ── CLIENT BREAKDOWN ──────────────────────────────────────────────────────
-
-function renderClients(){
-  const el = document.getElementById('clients-content');
-  if(!el) return;
-  const txs = tx().filter(t=>bucket(t.cat)==='income');
-  if(!txs.length){
-    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px">No income transactions yet. Import bank statements to see your client breakdown.</div>';
-    return;
-  }
-
-  // Group by source description keywords
-  const sources = {};
-  txs.forEach(t=>{
-    // Try to extract client/source from description
-    let source = t.desc;
-    // Common patterns: "STRIPE TRANSFER", "VENMO *Name", "PAYPAL *Name", "DEPOSIT FROM Name"
-    if(/stripe/i.test(source)) source='Stripe';
-    else if(/paypal/i.test(source)) source='PayPal';
-    else if(/venmo/i.test(source)){
-      const m=source.match(/venmo[^,]*?([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/i);
-      source=m?m[1]:'Venmo';
-    }
-    else if(/zelle/i.test(source)) source='Zelle';
-    else if(/ach|deposit|transfer|direct dep/i.test(source)){
-      // Try to extract a name
-      const m=source.replace(/ACH|DEPOSIT|TRANSFER|DIRECT DEP/gi,'').trim();
-      source = m.length>3&&m.length<40 ? m.replace(/^\s*[,.-]+\s*/,'').trim() : 'Bank Transfer';
-    }
-    else if(/check|ccd|ppd/i.test(source)) source='Check / Wire';
-    else source = source.length>30 ? source.substring(0,30)+'...' : source;
-    
-    if(!sources[source]) sources[source]={total:0,count:0,txs:[]};
-    sources[source].total  += Math.abs(t.amount);
-    sources[source].count++;
-    sources[source].txs.push(t);
-  });
-
-  const totalInc = txs.reduce((s,t)=>s+Math.abs(t.amount),0);
-  const sorted = Object.entries(sources).sort((a,b)=>b[1].total-a[1].total);
-  const fmt = n => '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const pct = n => (n/totalInc*100).toFixed(1)+'%';
-
-  el.innerHTML=`
-    <div style="margin-bottom:20px;padding:16px;background:var(--green-bg);border:1px solid var(--green-mid);border-radius:12px;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-size:12px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.5px">Total Income ${S.year}</div>
-        <div style="font-size:24px;font-weight:800;color:var(--green)">${fmt(totalInc)}</div>
-      </div>
-      <div style="font-size:13px;color:var(--text2)">${txs.length} transactions · ${sorted.length} source${sorted.length!==1?'s':''}</div>
-    </div>
-    ${sorted.map(([name,data])=>{
-      const barW = Math.round(data.total/totalInc*100);
-      return `<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div style="font-weight:700;font-size:15px">${esc(name)}</div>
-          <div style="text-align:right">
-            <div style="font-weight:800;font-size:16px;color:var(--green)">${fmt(data.total)}</div>
-            <div style="font-size:12px;color:var(--text2)">${pct(data.total)} · ${data.count} transaction${data.count!==1?'s':''}</div>
-          </div>
-        </div>
-        <div style="background:var(--bg3);border-radius:99px;height:8px;overflow:hidden">
-          <div style="background:var(--green);height:100%;width:${barW}%;border-radius:99px;transition:width 0.4s ease"></div>
-        </div>
-      </div>`;
-    }).join('')}`;
-}
-
-// ── YEAR-OVER-YEAR ────────────────────────────────────────────────────────
-
-function renderYOY(){
-  const el = document.getElementById('yoy-content');
-  if(!el) return;
-
-  const years = getAvailableYears();
-  if(years.length<2){
-    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px"><div style="font-size:48px;margin-bottom:12px">📅</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Only one year of data</div><div>Go to Settings → Tax Year to add a previous year and start tracking year-over-year performance.</div></div>';
-    return;
-  }
-
-  // Calculate metrics for each year
-  function calcYear(userData){
-    if(!userData) return {inc:0,ded:0,per:0,net:0,txCount:0};
-    const txs = userData.tx||[];
-    let inc=0,ded=0,per=0;
-    txs.forEach(t=>{
-      const a=Math.abs(t.amount);
-      if(bucket(t.cat)==='income') inc+=a;
-      else if(bucket(t.cat)==='deductible') ded+=a;
-      else per+=a;
-    });
-    const mi    = (userData.mileage||[]).reduce((s,m)=>s+m.miles,0);
-    const miVal = +(mi*0.70).toFixed(2);
-    const ret   = (userData.retirement||[]).reduce((s,r)=>s+(r.amt||0),0);
-    const eq    = (userData.equipment||[]).reduce((s,e)=>s+(e.deductible||0),0);
-    const totalDed = ded+miVal+ret+eq;
-    return {inc, ded:totalDed, per, net:Math.max(0,inc-totalDed), txCount:txs.length};
-  }
-
-  const data = {};
-  // Current year
-  data[S.year] = calcYear(S.users[S.cur]);
-  // Historical years
-  Object.entries(S.years||{}).forEach(([y,yd])=>{
-    data[y] = calcYear(yd[S.cur]);
-  });
-
-  const fmt = n => '$'+n.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0});
-  const arrow = (curr,prev) => {
-    if(!prev) return '';
-    const pct = ((curr-prev)/prev*100);
-    const up = pct>=0;
-    return `<span style="font-size:11px;color:${up?'var(--green)':'var(--red)'};margin-left:6px">${up?'▲':'▼'}${Math.abs(pct).toFixed(1)}%</span>`;
-  };
-
-  const metrics = [
-    {key:'inc',  label:'Total Income',      color:'var(--green)', icon:'💰'},
-    {key:'ded',  label:'Total Deductions',  color:'var(--brand)', icon:'🧾'},
-    {key:'net',  label:'Net Taxable',       color:'#C00000',      icon:'📊'},
-    {key:'per',  label:'Personal Spending', color:'var(--text2)', icon:'💳'},
-  ];
-
-  const sortedYears = years.sort((a,b)=>b-a);
-  const maxInc = Math.max(...sortedYears.map(y=>data[y]?.inc||0));
-
-  el.innerHTML=`
-    <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;min-width:500px">
-        <thead>
-          <tr style="background:#1F4E79">
-            <th style="padding:12px 16px;text-align:left;color:#fff;font-size:13px;font-weight:700">Metric</th>
-            ${sortedYears.map(y=>`<th style="padding:12px 16px;text-align:right;color:#fff;font-size:13px;font-weight:700">${y}${y===S.year?' <span style=\"font-size:10px;opacity:0.7\">(current)</span>':''}</th>`).join('')}
-          </tr>
-        </thead>
-        <tbody>
-          ${metrics.map((m,mi)=>`
-            <tr style="background:${mi%2===0?'#fff':'var(--bg2)'}">
-              <td style="padding:14px 16px;font-weight:600;color:${m.color}">${m.icon} ${m.label}</td>
-              ${sortedYears.map((y,yi)=>{
-                const val = data[y]?.[m.key]||0;
-                const prevY = sortedYears[yi+1];
-                const prev = prevY && data[prevY]?.[m.key];
-                return `<td style="padding:14px 16px;text-align:right;font-weight:700;color:${m.color}">${fmt(val)}${yi<sortedYears.length-1?arrow(val,prev):''}</td>`;
-              }).join('')}
-            </tr>`).join('')}
-          <tr style="background:var(--bg3);border-top:2px solid var(--border)">
-            <td style="padding:14px 16px;font-weight:600;color:var(--text2)">📋 Transactions</td>
-            ${sortedYears.map(y=>`<td style="padding:14px 16px;text-align:right;color:var(--text2)">${(data[y]?.txCount||0).toLocaleString()}</td>`).join('')}
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    ${sortedYears.length>=2 ? `
-    <div style="margin-top:20px;padding:16px;background:var(--brand-light);border:1px solid var(--brand-mid);border-radius:12px;font-size:13px;color:var(--brand)">
-      <strong>Year-over-Year Summary:</strong>
-      Income ${data[sortedYears[0]]?.inc > (data[sortedYears[1]]?.inc||0) ? 'increased' : 'decreased'} by 
-      ${fmt(Math.abs((data[sortedYears[0]]?.inc||0)-(data[sortedYears[1]]?.inc||0)))} 
-      compared to ${sortedYears[1]}.
-      Net taxable income is ${fmt(data[sortedYears[0]]?.net||0)} this year vs ${fmt(data[sortedYears[1]]?.net||0)} last year.
-    </div>` : ''}`;
-}
-
-// ── RECEIPT TAGGER ────────────────────────────────────────────────────────
-// Add receipt tag to transaction (stored in t.receipt field)
-
-function toggleReceipt(id){
-  const t=tx().find(x=>x.id===id);
-  if(!t) return;
-  t.receipt = !t.receipt;
-  save();
-  const btn=document.getElementById('rcpt-'+id);
-  if(btn){
-    btn.textContent = t.receipt?'🧾':'📎';
-    btn.title = t.receipt?'Receipt on file (click to remove)':'Click to mark receipt on file';
-    btn.style.opacity = t.receipt?'1':'0.35';
-  }
-  toast(t.receipt?'Receipt marked':'Receipt tag removed');
-}
-
-
-
-// ── CPA EXPORT PACKAGE ────────────────────────────────────────────────────
-// One-click export: full Excel workbook + a clean cover page summary
-
-function exportCPAPackage(){
-  const tier=currentTier();
-  if(!tier.canExportExcel){ showUpgradeModal(); toast('CPA Export requires a paid plan.'); return; }
-  
-  // First run the full Excel export
-  exportAll();
-  
-  // Then open a print-ready CPA summary in a new window
-  const u=U(); const txs=tx();
-  const mi=roundAmt((u.mileage||[]).reduce((s,m)=>s+m.miles,0));
-  const miVal=roundAmt(mi*0.70);
-  const ret=roundAmt((u.retirement||[]).reduce((s,r)=>s+(r.amt||0),0));
-  const eq=roundAmt((u.equipment||[]).reduce((s,e)=>s+(e.deductible||0),0));
-  const invPaid=roundAmt((u.invoices||[]).filter(i=>i.status==='paid').reduce((s,i)=>s+(i.amount||0),0));
-  const invOut=roundAmt((u.invoices||[]).filter(i=>i.status!=='paid').reduce((s,i)=>s+(i.amount||0),0));
-  
-  let inc=0,ded=0,per=0;
-  txs.forEach(t=>{
-    const a=Math.abs(t.amount);
-    if(bucket(t.cat)==='income') inc+=a;
-    else if(bucket(t.cat)==='deductible') ded+=a;
-    else per+=a;
-  });
-  inc=roundAmt(inc); ded=roundAmt(ded); per=roundAmt(per);
-  const totalDed=roundAmt(ded+miVal+ret+eq);
-  const netTax=roundAmt(Math.max(0,inc-totalDed));
-  const receiptCount=txs.filter(t=>t.receipt).length;
-  
-  const fmt=n=>'$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-  
-  // Group deductions by category for detail
-  const dedByCat={};
-  txs.filter(t=>bucket(t.cat)==='deductible').forEach(t=>{
-    const key=t.cat.split(' — ')[1]||t.cat;
-    dedByCat[key]=(dedByCat[key]||0)+Math.abs(t.amount);
-  });
-  const dedRows=Object.entries(dedByCat).sort((a,b)=>b[1]-a[1])
-    .map(([k,v])=>`<tr><td style="padding:6px 0;color:#555">${esc(k)}</td><td style="text-align:right;padding:6px 0;color:#333;font-weight:600">${fmt(v)}</td></tr>`).join('');
-
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TaxFlow CPA Package — ${u.name||''} ${S.year}</title>
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:Arial,sans-serif;color:#222;background:#fff;padding:40px;max-width:800px;margin:0 auto}
-    .cover-header{background:#1F4E79;color:#fff;padding:32px 36px;border-radius:12px;margin-bottom:28px}
-    .cover-header h1{font-size:28px;font-weight:800;margin-bottom:4px}
-    .cover-header p{font-size:14px;opacity:0.8}
-    .section{margin-bottom:24px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
-    .section-header{background:#f8fafc;padding:12px 18px;font-size:13px;font-weight:800;color:#1F4E79;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0}
-    .section-body{padding:16px 18px}
-    .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:14px}
-    .kv:last-child{border-bottom:none}
-    .kv .label{color:#555}
-    .kv .val{font-weight:700;color:#222}
-    .kv.total{font-size:16px;font-weight:800;padding:12px 0}
-    .kv.total .label{color:#1F4E79}
-    .net-row{background:#C00000;color:#fff;padding:16px 18px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-top:16px}
-    .net-row .label{font-size:18px;font-weight:800}
-    .net-row .val{font-size:22px;font-weight:900}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .metric-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px}
-    .metric-box .m-label{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px}
-    .metric-box .m-val{font-size:18px;font-weight:800;color:#222;margin-top:4px}
-    .disclaimer{margin-top:28px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e}
-    table{width:100%;border-collapse:collapse}
-    @media print{body{padding:20px}.section{break-inside:avoid}}
-  </style></head>
-  <body>
-    <div class="cover-header">
-      <h1>📋 Tax Preparation Package</h1>
-      <p>${esc(u.biz||u.name||'TaxFlow User')} &nbsp;·&nbsp; Tax Year ${S.year} &nbsp;·&nbsp; Prepared ${today}</p>
-    </div>
-
-    <div class="grid2" style="margin-bottom:24px">
-      <div class="metric-box"><div class="m-label">Total Transactions</div><div class="m-val">${txs.length.toLocaleString()}</div></div>
-      <div class="metric-box"><div class="m-label">Receipts on File</div><div class="m-val">${receiptCount} / ${txs.length}</div></div>
-      <div class="metric-box"><div class="m-label">Outstanding Invoices</div><div class="m-val" style="color:#d97706">${fmt(invOut)}</div></div>
-      <div class="metric-box"><div class="m-label">Income from Paid Invoices</div><div class="m-val" style="color:#16a34a">${fmt(invPaid)}</div></div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">Income</div>
-      <div class="section-body">
-        <div class="kv"><span class="label">Total Gross Income</span><span class="val" style="color:#16a34a">${fmt(inc)}</span></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">Deductions</div>
-      <div class="section-body">
-        <table>${dedRows}</table>
-        ${mi>0?`<div class="kv" style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px"><span class="label">Vehicle Mileage (${mi.toFixed(1)} mi @ $0.70)</span><span class="val">${fmt(miVal)}</span></div>`:''}
-        ${ret>0?`<div class="kv"><span class="label">Retirement Contributions</span><span class="val">${fmt(ret)}</span></div>`:''}
-        ${eq>0?`<div class="kv"><span class="label">Section 179 Equipment</span><span class="val">${fmt(eq)}</span></div>`:''}
-        <div class="kv total"><span class="label">Total Deductions</span><span class="val">${fmt(totalDed)}</span></div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-header">Personal Spending (Non-Deductible)</div>
-      <div class="section-body">
-        <div class="kv"><span class="label">Total Personal Expenses</span><span class="val" style="color:#dc2626">${fmt(per)}</span></div>
-      </div>
-    </div>
-
-    <div class="net-row">
-      <span class="label">NET TAXABLE INCOME</span>
-      <span class="val">${fmt(netTax)}</span>
-    </div>
-
-    <div class="disclaimer">
-      ⚠️ <strong>Disclaimer:</strong> TaxFlow is a financial organization tool, not tax advice. The figures above are based on self-reported and auto-categorized transaction data. Always review with a qualified CPA before filing. This package should be used as a starting point for your tax preparation, not as a final return.
-    </div>
-    <div style="margin-top:20px;text-align:center;font-size:12px;color:#94a3b8">Generated by TaxFlow · gettaxflow.com · ${today}</div>
-    <scr\ipt>window.print();</scr\ipt>
-  </body></html>`;
-
-  const w=window.open('','_blank','width=900,height=700');
-  if(w){ w.document.write(html); w.document.close(); setTimeout(()=>{ try{w.print();}catch(e){} },600); }
-  else { toast('Please allow popups to generate the CPA package'); }
-}
-
-function roundAmt(n){ return Math.round((n||0)*100)/100; }
-
-// ── EXPORT ─────────────────────────────────────────────────────────────────
-function exportAll(){
-  const tier=currentTier();
-  if(!tier.canExportExcel){
-    showUpgradeModal();
-    toast('Excel export requires a paid plan. Upgrade at gettaxflow.com!');
-    return;
-  }
-
-  _exportAllRun();
-}
-function _exportAllRun(){
-  const u=U(); const txs=tx();
-  if(!txs.length){ toast('No transactions to export'); return; }
-
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'TaxFlow';
-  wb.created = new Date();
-
-  const C = {
-    BLUE_HDR:  '2E74B5',
-    GREEN_HDR: '375623',
-    NAVY_HDR:  '1F4E79',
-    PURP_HDR:  '7030A0',
-    ORG_HDR:   'ED7D31',
-    TEAL_HDR:  '00B0F0',
-    RED_NET:   'C00000',
-    ROW_LTBL:  'EBF5EB',
-    ROW_LTGN:  'F0FFF0',
-    ROW_LTBL2: 'D6E4F0',
-    ROW_PEACH: 'FCE4D6',
-    ROW_WHITE: 'FFFFFF',
-    ROW_FAINT: 'FAFAFA',
-    TOT_INC:   'D6E4F0',
-    TOT_DED:   'E2EFDA',
-    TOT_PER:   'FCE4D6',
-  };
-
-  const FONT = 'Arial';
-  const AMT_FMT = '"$"#,##0.00;"($"#,##0.00)';
-
-  function fill(hex){ return {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+hex}}; }
-
-  function styleHdrRow(row, hdrColor){
-    row.height = 22;
-    row.eachCell(cell => {
-      cell.fill = fill(hdrColor);
-      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FFFFFFFF'}};
-      cell.alignment = {vertical:'middle', horizontal:'center', wrapText:false};
-      cell.border = {bottom:{style:'thin', color:{argb:'FF000000'}}};
-    });
-  }
-
-  function styleDataRow(row, bg, amtCols){
-    row.height = 16;
-    row.eachCell({includeEmpty:false}, (cell, colNum) => {
-      if(bg) cell.fill = fill(bg);
-      cell.font = {name:FONT, size:10, color:{argb:'FF000000'}};
-      if(amtCols.includes(colNum)){
-        cell.alignment = {vertical:'middle', horizontal:'right'};
-        cell.numFmt = AMT_FMT;
-        // Round to 2 decimal places to avoid floating point display issues
-        if(typeof cell.value === 'number') cell.value = Math.round(cell.value * 100) / 100;
-      } else if(colNum === 1){
-        cell.alignment = {vertical:'middle', horizontal:'center'};
-      } else {
-        cell.alignment = {vertical:'middle', horizontal:'left'};
-      }
-    });
-  }
-
-  function styleTotalRow(row, bg, amtCols){
-    row.height = 18;
-    row.eachCell({includeEmpty:false}, (cell, colNum) => {
-      cell.fill = fill(bg);
-      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FF000000'}};
-      cell.border = {top:{style:'thin',color:{argb:'FF000000'}}, bottom:{style:'double',color:{argb:'FF000000'}}};
-      if(amtCols.includes(colNum)){
-        cell.alignment = {vertical:'middle', horizontal:'right'};
-        cell.numFmt = AMT_FMT;
-        if(typeof cell.value === 'number') cell.value = Math.round(cell.value * 100) / 100;
-      } else {
-        cell.alignment = {vertical:'middle', horizontal:'left'};
-      }
-    });
-  }
-
-  function addSheet(name, headers, rows, hdrColor, alt1, alt2, colWidths, amtCols){
-    const ws = wb.addWorksheet(name);
-    ws.columns = colWidths.map((w,i) => ({key:'c'+i, width:w}));
-
-    // Header row — no blank row before it
-    const hdrRow = ws.addRow(headers);
-    styleHdrRow(hdrRow, hdrColor);
-
-    // Data rows
-    rows.forEach((rowData, i) => {
-      const row = ws.addRow(rowData);
-      styleDataRow(row, i%2===0 ? alt1 : alt2, amtCols);
-    });
-
-    return ws;
-  }
-
-  function getMonth(date){
-    const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return m[(parseInt((date||'').split('/')[0])||1)-1]||'';
-  }
-  function getYear(date){
-    // Always return 4-digit year
-    const p=(date||'').split('/');
-    if(!p[2]) return S.year;
-    return p[2].length===2 ? '20'+p[2] : p[2];
-  }
-  function roundAmt(n){ return Math.round((n||0)*100)/100; }
-
-  const incTxs = txs.filter(t=>bucket(t.cat)==='income');
-  const dedTxs = txs.filter(t=>bucket(t.cat)==='deductible');
-  const perTxs = txs.filter(t=>bucket(t.cat)==='personal');
-  const incTotal = roundAmt(incTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
-  const dedTotal = roundAmt(dedTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
-  const perTotal = roundAmt(perTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
-  const mi    = roundAmt(u.mileage.reduce((s,m)=>s+m.miles,0));
-  const miVal = roundAmt(mi*0.70);
-  const gLoss = roundAmt(u.gambling.reduce((s,v)=>s+(v.loss||0),0));
-  const netTax = roundAmt(Math.max(0, incTotal - dedTotal - miVal));
-
-  // ── ALL TRANSACTIONS ───────────────────────────────────────────────────
-  addSheet('All Transactions',
-    ['Date','Month','Year','Description','Amount ($)','Type','Category','Receipt'],
-    txs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc,
-      roundAmt(Math.abs(t.amount)),
-      bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',
-      t.cat,
-      t.receipt?'✓ On file':'']),
-    C.BLUE_HDR, C.ROW_LTBL, C.ROW_FAINT, [12,8,7,45,14,10,42,12], [5]
-  );
-
-  // ── INCOME ─────────────────────────────────────────────────────────────
-  const wsInc = addSheet('Income',
-    ['Date','Month','Year','Description','Amount ($)','Category'],
-    incTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
-    C.GREEN_HDR, C.ROW_LTGN, C.ROW_WHITE, [12,8,7,45,14,42], [5]
-  );
-  const incTotalRow = wsInc.addRow(['','','','TOTAL INCOME', incTotal, '']);
-  styleTotalRow(incTotalRow, C.TOT_INC, [5]);
-
-  // ── DEDUCTIBLE ─────────────────────────────────────────────────────────
-  const wsDed = addSheet('Deductible Expenses',
-    ['Date','Month','Year','Description','Amount ($)','Category'],
-    dedTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
-    C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,8,7,45,14,42], [5]
-  );
-  const dedTotalRow = wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES', dedTotal, '']);
-  styleTotalRow(dedTotalRow, C.TOT_DED, [5]);
-
-  // ── PERSONAL ───────────────────────────────────────────────────────────
-  const wsPer = addSheet('Personal Expenses',
-    ['Date','Month','Year','Description','Amount ($)','Category'],
-    perTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
-    C.PURP_HDR, C.ROW_PEACH, C.ROW_WHITE, [12,8,7,45,14,42], [5]
-  );
-  const perTotalRow = wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES', perTotal, '']);
-  styleTotalRow(perTotalRow, C.TOT_PER, [5]);
-
-  // ── SUMMARY ────────────────────────────────────────────────────────────
-  const wsSum = wb.addWorksheet('Summary');
-  wsSum.columns = [{width:46},{width:18}];
-
-  function sumAddRow(vals, opts){
-    const row = wsSum.addRow(vals);
-    row.height = opts.height || 16;
-    const c1 = row.getCell(1);
-    const c2 = row.getCell(2);
-    c1.font = {name:FONT, bold:opts.bold||false, size:opts.sz||11, color:{argb:'FF'+(opts.c1color||'000000')}};
-    c2.font = {name:FONT, bold:opts.bold||false, size:opts.sz||11, color:{argb:'FF'+(opts.c2color||'000000')}};
-    c1.alignment = {horizontal:'left', vertical:'middle'};
-    c2.alignment = {horizontal:'right', vertical:'middle'};
-    if(opts.bg1) c1.fill = fill(opts.bg1);
-    if(opts.bg2) c2.fill = fill(opts.bg2);
-    if(opts.numFmt && vals[1]!==undefined) { c2.numFmt = opts.numFmt; if(typeof vals[1]==='number') c2.value = roundAmt(vals[1]); }
-    if(opts.border){ c1.border={top:{style:'thin'},bottom:{style:'double'}}; c2.border={top:{style:'thin'},bottom:{style:'double'}}; }
-    return row;
-  }
-  function sumHdr(label){
-    const row = wsSum.addRow([label, '']);
-    row.height = 20;
-    [1,2].forEach(c => {
-      const cell = row.getCell(c);
-      cell.fill = fill(C.NAVY_HDR);
-      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FFFFFFFF'}};
-      cell.alignment = {horizontal:'left', vertical:'middle'};
-    });
-    return row;
-  }
-
-  // Title block
-  sumAddRow([(u.biz||'TaxFlow')+' \u2014 '+S.year+' Tax Year Summary', ''], {bold:true, sz:14, height:28});
-  sumAddRow(['Prepared for: '+(u.name||''), ''], {sz:11});
-  sumAddRow(['Tax Year: '+S.year, ''], {sz:11});
-  wsSum.addRow([]);
-
-  // Income
-  sumHdr('INCOME');
-  sumAddRow(['Total Gross Income', incTotal], {numFmt:AMT_FMT});
-  sumAddRow(['TOTAL TAXABLE INCOME', incTotal], {bold:true, bg1:C.TOT_INC, bg2:C.TOT_INC, numFmt:AMT_FMT, border:true, height:18});
-  wsSum.addRow([]);
-
-  // Deductions
-  sumHdr('DEDUCTIBLE EXPENSES');
-  sumAddRow(['Total Business Deductions', dedTotal], {numFmt:AMT_FMT});
-  sumAddRow(['Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70/mi)', miVal], {numFmt:AMT_FMT});
-  sumAddRow(['TOTAL DEDUCTIBLE EXPENSES', dedTotal+miVal], {bold:true, bg1:C.TOT_DED, bg2:C.TOT_DED, numFmt:AMT_FMT, border:true, height:18});
-  wsSum.addRow([]);
-
-  // Personal
-  sumHdr('PERSONAL EXPENSES');
-  sumAddRow(['Total Personal Spending', perTotal], {numFmt:AMT_FMT});
-  sumAddRow(['TOTAL PERSONAL EXPENSES', perTotal], {bold:true, bg1:C.TOT_PER, bg2:C.TOT_PER, numFmt:AMT_FMT, border:true, height:18});
-  wsSum.addRow([]);
-
-  // Gambling
-  sumHdr('GAMBLING');
-  sumAddRow(['Total Gambling Losses', gLoss], {numFmt:AMT_FMT});
-  sumAddRow(['Net Taxable Gambling Income', Math.max(0,gLoss)], {numFmt:AMT_FMT});
-  wsSum.addRow([]);
-
-  // RETIREMENT
-  const retTotal = roundAmt((u.retirement||[]).reduce((s,r)=>s+(r.amt||0),0));
-  const eqTotal  = roundAmt((u.equipment||[]).reduce((s,e)=>s+(e.deductible||0),0));
-  if(retTotal > 0 || eqTotal > 0){
-    wsSum.addRow([]);
-    sumHdr('RETIREMENT & EQUIPMENT');
-    if(retTotal > 0) sumAddRow(['Total Retirement Contributions', retTotal], {numFmt:AMT_FMT});
-    if(eqTotal > 0)  sumAddRow(['Total Section 179 Equipment Deductions', eqTotal], {numFmt:AMT_FMT});
-    const retEqTotal = roundAmt(retTotal + eqTotal);
-    sumAddRow(['TOTAL ADDITIONAL DEDUCTIONS', retEqTotal], {bold:true, bg1:'E2EFDA', bg2:'E2EFDA', numFmt:AMT_FMT, border:true, height:18});
-  }
-
-  // NET TAXABLE — big red
-  const netRow = wsSum.addRow(['NET TAXABLE INCOME', netTax]);
-  netRow.height = 30;
-  [1,2].forEach(c => {
-    const cell = netRow.getCell(c);
-    cell.fill  = fill(C.RED_NET);
-    cell.font  = {name:FONT, bold:true, size:14, color:{argb:'FFFFFFFF'}};
-    cell.alignment = {horizontal: c===1?'left':'right', vertical:'middle'};
-  });
-  netRow.getCell(2).numFmt = AMT_FMT;
-  netRow.getCell(2).value  = roundAmt(netTax);
-  wsSum.addRow([]);
-
-  // Transaction counts
-  sumHdr('TRANSACTION SUMMARY');
-  sumAddRow(['Total Transactions', txs.length], {});
-  sumAddRow(['Income Transactions', incTxs.length], {c1color:'375623', c2color:'375623'});
-  sumAddRow(['Deductible Transactions', dedTxs.length], {c1color:'1F4E79', c2color:'1F4E79'});
-  sumAddRow(['Personal Transactions', perTxs.length], {c1color:'7030A0', c2color:'7030A0'});
-  wsSum.addRow([]);
-
-  const discRow = wsSum.addRow(['TaxFlow is a financial organization tool \u2014 NOT tax advice. Always consult a qualified CPA before filing.']);
-  discRow.getCell(1).font = {name:FONT, italic:true, size:9, color:{argb:'FF94A3B8'}};
-
-  // ── GAMBLING SHEET ─────────────────────────────────────────────────────
-  if(u.gambling && u.gambling.length){
-    const wsG = addSheet('Gambling W-L',
-      ['Venue / Casino','Account #','Net Loss','Total Wagered'],
-      u.gambling.map(v=>[v.name, v.acc||'', roundAmt(v.loss), roundAmt(v.wagered||0)]),
-      C.ORG_HDR, C.ROW_LTBL2, C.ROW_WHITE, [32,16,14,16], [3,4]
-    );
-    const gTotalRow = wsG.addRow(['TOTAL LOSSES','', gLoss, '']);
-    styleTotalRow(gTotalRow, C.TOT_DED, [3]);
-  }
-
-  // ── MILEAGE SHEET ──────────────────────────────────────────────────────
-  if(u.mileage && u.mileage.length){
-    const wsM = addSheet('Mileage Log',
-      ['Date','From','To','Miles','Purpose','Value ($0.70/mi)'],
-      u.mileage.map(m=>[m.date, m.from, m.to, roundAmt(m.miles), m.purpose, roundAmt(m.miles*0.70)]),
-      C.TEAL_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,20,20,10,28,16], [4,6]
-    );
-    const mTotalRow = wsM.addRow(['TOTAL','','', roundAmt(mi),'', roundAmt(miVal)]);
-    styleTotalRow(mTotalRow, C.TOT_DED, [4,6]);
-  }
-
-  // ── 1099 SHEET ─────────────────────────────────────────────────────────
-  if(u.c1099 && u.c1099.length){
-    addSheet('1099 Tracker',
-      ['Client / Payer','Type','EIN / SSN','Amount'],
-      u.c1099.map(c=>[c.name, c.type, c.ein, roundAmt(c.amt)]),
-      C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [32,16,16,14], [4]
-    );
-  }
-
-  // ── INVOICE SHEET ────────────────────────────────────────────────────────
-  if(u.invoices && u.invoices.length){
-    const invWs = addSheet('Invoice Tracker',
-      ['Invoice #','Client','Description','Date Sent','Due Date','Amount ($)','Status','Notes'],
-      u.invoices.map(inv=>[inv.num||'',inv.client||'',inv.desc||'',inv.sent||'',inv.due||'',roundAmt(inv.amount||0),inv.status||'',inv.notes||'']),
-      '1F4E79', 'EBF5EB', 'FFFFFF', [12,22,35,12,12,14,14,25], [6]
-    );
-    const invPaid  = roundAmt(u.invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+(i.amount||0),0));
-    const invOut   = roundAmt(u.invoices.filter(i=>i.status!=='paid').reduce((s,i)=>s+(i.amount||0),0));
-    const invTotal = roundAmt(u.invoices.reduce((s,i)=>s+(i.amount||0),0));
-    const invSumRow = invWs.addRow(['','','','','TOTAL BILLED', invTotal, '', '']);
-    styleTotalRow(invSumRow, 'D6E4F0', [6]);
-    const invPaidRow = invWs.addRow(['','','','','TOTAL PAID', invPaid, '', '']);
-    styleTotalRow(invPaidRow, 'E2EFDA', [6]);
-    const invOutRow = invWs.addRow(['','','','','TOTAL OUTSTANDING', invOut, '', '']);
-    styleTotalRow(invOutRow, 'FCE4D6', [6]);
-  }
-
-  // ── P&L SHEET ─────────────────────────────────────────────────────────────
-  {
-    const plWs = wb.addWorksheet('Profit & Loss');
-    plWs.columns = [{width:46},{width:18}];
-    function plRow(vals, opts){
-      const row = plWs.addRow(vals);
-      row.height = opts.height||16;
-      const c1=row.getCell(1), c2=row.getCell(2);
-      c1.font={name:FONT,bold:opts.bold||false,size:opts.sz||11,color:{argb:'FF'+(opts.c1color||'000000')}};
-      c2.font={name:FONT,bold:opts.bold||false,size:opts.sz||11,color:{argb:'FF'+(opts.c2color||'000000')}};
-      c1.alignment={horizontal:'left',vertical:'middle'};
-      c2.alignment={horizontal:'right',vertical:'middle'};
-      if(opts.bg1)c1.fill=fill(opts.bg1);
-      if(opts.bg2)c2.fill=fill(opts.bg2);
-      if(opts.numFmt&&vals[1]!==undefined){c2.numFmt=opts.numFmt;if(typeof vals[1]==='number')c2.value=roundAmt(vals[1]);}
-      if(opts.border){c1.border={top:{style:'thin'},bottom:{style:'double'}};c2.border={top:{style:'thin'},bottom:{style:'double'}};}
-      return row;
-    }
-    function plHdr(label,color){
-      const row=plWs.addRow([label,'']);
-      row.height=20;
-      [1,2].forEach(c=>{const cell=row.getCell(c);cell.fill=fill(color);cell.font={name:FONT,bold:true,size:11,color:{argb:'FFFFFFFF'}};cell.alignment={horizontal:'left',vertical:'middle'};});
-      return row;
-    }
-
-    // Title
-    const plTitle=plWs.addRow([(u.biz||u.name||'Business')+' — Profit & Loss Statement','']);
-    plTitle.height=28;plTitle.getCell(1).font={name:FONT,bold:true,size:14};
-    plWs.addRow(['Tax Year: '+S.year,'']);
-    plWs.addRow(['Generated by TaxFlow','']);
-    plWs.addRow([]);
-
-    // Revenue
-    plHdr('REVENUE','375623');
-    const incByCat={};
-    txs.filter(t=>bucket(t.cat)==='income').forEach(t=>{
-      const key=t.cat.split(' — ')[1]||t.cat;
-      incByCat[key]=(incByCat[key]||0)+Math.abs(t.amount);
-    });
-    Object.entries(incByCat).sort((a,b)=>b[1]-a[1]).forEach(([cat,amt])=>{
-      plRow([cat,roundAmt(amt)],{numFmt:AMT_FMT});
-    });
-    plRow(['TOTAL REVENUE',roundAmt(incTotal)],{bold:true,bg1:'E2EFDA',bg2:'E2EFDA',numFmt:AMT_FMT,border:true,height:18});
-    plWs.addRow([]);
-
-    // Expenses
-    plHdr('OPERATING EXPENSES','1F4E79');
-    const dedByCat={};
-    txs.filter(t=>bucket(t.cat)==='deductible').forEach(t=>{
-      const key=t.cat.split(' — ')[1]||t.cat;
-      dedByCat[key]=(dedByCat[key]||0)+Math.abs(t.amount);
-    });
-    const miVal2=roundAmt((u.mileage||[]).reduce((s,m)=>s+m.miles,0)*0.70);
-    const ret2=roundAmt((u.retirement||[]).reduce((s,r)=>s+(r.amt||0),0));
-    const eq2=roundAmt((u.equipment||[]).reduce((s,e)=>s+(e.deductible||0),0));
-    Object.entries(dedByCat).sort((a,b)=>b[1]-a[1]).forEach(([cat,amt])=>{
-      plRow([cat,roundAmt(amt)],{numFmt:AMT_FMT});
-    });
-    if(miVal2>0) plRow(['Vehicle Mileage',miVal2],{numFmt:AMT_FMT});
-    if(ret2>0)   plRow(['Retirement Contributions',ret2],{numFmt:AMT_FMT});
-    if(eq2>0)    plRow(['Section 179 Equipment',eq2],{numFmt:AMT_FMT});
-    const totalExp=roundAmt(dedTotal+miVal2+ret2+eq2);
-    plRow(['TOTAL EXPENSES',totalExp],{bold:true,bg1:'FCE4D6',bg2:'FCE4D6',numFmt:AMT_FMT,border:true,height:18});
-    plWs.addRow([]);
-
-    // Net
-    const netIncome=roundAmt(incTotal-totalExp);
-    const netRow=plWs.addRow(['NET '+(netIncome>=0?'PROFIT':'LOSS'),netIncome]);
-    netRow.height=30;
-    [1,2].forEach(c=>{
-      const cell=netRow.getCell(c);
-      cell.fill=fill(netIncome>=0?'375623':'C00000');
-      cell.font={name:FONT,bold:true,size:14,color:{argb:'FFFFFFFF'}};
-      cell.alignment={horizontal:c===1?'left':'right',vertical:'middle'};
-    });
-    netRow.getCell(2).numFmt=AMT_FMT;
-    netRow.getCell(2).value=roundAmt(Math.abs(netIncome));
-    plWs.addRow([]);
-    const discRow2=plWs.addRow(['TaxFlow is a financial organization tool — NOT tax advice. Consult a qualified CPA before filing.','']);
-    discRow2.getCell(1).font={name:FONT,italic:true,size:9,color:{argb:'FF94A3B8'}};
-  }
-
-  // ── RETIREMENT SHEET ─────────────────────────────────────────────────────
-  if(u.retirement && u.retirement.length){
-    const retTotal = u.retirement.reduce((s,r)=>s+(r.amt||0),0);
-    const wsRet = addSheet('Retirement Contributions',
-      ['Account Type','Institution','Date','Amount ($)','Notes'],
-      u.retirement.map(r=>[r.type||'', r.institution||'', r.date||'', roundAmt(r.amt||0), r.notes||'']),
-      '1F4E79', 'EBF5EB', 'FFFFFF', [22,20,12,14,30], [4]
-    );
-    const retTotalRow = wsRet.addRow(['','','','TOTAL CONTRIBUTIONS', roundAmt(retTotal)]);
-    styleTotalRow(retTotalRow, 'D6E4F0', [5]);
-  }
-
-  // ── EQUIPMENT SHEET ───────────────────────────────────────────────────────
-  if(u.equipment && u.equipment.length){
-    const eqTotal = u.equipment.reduce((s,e)=>s+(e.deductible||0),0);
-    const wsEq = addSheet('Equipment & Assets',
-      ['Asset Description','Purchase Date','Cost ($)','Business %','Deductible Amount ($)','Notes'],
-      u.equipment.map(e=>[e.desc||'', e.date||'', roundAmt(e.cost||0), (e.biz||100)+'%', roundAmt(e.deductible||0), e.notes||'']),
-      '375623', 'F0FFF0', 'FFFFFF', [35,12,14,12,18,25], [3,5]
-    );
-    const eqTotalRow = wsEq.addRow(['','','','','TOTAL SEC. 179 DEDUCTION', roundAmt(eqTotal)]);
-    styleTotalRow(eqTotalRow, 'E2EFDA', [6]);
-  }
-
-  // ── EXPORT ─────────────────────────────────────────────────────────────
-  const fname = ((u.biz||u.name||'TaxFlow').replace(/\s+/g,'_'))+'_'+S.year+'_TaxFlow.xlsx';
-  wb.xlsx.writeBuffer().then(function(buffer){
-    const blob = new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href=url; a.download=fname; a.click();
-    URL.revokeObjectURL(url);
-    toast('Exported: '+fname);
-  }).catch(function(err){ toast('Export error: '+err.message); console.error(err); });
-}
-
-function exportCsv(){
-  const tier=currentTier();
-  if(!tier.canExportCsv){
-    showUpgradeModal();
-    toast('CSV export requires a paid plan. Upgrade at gettaxflow.com!');
-    return;
-  }
-
-  if(!tier.canExportCsv){showUpgradeModal();toast('CSV export requires a paid plan.');return;}
-  const rows=['Date,Description,Amount,Category'];
-  tx().forEach(t=>rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(',')));
-  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='transactions_'+S.year+'.csv';a.click();
-  toast('CSV exported');
-}
-
-// ── PROGRESS / TOAST ───────────────────────────────────────────────────────
-function showProg(){const p=document.getElementById('prog');if(p)p.style.display='flex';}
-function hideProg(){const p=document.getElementById('prog');if(p)p.style.display='none';}
-function toast(msg){
-  const el=document.getElementById('toast');
-  el.textContent=msg;el.classList.add('show');
-  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2800);
-}
-
-
-// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
-// Clears the login session when the window closes or tab is hidden.
-// Transaction data stays saved — only the session token is cleared.
-
-function clearSession() {
-  try {
-    const auth = loadAuth();
-    if (auth) { auth.loggedIn = false; saveAuth(auth); }
-  } catch(e) {}
-}
-
-window.addEventListener('beforeunload', () => { clearSession(); });
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') { clearSession(); }
-});
-
-// ── INIT ───────────────────────────────────────────────────────────────────
-
-// ── AUTH SYSTEM (Supabase + Stripe) ─────────────────────────────────────────
-
+// ── AUTH SYSTEM (Supabase) ────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://ltwyiitvakabtltwxxmz.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_jQdwf4ddqaWCP-Fzi1Fp0w_55qDHBjQ';
-
-const STRIPE_LINKS = {
-  household_monthly: 'https://buy.stripe.com/7sY6oz7jbfQc7Ep1y687K00',
-  household_yearly:  'https://buy.stripe.com/4gM6ozeLDeM88It6Sq87K01',
-  business_monthly:  'https://buy.stripe.com/8x228j6f7dI4gaV3Ge87K02',
-  business_yearly:   'https://buy.stripe.com/9B65kv1YReM87EpekS87K03',
+const STRIPE_LINKS  = {
+  household_monthly:'https://buy.stripe.com/7sY6oz7jbfQc7Ep1y687K00',
+  household_yearly: 'https://buy.stripe.com/4gM6ozeLDeM88It6Sq87K01',
+  business_monthly: 'https://buy.stripe.com/8x228j6f7dI4gaV3Ge87K02',
+  business_yearly:  'https://buy.stripe.com/9B65kv1YReM87EpekS87K03',
 };
-
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const TIERS = {
-  free: {
-    label: 'Free', maxUsers: 1,
-    optionalTabs: ['settings'],
-    maxStatements: 3,
-    maxTransactions: 50,
-    canExportExcel: false,
-    canExportCsv: false,
-    canImportPdf: true,
-    showUpgradeBanner: true,
-  },
-  household: {
-    label: 'Household', maxUsers: 2,
-    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: true,
-    maxTransactions: Infinity, showUpgradeBanner: false,
-  },
-  business: {
-    label: 'Business', maxUsers: 5,
-    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: true,
-    maxTransactions: Infinity, showUpgradeBanner: false,
-  },
+  free:      { label:'Free',      maxUsers:1, maxStatements:3,        maxTransactions:50,       canExportExcel:false, canExportCsv:false, canImportPdf:true, showUpgradeBanner:true,  optionalTabs:['settings'] },
+  household: { label:'Household', maxUsers:2, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  canImportPdf:true, showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
+  business:  { label:'Business',  maxUsers:5, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  canImportPdf:true, showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
 };
 
-let currentProfile = null;
-let selectedPlan = 'household';
+var statementsUploaded = 0;
+var currentProfile = null;
+var selectedPlan = 'household';
 
-function currentTier() {
-  const plan   = currentProfile?.plan   ?? 'free';
-  const status = currentProfile?.plan_status ?? 'active';
-  if (status === 'canceled') return TIERS.free;
-  return TIERS[plan] ?? TIERS.free;
+function currentTier(){
+  var plan=(currentProfile&&currentProfile.plan)||'free';
+  var status=(currentProfile&&currentProfile.plan_status)||'active';
+  if(status==='canceled') return TIERS.free;
+  return TIERS[plan]||TIERS.free;
 }
 
-// ── Auth screen helpers ───────────────────────────────────────────────────────
-function showAuthScreen() {
-  const s = document.getElementById('auth-screen');
-  s.style.transition = ''; s.style.opacity = '1'; s.style.display = 'flex';
+function showAuthScreen(){ var s=document.getElementById('auth-screen');if(s){s.style.transition='';s.style.opacity='1';s.style.display='flex';} }
+function hideAuthScreen(){
+  var s=document.getElementById('auth-screen');if(!s)return;
+  s.style.transition='opacity 0.35s ease';s.style.opacity='0';
+  setTimeout(function(){s.style.display='none';s.style.opacity='1';s.style.transition='';},360);
+  updateHeaderUser();renderUserDropdown();
 }
-function hideAuthScreen() {
-  const s = document.getElementById('auth-screen');
-  s.style.transition = 'opacity 0.35s ease'; s.style.opacity = '0';
-  setTimeout(() => { s.style.display='none'; s.style.opacity='1'; s.style.transition=''; }, 360);
-  updateHeaderUser(); updateDropdownNames();
-}
-function authTab(tab) {
-  document.getElementById('form-login').style.display    = tab==='login'    ? 'block' : 'none';
-  document.getElementById('form-register').style.display = tab==='register' ? 'block' : 'none';
-  document.getElementById('tab-login').classList.toggle('active',    tab==='login');
-  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+function authTab(tab){
+  var fl=document.getElementById('form-login'),fr=document.getElementById('form-register');
+  var tl=document.getElementById('tab-login'),tr=document.getElementById('tab-register');
+  if(fl)fl.style.display=tab==='login'?'block':'none';
+  if(fr)fr.style.display=tab==='register'?'block':'none';
+  if(tl)tl.classList.toggle('active',tab==='login');
+  if(tr)tr.classList.toggle('active',tab==='register');
   clearAuthMessages();
 }
-function showAuthError(msg)   { const e=document.getElementById('auth-error');   e.textContent=msg; e.style.display='block'; document.getElementById('auth-success').style.display='none'; }
-function showAuthSuccess(msg) { const e=document.getElementById('auth-success'); e.textContent=msg; e.style.display='block'; document.getElementById('auth-error').style.display='none'; }
-function clearAuthMessages()  { document.getElementById('auth-error').style.display='none'; document.getElementById('auth-success').style.display='none'; }
+function showAuthError(msg){var e=document.getElementById('auth-error');if(e){e.textContent=msg;e.style.display='block';}var s=document.getElementById('auth-success');if(s)s.style.display='none';}
+function showAuthSuccess(msg){var e=document.getElementById('auth-success');if(e){e.textContent=msg;e.style.display='block';}var er=document.getElementById('auth-error');if(er)er.style.display='none';}
+function clearAuthMessages(){['auth-error','auth-success'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});}
+function selectPlan(plan){ selectedPlan=plan; ['free','household','business'].forEach(function(p){var el=document.getElementById('plan-'+p);if(el)el.classList.toggle('selected',p===plan);}); }
 
-function selectPlan(plan) {
-  selectedPlan = plan;
-  ['free','household','business'].forEach(p => {
-    document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
-  });
+async function loadProfile(userId){
+  var r=await sb.from('profiles').select('*').eq('id',userId).single();
+  if(r.error){console.error('Profile error:',r.error);return null;}
+  return r.data;
 }
-
-// ── Load profile from Supabase ────────────────────────────────────────────────
-async function loadProfile(userId) {
-  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
-  if (error) { console.error('Profile load error:', error); return null; }
-  return data;
-}
-
-function applyProfile(profile) {
-  currentProfile = profile;
-  if (profile.full_name)     S.users.herbert.name = profile.full_name;
-  if (profile.business_name) S.users.herbert.biz  = profile.business_name;
-  if (profile.user2_name)    S.users.spouse.name  = profile.user2_name;
+function applyProfile(profile){
+  currentProfile=profile;
+  if(profile.full_name)    S.users.herbert.name=profile.full_name;
+  if(profile.business_name)S.users.herbert.biz=profile.business_name;
   applyTierRestrictions();
 }
-
-// ── Check session on load ─────────────────────────────────────────────────────
-async function checkAuth() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    const profile = await loadProfile(session.user.id);
-    if (profile) { applyProfile(profile); hideAuthScreen(); return true; }
-  }
-  showAuthScreen();
-  return false;
+async function checkAuth(){
+  try{
+    var r=await sb.auth.getSession();
+    if(r.data&&r.data.session&&r.data.session.user){
+      var profile=await loadProfile(r.data.session.user.id);
+      if(profile){applyProfile(profile);hideAuthScreen();return true;}
+    }
+  }catch(e){console.error('Auth error:',e.message);}
+  showAuthScreen();return false;
 }
-
-// ── Login ─────────────────────────────────────────────────────────────────────
-async function doLogin() {
+async function doLogin(){
   clearAuthMessages();
-  const email = document.getElementById('login-email').value.trim().toLowerCase();
-  const pass  = document.getElementById('login-pass').value;
-  if (!email || !email.includes('@')) { showAuthError('Please enter your email address.'); return; }
-  if (!pass) { showAuthError('Please enter your password.'); return; }
-
-  const btn = document.querySelector('#form-login .auth-btn');
-  btn.textContent = 'Signing in…'; btn.disabled = true;
-
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-  btn.textContent = 'Sign in to TaxFlow'; btn.disabled = false;
-
-  if (error) {
-    if (error.message.includes('Invalid login')) showAuthError('Incorrect email or password.');
-    else if (error.message.includes('Email not confirmed')) showAuthError('Please confirm your email first.');
-    else showAuthError(error.message);
-    return;
+  var email=document.getElementById('login-email').value.trim().toLowerCase();
+  var pass=document.getElementById('login-pass').value;
+  if(!email||!email.includes('@')){showAuthError('Please enter your email address.');return;}
+  if(!pass){showAuthError('Please enter your password.');return;}
+  var btn=document.querySelector('#form-login .auth-btn');
+  if(btn){btn.textContent='Signing in…';btn.disabled=true;}
+  try{
+    var r=await sb.auth.signInWithPassword({email:email,password:pass});
+    if(btn){btn.textContent='Sign in to TaxFlow';btn.disabled=false;}
+    if(r.error){
+      if(r.error.message.includes('Invalid login'))showAuthError('Incorrect email or password.');
+      else if(r.error.message.includes('fetch')||r.error.message.includes('network'))showAuthError('No internet connection. TaxFlow requires internet to sign in.');
+      else showAuthError(r.error.message);
+      return;
+    }
+    var profile=await loadProfile(r.data.user.id);
+    if(!profile){showAuthError('Account error — please contact support.');return;}
+    applyProfile(profile);hideAuthScreen();save();statementsUploaded=0;
+    toast('Welcome back, '+(profile.full_name||email.split('@')[0])+'!');
+  }catch(e){
+    if(btn){btn.textContent='Sign in to TaxFlow';btn.disabled=false;}
+    showAuthError('Connection failed. Please check your internet and try again.');
   }
-
-  const profile = await loadProfile(data.user.id);
-  if (!profile) { showAuthError('Account error — please contact support.'); return; }
-  applyProfile(profile);
-  hideAuthScreen(); save();
-  toast('✅ Welcome back, ' + (profile.full_name || email.split('@')[0]) + '!');
 }
-
-// ── Register ──────────────────────────────────────────────────────────────────
-async function doRegister() {
+async function doRegister(){
   clearAuthMessages();
-  const name  = document.getElementById('reg-name').value.trim();
-  const email = document.getElementById('reg-email').value.trim().toLowerCase();
-  const pass  = document.getElementById('reg-pass').value;
-  const pass2 = document.getElementById('reg-pass2').value;
-  const name2 = document.getElementById('reg-name2').value.trim();
-
-  if (!name)  { showAuthError('Please enter your name.'); return; }
-  if (!email || !email.includes('@')) { showAuthError('Please enter a valid email.'); return; }
-  if (!pass || pass.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
-  if (pass !== pass2) { showAuthError('Passwords do not match.'); return; }
-
-  const btn = document.querySelector('#form-register .auth-btn');
-  btn.textContent = 'Creating account…'; btn.disabled = true;
-
-  const { data, error } = await sb.auth.signUp({
-    email, password: pass,
-    options: { data: { full_name: name } }
-  });
-  btn.textContent = 'Create account & sign in'; btn.disabled = false;
-
-  if (error) { showAuthError(error.message); return; }
-
-  if (data.user) {
-    await sb.from('profiles').update({
-      full_name: name, user2_name: name2 || null, plan: 'free',
-    }).eq('id', data.user.id);
+  var name=document.getElementById('reg-name').value.trim();
+  var email=document.getElementById('reg-email').value.trim().toLowerCase();
+  var pass=document.getElementById('reg-pass').value;
+  var pass2=document.getElementById('reg-pass2').value;
+  var name2=(document.getElementById('reg-name2').value||'').trim();
+  if(!name){showAuthError('Please enter your name.');return;}
+  if(!email||!email.includes('@')){showAuthError('Please enter a valid email.');return;}
+  if(!pass||pass.length<8){showAuthError('Password must be at least 8 characters.');return;}
+  if(pass!==pass2){showAuthError('Passwords do not match.');return;}
+  var btn=document.querySelector('#form-register .auth-btn');
+  if(btn){btn.textContent='Creating…';btn.disabled=true;}
+  try{
+    var r=await sb.auth.signUp({email:email,password:pass,options:{data:{full_name:name}}});
+    if(btn){btn.textContent='Create account & sign in';btn.disabled=false;}
+    if(r.error){showAuthError(r.error.message);return;}
+    if(r.data&&r.data.user){
+      await sb.from('profiles').update({full_name:name,user2_name:name2||null,plan:'free'}).eq('id',r.data.user.id);
+    }
+    if(selectedPlan!=='free'){
+      showAuthSuccess('Account created! Redirecting to payment…');
+      setTimeout(function(){var link=STRIPE_LINKS[selectedPlan+'_monthly'];if(link)window.open(link+'?prefilled_email='+encodeURIComponent(email),'_blank');},1500);
+      setTimeout(function(){showAuthSuccess('Payment opened! Sign in after paying.');authTab('login');},2500);
+      return;
+    }
+    showAuthSuccess('Account created! Check your email to confirm, then sign in.');
+    setTimeout(function(){authTab('login');},2000);
+  }catch(e){
+    if(btn){btn.textContent='Create account & sign in';btn.disabled=false;}
+    showAuthError('Connection failed. Please check your internet and try again.');
   }
-
-  // If paid plan selected, redirect to Stripe after account creation
-  if (selectedPlan !== 'free') {
-    showAuthSuccess('Account created! Redirecting to payment…');
-    setTimeout(() => {
-      const link = STRIPE_LINKS[selectedPlan + '_monthly'];
-      if (link) window.open(link + '?prefilled_email=' + encodeURIComponent(email), '_blank');
-    }, 1500);
-    setTimeout(() => { showAuthSuccess('Payment opened! Sign in after completing payment.'); authTab('login'); }, 2500);
-    return;
-  }
-
-  showAuthSuccess('Account created! Check your email to confirm, then sign in.');
-  setTimeout(() => authTab('login'), 2000);
+}
+async function signOut(){
+  if(!confirm('Sign out of TaxFlow? Your data stays saved on this device.'))return;
+  try{await sb.auth.signOut();}catch(e){}
+  currentProfile=null;statementsUploaded=0;
+  var badge=document.getElementById('tier-badge');if(badge)badge.remove();
+  document.querySelectorAll('.upgrade-banner').forEach(function(b){b.remove();});
+  clearAuthMessages();authTab('login');showAuthScreen();
 }
 
-// ── Sign out ──────────────────────────────────────────────────────────────────
-async function signOut() {
-  if (!confirm('Sign out of TaxFlow? Your data will remain saved on this device.')) return;
-  await sb.auth.signOut();
-  currentProfile = null;
-  const badge = document.getElementById('tier-badge');
-  if (badge) badge.remove();
-  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
-  const le = document.getElementById('login-email'); if(le) le.value='';
-  const lp = document.getElementById('login-pass');  if(lp) lp.value='';
-  clearAuthMessages(); authTab('login'); showAuthScreen();
-}
-
-// ── Tier restrictions ─────────────────────────────────────────────────────────
-function applyTierRestrictions() {
-  const tier = currentTier();
-  S.activeTabs = S.activeTabs.filter(t => tier.optionalTabs.includes(t));
-  // Settings tab is always visible regardless of tier
-  if(!S.activeTabs.includes('settings')) S.activeTabs.push('settings');
+function applyTierRestrictions(){
+  var tier=currentTier();
+  S.activeTabs=S.activeTabs.filter(function(t){return tier.optionalTabs.includes(t);});
+  if(!S.activeTabs.includes('settings'))S.activeTabs.push('settings');
   showUpgradeBanners(tier);
-  const ud2 = document.getElementById('ud-spouse');
-  if (ud2) {
-    ud2.style.opacity      = tier.maxUsers < 2 ? '0.4' : '';
-    ud2.style.pointerEvents = tier.maxUsers < 2 ? 'none' : '';
-    ud2.title = tier.maxUsers < 2 ? 'Upgrade to Household to add a second user' : '';
-  }
+  renderTabs();
   updateTierBadge(tier);
+  renderUserDropdown();
+}
+function updateTierBadge(tier){
+  var badge=document.getElementById('tier-badge');
+  if(!badge){badge=document.createElement('span');badge.id='tier-badge';badge.style.cssText='font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff;letter-spacing:0.05em;margin-right:8px;cursor:pointer;';badge.onclick=function(){showUpgradeModal();};var hdr=document.querySelector('.header-right');if(hdr)hdr.insertBefore(badge,hdr.firstChild);}
+  badge.textContent=tier.label.toUpperCase();
+  badge.style.background=tier.label==='Free'?'rgba(255,100,100,0.4)':'rgba(255,255,255,0.25)';
+}
+function showUpgradeBanners(tier){
+  document.querySelectorAll('.upgrade-banner').forEach(function(b){b.remove();});
+  if(!tier.showUpgradeBanner)return;
+  var panel=document.getElementById('panel-statements');if(!panel)return;
+  var banner=document.createElement('div');banner.className='upgrade-banner';
+  banner.innerHTML='<div><strong>Free Plan</strong> — Upload up to '+TIERS.free.maxStatements+' statements, view first '+TIERS.free.maxTransactions+' transactions. <strong>Upgrade to export your data.</strong></div>'+
+    '<button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px;flex-shrink:0" onclick="showUpgradeModal()">Upgrade Now</button>';
+  panel.insertBefore(banner,panel.firstChild);
+}
+function showUpgradeModal(){
+  var email=(currentProfile&&currentProfile.email)||'';
+  var link=STRIPE_LINKS.household_monthly+(email?'?prefilled_email='+encodeURIComponent(email):'');
+  window.open(link,'_blank');
+}
+function updateDropdownNames(){
+  var ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=S.users.herbert.name||'User 1';
+  var ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
 }
 
-function updateTierBadge(tier) {
-  let badge = document.getElementById('tier-badge');
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.id = 'tier-badge';
-    badge.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff;letter-spacing:0.05em;cursor:pointer;margin-right:8px;';
-    badge.onclick = () => showUpgradeModal();
-    const hdr = document.querySelector('.header-right');
-    if (hdr) hdr.insertBefore(badge, hdr.firstChild);
+// ── EXCEL EXPORT ──────────────────────────────────────────────────────────
+function exportAll(){
+  var tier=currentTier();
+  if(!tier.canExportExcel){showUpgradeModal();toast('Export requires a paid plan.');return;}
+  _exportAllRun();
+}
+function exportCsv(){
+  var tier=currentTier();
+  if(!tier.canExportCsv){showUpgradeModal();toast('CSV export requires a paid plan.');return;}
+  var rows=['Date,Description,Amount,Category'];
+  tx().forEach(function(t){rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(','));});
+  var blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');a.href=url;a.download='transactions_'+S.year+'.csv';a.click();URL.revokeObjectURL(url);
+  toast('CSV exported');
+}
+
+function _exportAllRun(){
+  var u=U(),txs=tx();
+  if(!txs.length){toast('No transactions to export');return;}
+  var wb=new ExcelJS.Workbook();wb.creator='TaxFlow';wb.created=new Date();
+  var C={BLUE_HDR:'2E74B5',GREEN_HDR:'375623',NAVY_HDR:'1F4E79',PURP_HDR:'7030A0',ORG_HDR:'ED7D31',TEAL_HDR:'00B0F0',RED_NET:'C00000',ROW_LTBL:'EBF5EB',ROW_LTGN:'F0FFF0',ROW_LTBL2:'D6E4F0',ROW_PEACH:'FCE4D6',ROW_WHITE:'FFFFFF',ROW_FAINT:'FAFAFA',TOT_INC:'D6E4F0',TOT_DED:'E2EFDA',TOT_PER:'FCE4D6'};
+  var FONT='Arial',AMT_FMT='"$"#,##0.00;"($"#,##0.00)';
+  function fill(hex){return{type:'pattern',pattern:'solid',fgColor:{argb:'FF'+hex}};}
+  function styleHdrRow(row,hdrColor){row.height=22;row.eachCell(function(cell){cell.fill=fill(hdrColor);cell.font={name:FONT,bold:true,size:11,color:{argb:'FFFFFFFF'}};cell.alignment={vertical:'middle',horizontal:'center',wrapText:false};cell.border={bottom:{style:'thin',color:{argb:'FF000000'}}};});}
+  function styleDataRow(row,bg,amtCols){row.height=16;row.eachCell({includeEmpty:false},function(cell,colNum){if(bg)cell.fill=fill(bg);cell.font={name:FONT,size:10,color:{argb:'FF000000'}};if(amtCols.includes(colNum)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else if(colNum===1){cell.alignment={vertical:'middle',horizontal:'center'};}else{cell.alignment={vertical:'middle',horizontal:'left'};}});}
+  function styleTotalRow(row,bg,amtCols){row.height=18;row.eachCell({includeEmpty:false},function(cell,colNum){cell.fill=fill(bg);cell.font={name:FONT,bold:true,size:11,color:{argb:'FF000000'}};cell.border={top:{style:'thin',color:{argb:'FF000000'}},bottom:{style:'double',color:{argb:'FF000000'}}};if(amtCols.includes(colNum)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else{cell.alignment={vertical:'middle',horizontal:'left'};}});}
+  function addSheet(name,headers,rows,hdrColor,alt1,alt2,colWidths,amtCols){
+    var ws=wb.addWorksheet(name);ws.columns=colWidths.map(function(w,i){return{key:'c'+i,width:w};});
+    var hdrRow=ws.addRow(headers);styleHdrRow(hdrRow,hdrColor);
+    rows.forEach(function(rowData,i){var row=ws.addRow(rowData);styleDataRow(row,i%2===0?alt1:alt2,amtCols);});
+    return ws;
   }
-  badge.textContent = tier.label.toUpperCase();
-  badge.style.background = tier.label === 'Free' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)';
-}
+  function getMonth(date){var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[(parseInt((date||'').split('/')[0])||1)-1]||'';}
+  function getYear(date){var p=(date||'').split('/');if(!p[2])return S.year;return p[2].length===2?'20'+p[2]:p[2];}
 
-function showUpgradeBanners(tier) {
-  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
-  if (!tier.showUpgradeBanner) return;
-  const panel = document.getElementById('panel-statements');
-  if (!panel) return;
-  const banner = document.createElement('div');
-  banner.className = 'upgrade-banner';
-  banner.innerHTML = '<div><strong>You are on the Free plan</strong> — limited to ' + TIERS.free.maxTransactions + ' transactions and core features.</div><button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px" onclick="showUpgradeModal()">Upgrade ⭐</button>';
-  panel.insertBefore(banner, panel.firstChild);
-}
+  var incTxs=txs.filter(function(t){return bucket(t.cat)==='income';}),dedTxs=txs.filter(function(t){return bucket(t.cat)==='deductible';}),perTxs=txs.filter(function(t){return bucket(t.cat)==='personal';});
+  var incTotal=roundAmt(incTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
+  var dedTotal=roundAmt(dedTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
+  var perTotal=roundAmt(perTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
+  var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
+  var miVal=roundAmt(mi*0.70);
+  var gLoss=roundAmt((u.gambling||[]).reduce(function(s,v){return s+(v.loss||0);},0));
+  var netTax=roundAmt(Math.max(0,incTotal-dedTotal-miVal));
 
-function showUpgradeModal() {
-  const email = currentProfile?.email || '';
-  const link  = STRIPE_LINKS.household_monthly + (email ? '?prefilled_email=' + encodeURIComponent(email) : '');
-  window.open(link, '_blank');
-}
+  addSheet('All Transactions',['Date','Month','Year','Description','Amount ($)','Type','Category','Receipt'],txs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',t.cat,t.receipt?'On file':''];}),C.BLUE_HDR,C.ROW_LTBL,C.ROW_FAINT,[12,8,7,45,14,10,42,12],[5]);
+  var wsInc=addSheet('Income',['Date','Month','Year','Description','Amount ($)','Category'],incTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),C.GREEN_HDR,C.ROW_LTGN,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
+  var incTR=wsInc.addRow(['','','','TOTAL INCOME',incTotal,'']);styleTotalRow(incTR,C.TOT_INC,[5]);
+  var wsDed=addSheet('Deductible Expenses',['Date','Month','Year','Description','Amount ($)','Category'],dedTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),C.NAVY_HDR,C.ROW_LTBL2,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
+  var dedTR=wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES',dedTotal,'']);styleTotalRow(dedTR,C.TOT_DED,[5]);
+  var wsPer=addSheet('Personal Expenses',['Date','Month','Year','Description','Amount ($)','Category'],perTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),C.PURP_HDR,C.ROW_PEACH,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
+  var perTR=wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES',perTotal,'']);styleTotalRow(perTR,C.TOT_PER,[5]);
 
-function updateDropdownNames() {
-  const ud1=document.getElementById('ud-name1'); if(ud1) ud1.textContent=S.users.herbert.name||'User 1';
-  const ud2=document.getElementById('ud-name2'); if(ud2) ud2.textContent=S.users.spouse.name||'User 2';
-  const ub1=document.getElementById('ud-biz1');  if(ub1) ub1.textContent=S.users.herbert.biz||'Primary Account';
-}
-// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
-// Clears the session when the tab/window is closed or the app exits.
-// Transaction data remains saved — only the login session is cleared.
-
-function clearSession() {
-  const auth = loadAuth();
-  if (auth) {
-    auth.loggedIn = false;
-    saveAuth(auth);
+  // Summary sheet
+  var wsSum=wb.addWorksheet('Summary');wsSum.columns=[{width:46},{width:18}];
+  function sumAddRow(vals,opts){
+    var row=wsSum.addRow(vals);row.height=opts.height||16;
+    var c1=row.getCell(1),c2=row.getCell(2);
+    c1.font={name:FONT,bold:opts.bold||false,size:opts.sz||11,color:{argb:'FF'+(opts.c1color||'000000')}};
+    c2.font={name:FONT,bold:opts.bold||false,size:opts.sz||11,color:{argb:'FF'+(opts.c2color||'000000')}};
+    c1.alignment={horizontal:'left',vertical:'middle'};c2.alignment={horizontal:'right',vertical:'middle'};
+    if(opts.bg1)c1.fill=fill(opts.bg1);if(opts.bg2)c2.fill=fill(opts.bg2);
+    if(opts.numFmt&&vals[1]!==undefined){c2.numFmt=opts.numFmt;if(typeof vals[1]==='number')c2.value=roundAmt(vals[1]);}
+    if(opts.border){c1.border={top:{style:'thin'},bottom:{style:'double'}};c2.border={top:{style:'thin'},bottom:{style:'double'}};}
+    return row;
   }
-}
+  function sumHdr(label){var row=wsSum.addRow([label,'']);row.height=20;[1,2].forEach(function(c){var cell=row.getCell(c);cell.fill=fill(C.NAVY_HDR);cell.font={name:FONT,bold:true,size:11,color:{argb:'FFFFFFFF'}};cell.alignment={horizontal:'left',vertical:'middle'};});return row;}
+  sumAddRow([(u.biz||'TaxFlow')+' — '+S.year+' Tax Year Summary',''],{bold:true,sz:14,height:28});
+  sumAddRow(['Prepared for: '+(u.name||''),''],{sz:11});sumAddRow(['Tax Year: '+S.year,''],{sz:11});wsSum.addRow([]);
+  sumHdr('INCOME');sumAddRow(['Total Gross Income',incTotal],{numFmt:AMT_FMT});
+  sumAddRow(['TOTAL TAXABLE INCOME',incTotal],{bold:true,bg1:C.TOT_INC,bg2:C.TOT_INC,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
+  sumHdr('DEDUCTIBLE EXPENSES');sumAddRow(['Total Business Deductions',dedTotal],{numFmt:AMT_FMT});
+  sumAddRow(['Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70/mi)',miVal],{numFmt:AMT_FMT});
+  var retTotal=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
+  var eqTotal=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
+  if(retTotal>0)sumAddRow(['Retirement Contributions',retTotal],{numFmt:AMT_FMT});
+  if(eqTotal>0)sumAddRow(['Section 179 Equipment',eqTotal],{numFmt:AMT_FMT});
+  sumAddRow(['TOTAL DEDUCTIBLE EXPENSES',roundAmt(dedTotal+miVal+retTotal+eqTotal)],{bold:true,bg1:C.TOT_DED,bg2:C.TOT_DED,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
+  sumHdr('PERSONAL EXPENSES');sumAddRow(['Total Personal Spending',perTotal],{numFmt:AMT_FMT});
+  sumAddRow(['TOTAL PERSONAL EXPENSES',perTotal],{bold:true,bg1:C.TOT_PER,bg2:C.TOT_PER,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
+  sumHdr('GAMBLING');sumAddRow(['Total Gambling Losses',gLoss],{numFmt:AMT_FMT});sumAddRow(['Net Taxable Gambling',Math.max(0,gLoss)],{numFmt:AMT_FMT});wsSum.addRow([]);
+  if(retTotal>0||eqTotal>0){sumHdr('RETIREMENT & EQUIPMENT');if(retTotal>0)sumAddRow(['Retirement Contributions',retTotal],{numFmt:AMT_FMT});if(eqTotal>0)sumAddRow(['Section 179 Equipment Deductions',eqTotal],{numFmt:AMT_FMT});sumAddRow(['TOTAL ADDITIONAL DEDUCTIONS',roundAmt(retTotal+eqTotal)],{bold:true,bg1:C.TOT_DED,bg2:C.TOT_DED,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);}
+  var netRow=wsSum.addRow(['NET TAXABLE INCOME',netTax]);netRow.height=30;
+  [1,2].forEach(function(c){var cell=netRow.getCell(c);cell.fill=fill(C.RED_NET);cell.font={name:FONT,bold:true,size:14,color:{argb:'FFFFFFFF'}};cell.alignment={horizontal:c===1?'left':'right',vertical:'middle'};});
+  netRow.getCell(2).numFmt=AMT_FMT;netRow.getCell(2).value=roundAmt(netTax);wsSum.addRow([]);
+  sumHdr('TRANSACTION SUMMARY');sumAddRow(['Total Transactions',txs.length],{});
+  sumAddRow(['Income Transactions',incTxs.length],{c1color:'375623',c2color:'375623'});
+  sumAddRow(['Deductible Transactions',dedTxs.length],{c1color:'1F4E79',c2color:'1F4E79'});
+  sumAddRow(['Personal Transactions',perTxs.length],{c1color:'7030A0',c2color:'7030A0'});wsSum.addRow([]);
+  var discRow=wsSum.addRow(['TaxFlow is a financial organization tool — NOT tax advice. Always consult a qualified CPA before filing.','']);
+  discRow.getCell(1).font={name:FONT,italic:true,size:9,color:{argb:'FF94A3B8'}};
 
-// Fires when the tab/window is about to close
-window.addEventListener('beforeunload', () => {
-  clearSession();
-});
-
-// Fires when the tab is hidden (switching apps, minimizing, etc.)
-// Only log out if the page is fully hidden and on mobile where
-// beforeunload doesn't always fire reliably
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') {
-    clearSession();
+  // Invoice sheet
+  if(u.invoices&&u.invoices.length){
+    var invTotal2=roundAmt(u.invoices.reduce(function(s,i){return s+(i.amount||0);},0));
+    var invPaid2=roundAmt(u.invoices.filter(function(i){return i.status==='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
+    var invOut2=roundAmt(u.invoices.filter(function(i){return i.status!=='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
+    var invWs=addSheet('Invoice Tracker',['Invoice #','Client','Description','Date Sent','Due Date','Amount ($)','Status','Notes'],
+      u.invoices.map(function(inv){return[inv.num||'',inv.client||'',inv.desc||'',inv.sent||'',inv.due||'',roundAmt(inv.amount||0),inv.status||'',inv.notes||''];}),
+      C.NAVY_HDR,'EBF5EB','FFFFFF',[12,22,35,12,12,14,14,25],[6]);
+    var invSumRow=invWs.addRow(['','','','','TOTAL BILLED',invTotal2,'','']);styleTotalRow(invSumRow,C.TOT_INC,[6]);
+    var invPaidRow=invWs.addRow(['','','','','TOTAL PAID',invPaid2,'','']);styleTotalRow(invPaidRow,C.TOT_DED,[6]);
+    var invOutRow=invWs.addRow(['','','','','TOTAL OUTSTANDING',invOut2,'','']);styleTotalRow(invOutRow,C.TOT_PER,[6]);
   }
-});
 
+  // Gambling sheet
+  if(u.gambling&&u.gambling.length){
+    var wsG=addSheet('Gambling W-L',['Venue / Casino','Account #','Net Loss','Total Wagered'],u.gambling.map(function(v){return[v.name,v.acc||'',roundAmt(v.loss),roundAmt(v.wagered||0)];}),C.ORG_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,14,16],[3,4]);
+    var gTR=wsG.addRow(['TOTAL LOSSES','',gLoss,'']);styleTotalRow(gTR,C.TOT_DED,[3]);
+  }
 
-// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
-// Clears the login session when the window closes or tab is hidden.
-// Transaction data stays saved — only the session token is cleared.
+  // Mileage sheet
+  if(u.mileage&&u.mileage.length){
+    var wsM=addSheet('Mileage Log',['Date','From','To','Miles','Purpose','Value ($0.70/mi)'],u.mileage.map(function(m){return[m.date,m.from,m.to,roundAmt(m.miles),m.purpose,roundAmt(m.miles*0.70)];}),C.TEAL_HDR,C.ROW_LTBL2,'FFFFFF',[12,20,20,10,28,16],[4,6]);
+    var mTR=wsM.addRow(['TOTAL','','',roundAmt(mi),'',roundAmt(miVal)]);styleTotalRow(mTR,C.TOT_DED,[4,6]);
+  }
 
-function clearSession() {
-  try {
-    const auth = loadAuth();
-    if (auth) { auth.loggedIn = false; saveAuth(auth); }
-  } catch(e) {}
+  // 1099 sheet
+  if(u.c1099&&u.c1099.length){
+    addSheet('1099 Tracker',['Client / Payer','Type','EIN / SSN','Amount'],u.c1099.map(function(c){return[c.name,c.type,c.ein,roundAmt(c.amt)];}),C.NAVY_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,16,14],[4]);
+  }
+
+  // Retirement sheet
+  if(u.retirement&&u.retirement.length){
+    var wsRet=addSheet('Retirement Contributions',['Account Type','Institution','Date','Amount ($)','Notes'],u.retirement.map(function(r){return[r.type||'',r.institution||'',r.date||'',roundAmt(r.amt||0),r.notes||''];}),C.NAVY_HDR,'EBF5EB','FFFFFF',[22,20,12,14,30],[4]);
+    var retTR=wsRet.addRow(['','','','TOTAL CONTRIBUTIONS',roundAmt(retTotal)]);styleTotalRow(retTR,C.TOT_INC,[5]);
+  }
+
+  // Equipment sheet
+  if(u.equipment&&u.equipment.length){
+    var wsEq=addSheet('Equipment & Assets',['Asset Description','Purchase Date','Cost ($)','Business %','Deductible Amount ($)','Notes'],u.equipment.map(function(e){return[e.desc||'',e.date||'',roundAmt(e.cost||0),(e.biz||100)+'%',roundAmt(e.deductible||0),e.notes||''];}),C.GREEN_HDR,'F0FFF0','FFFFFF',[35,12,14,12,18,25],[3,5]);
+    var eqTR=wsEq.addRow(['','','','','TOTAL SEC. 179 DEDUCTION',roundAmt(eqTotal)]);styleTotalRow(eqTR,C.TOT_DED,[6]);
+  }
+
+  // Generate file
+  var fname=((u.biz||u.name||'TaxFlow').replace(/\s+/g,'_'))+'_'+S.year+'_TaxFlow.xlsx';
+  wb.xlsx.writeBuffer().then(function(buffer){
+    if(window.electronAPI&&window.electronAPI.isElectron){
+      window.electronAPI.saveFile(fname,new Uint8Array(buffer),'xlsx').then(function(r){if(r&&r.success)toast('Saved: '+r.filePath.split(/[\/\\]/).pop());else if(r&&r.error)toast('Save failed: '+r.error);});
+      return;
+    }
+    var blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
+    toast('Exported: '+fname);
+  }).catch(function(err){toast('Export error: '+err.message);console.error(err);});
 }
 
-window.addEventListener('beforeunload', () => { clearSession(); });
-
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') { clearSession(); }
-});
-
-// ── INIT ─────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async () => {
+// ── STARTUP ───────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async function(){
   load();
   await checkAuth();
 });
