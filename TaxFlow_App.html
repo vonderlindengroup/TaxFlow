@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.1.5</span>
+      <span class="logo-beta">v2.1.6</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1407,39 +1407,55 @@ function normalizeDate(s){
 }
 
 function parseTD(lines,fname){
-  let added=0,inDep=false,inPmt=false,inSvc=false,done=false,inActivity=false;
+  let added=0,inDep=false,inPmt=false,inSvc=false,done=false,seenSection=false;
   const balanceLine=/^\d{2}\/\d{2}\s+[\d,]+\.\d{2}\s+\d{2}\/\d{2}\s+[\d,]+\.\d{2}/;
   const hasMoney=/[\d,]+\.\d{2}/;
   const fullPat=/^(\d{2}\/\d{2}(?:\/\d{2})?)\s+(.+?)\s+([\d,]+\.\d{2})$/;
   const datePat=/^(\d{2}\/\d{2}(?:\/\d{2})?)$/;
+  // Lines that look like account summary totals (keyword + amount, no real transaction)
+  const summaryLine=/^(beginning balance|ending balance|deposits|electronic deposits|electronic payments|other withdrawals|service charges|average collected|interest earned|interest paid|annual percentage|days in period|grace period|total for|subtotal)/i;
+
   for(let i=0;i<lines.length;i++){
     const l=lines[i].trim();
     if(!l||done) continue;
-    // Stop at balance summary
+
+    // Hard stop at daily balance summary
     if(/daily balance summary/i.test(l)){done=true;break;}
-    // Only parse inside DAILY ACCOUNT ACTIVITY section
-    if(/daily account activity/i.test(l)){inActivity=true;continue;}
-    if(!inActivity) continue;
+
     // Skip two-column balance lines
     if(balanceLine.test(l)) continue;
-    // Section headers — only when there is NO amount on the same line
-    if(/^electronic deposits/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
-    if(/^deposits$/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
-    if(/^(electronic payments|other withdrawals)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=true;inSvc=false;continue;}
-    if(/^(service charges|checks paid)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=false;inSvc=true;continue;}
-    // Skip boilerplate
-    if(/subtotal|posting date|description\s+amount|beginning balance|ending balance|average collected|interest earned|annual percentage|days in period|grace period|page:|cust ref|date\s+balance/i.test(l)) continue;
-    // Only parse inside a known section
+
+    // Skip boilerplate / header lines
+    if(/posting date|description\s+amount|daily account activity|account summary|statement of account|cust ref|page:\s*\d|call 1-800|fdic insured|equal housing|how to balance|date\s+balance/i.test(l)) continue;
+
+    // Detect section headers — ONLY when no amount follows on same line
+    if(/^electronic deposits/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;seenSection=true;continue;}
+    if(/^deposits$/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;seenSection=true;continue;}
+    if(/^(electronic payments|other withdrawals)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=true;inSvc=false;seenSection=true;continue;}
+    if(/^(service charges|checks paid)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=false;inSvc=true;seenSection=true;continue;}
+
+    // Skip summary lines (keyword + amount on same line — these are totals not transactions)
+    if(summaryLine.test(l)&&hasMoney.test(l)) continue;
+
+    // Skip subtotal lines
+    if(/^subtotal/i.test(l)) continue;
+
+    // Haven't seen a section header yet — skip
+    if(!seenSection) continue;
+
+    // Not in any section — skip
     if(!inDep&&!inPmt&&!inSvc) continue;
+
     let m=l.match(fullPat);
     if(!m&&datePat.test(l.split(' ')[0])&&i+1<lines.length){
-      m=(l+' '+lines[i+1].trim()).match(fullPat);
+      const joined=l+' '+lines[i+1].trim();
+      m=joined.match(fullPat);
       if(m) i++;
     }
     if(m){
       const[,rawDate,rawDesc,rawAmt]=m;
       const desc=cleanDesc(rawDesc);
-      if(isBoilerplate(desc)||isBoilerplate(l)) continue;
+      if(isBoilerplate(desc)) continue;
       const amt=parseFloat(rawAmt.replace(/,/g,''));
       if(isNaN(amt)||amt<=0||desc.length<2) continue;
       const amount=(inPmt||inSvc)?-amt:amt;
