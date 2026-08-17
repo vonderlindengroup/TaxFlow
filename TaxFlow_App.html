@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.2.2</span>
+      <span class="logo-beta">v2.3.1</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -469,7 +469,11 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 <div class="main">
 
   <!-- STATEMENTS -->
-  <div class="tab-panel active" id="panel-statements">
+  <div cl<div class="tab-panel" id="panel-upload">
+    <div class="panel-header">
+      <h2 class="panel-title">📂 Upload Statements</h2>
+    </div>
+
     <div class="upload-zone" id="dropzone" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
       <div class="upload-icon">📂</div>
       <div class="upload-title">Drop your bank statements here</div>
@@ -481,6 +485,39 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         <span class="format-chip">Multiple files at once</span>
       </div>
       <input type="file" id="fi" style="display:none" accept=".csv,.xlsx,.xls,.pdf" multiple onchange="handleFiles(this.files)">
+    </div>
+
+    <div class="manual-form" id="add-form" style="display:none">
+      <div class="form-title">➕ Add transaction manually</div>
+      <div class="form-grid">
+        <div class="form-group"><label>Date</label><input type="date" id="af-date"></div>
+        <div class="form-group"><label>Description</label><input type="text" id="af-desc" placeholder="e.g. Hardware store, gas station..."></div>
+        <div class="form-group"><label>Amount (use − for expense)</label><input type="number" id="af-amt" placeholder="e.g. -48.76 or 500.00"></div>
+        <div class="form-group"><label>Category</label><select id="af-cat"></select></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="addManual()">Add</button>
+        <button class="btn btn-outline" onclick="toggleAddForm()">Cancel</button>
+      </div>
+    </div>
+
+
+    <!-- Saved statements viewer -->
+    <div style="margin-top:24px">
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px">📁 Saved Statements</div>
+      <div id="saved-statements-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+    </div>
+
+  </div>
+
+  <div class="tab-panel" id="panel-statements">
+    <div class="panel-header" style="margin-bottom:0">
+      <h2 class="panel-title">📋 Transactions</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" onclick="toggleAddForm()" style="font-size:12px">+ Manual</button>
+        <button class="btn btn-outline" onclick="autoCategAll()" style="font-size:12px">✨ Re-categorize</button>
+        <button class="btn btn-outline" onclick="clearData()" style="font-size:12px;color:var(--red)">🗑 Clear</button>
+      </div>
     </div>
 
     <div class="manual-form" id="add-form" style="display:none">
@@ -964,11 +1001,12 @@ let S={
   cur:'herbert',
   extraUsers:[],
   clients:[],  // [{id,name,biz,email,rate,notes}]
+  savedStatements:[], // [{id,name,period,thumbnail,dataUrl,pages}]
   rules:[...DEFAULT_RULES],
   year:new Date().getFullYear().toString(),
   years:{},
   activeTabs:[],
-  currentTab:'statements',
+  currentTab:'upload',
   profile:{filingStatus:'single',state:''}
 };
 
@@ -980,6 +1018,7 @@ function load(){
       const parsed=JSON.parse(d);
       S=Object.assign(S,parsed);
       if(!S.years) S.years={};
+      if(!S.savedStatements) S.savedStatements=[];
       if(!S.activeTabs) S.activeTabs=['settings'];
       if(!S.profile) S.profile={filingStatus:'single',state:''};
       if(!S.extraUsers) S.extraUsers=[];
@@ -1068,6 +1107,158 @@ function populateCatSelects(){
 }
 
 // ── TABS ───────────────────────────────────────────────────────────────────
+
+// ── SAVED STATEMENTS ───────────────────────────────────────────────────────
+// Store statement metadata + first page render in state
+// S.savedStatements = [{id, name, date, pages, thumbnail (data URL), src}]
+
+function renderSavedStatements(){
+  var grid=document.getElementById('saved-statements-grid');
+  if(!grid) return;
+  var stmts=S.savedStatements||[];
+  grid.innerHTML='';
+  if(!stmts.length){
+    var empty=document.createElement('div');
+    empty.style.cssText='grid-column:1/-1;text-align:center;padding:32px;color:var(--text2);font-size:13px';
+    empty.textContent='No statements saved yet — upload PDFs above and they will appear here.';
+    grid.appendChild(empty);
+    return;
+  }
+  stmts.forEach(function(s){
+    var card=document.createElement('div');
+    card.style.cssText='background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:box-shadow 0.2s;box-shadow:var(--shadow)';
+    card.addEventListener('mouseenter',function(){card.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)';});
+    card.addEventListener('mouseleave',function(){card.style.boxShadow='var(--shadow)';});
+    card.addEventListener('click',function(){openSavedStatement(s.id);});
+
+    // Thumbnail or placeholder
+    var thumb=document.createElement('div');
+    thumb.style.cssText='width:100%;height:140px;overflow:hidden;border-bottom:1px solid var(--border)';
+    if(s.thumbnail){
+      var img=document.createElement('img');
+      img.src=s.thumbnail;
+      img.style.cssText='width:100%;height:140px;object-fit:cover;object-position:top';
+      thumb.appendChild(img);
+    } else {
+      thumb.style.cssText+='background:linear-gradient(135deg,#1e3a5f,#2563eb);display:flex;align-items:center;justify-content:center;font-size:40px';
+      thumb.textContent='📄';
+    }
+    card.appendChild(thumb);
+
+    // Info
+    var info=document.createElement('div');
+    info.style.cssText='padding:10px 12px';
+    var name=document.createElement('div');
+    name.style.cssText='font-weight:700;font-size:13px;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    name.textContent=s.name;
+    var period=document.createElement('div');
+    period.style.cssText='font-size:11px;color:var(--text2)';
+    period.textContent=s.period||s.date||'';
+    var pages=document.createElement('div');
+    pages.style.cssText='font-size:11px;color:var(--text3);margin-top:4px;display:flex;justify-content:space-between;align-items:center';
+    pages.innerHTML='<span>'+s.pages+' pages</span>';
+    var delBtn=document.createElement('button');
+    delBtn.textContent='✕';
+    delBtn.style.cssText='background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0';
+    delBtn.onclick=function(e){e.stopPropagation();deleteSavedStatement(s.id);};
+    pages.appendChild(delBtn);
+    info.appendChild(name);
+    info.appendChild(period);
+    info.appendChild(pages);
+    card.appendChild(info);
+    grid.appendChild(card);
+  });
+}
+
+function openSavedStatement(id){
+  var s=(S.savedStatements||[]).find(function(x){return x.id===id;});
+  if(!s||!s.dataUrl) return;
+  var modal=document.createElement('div');
+  modal.id='stmt-viewer-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:16px;width:100%;max-width:860px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden';
+  // Header
+  var hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0';
+  var title=document.createElement('div');
+  var t1=document.createElement('div');t1.style.cssText='font-weight:800;font-size:15px';t1.textContent=s.name;
+  var t2=document.createElement('div');t2.style.cssText='font-size:12px;color:var(--text2)';t2.textContent=s.period||s.date||'';
+  title.appendChild(t1);title.appendChild(t2);
+  var closeBtn=document.createElement('button');
+  closeBtn.style.cssText='background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px';
+  closeBtn.textContent='✕ Close';
+  closeBtn.onclick=function(){modal.remove();};
+  hdr.appendChild(title);hdr.appendChild(closeBtn);
+  // PDF iframe
+  var frame=document.createElement('iframe');
+  frame.src=s.dataUrl;
+  frame.style.cssText='flex:1;border:none;min-height:600px';
+  frame.type='application/pdf';
+  box.appendChild(hdr);box.appendChild(frame);
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+}
+
+function deleteSavedStatement(id, event){
+  if(event) event.stopPropagation();
+  if(!confirm('Remove this statement?')) return;
+  S.savedStatements = (S.savedStatements||[]).filter(function(s){return s.id!==id;});
+  save();
+  renderSavedStatements();
+}
+
+// Call this after a PDF is successfully parsed to save it
+async function saveStatementToLibrary(file, pageRows){
+  if(!S.savedStatements) S.savedStatements=[];
+  // Don't save duplicates
+  if(S.savedStatements.find(function(s){return s.name===file.name;})) return;
+
+  // Extract statement period from pageRows text
+  var allText = pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
+  var periodMatch = allText.match(/(\w+\s+\d+\s+\d{4})\s*[-–]\s*(\w+\s+\d+\s+\d{4})/);
+  var period = periodMatch ? periodMatch[1]+' – '+periodMatch[2] : '';
+
+  // Render first page as thumbnail using pdfjs canvas
+  var thumbnail = null;
+  try{
+    if(typeof pdfjsLib !== 'undefined'){
+      var buf = await readBuf(file);
+      var pdf = await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0}).promise;
+      var page = await pdf.getPage(1);
+      var scale = 0.6;
+      var viewport = page.getViewport({scale:scale});
+      var canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      var ctx = canvas.getContext('2d');
+      await page.render({canvasContext:ctx, viewport:viewport}).promise;
+      thumbnail = canvas.toDataURL('image/jpeg', 0.7);
+      pdf.destroy();
+    }
+  }catch(e){ console.warn('Thumbnail failed:', e.message); }
+
+  // Save the file as a data URL for the viewer
+  var dataUrl = await new Promise(function(res){
+    var reader = new FileReader();
+    reader.onload = function(e){ res(e.target.result); };
+    reader.readAsDataURL(file);
+  });
+
+  S.savedStatements.push({
+    id: uid(),
+    name: file.name,
+    period: period,
+    date: new Date().toISOString().split('T')[0],
+    pages: pageRows.filter(function(r){
+      return r.items.some(function(i){return /^\d+ of \d+$/.test(i.text);});
+    }).length || '?',
+    thumbnail: thumbnail,
+    dataUrl: dataUrl
+  });
+  save();
+}
+
 function renderTabs(){
   const inner=document.getElementById('tabs-inner');
   if(!inner) return;
@@ -1085,12 +1276,14 @@ function renderTabs(){
   }).join('');
   const sAct=S.currentTab==='statements'?' active':'';
   const sumAct=S.currentTab==='summary'?' active':'';
+  const upAct=S.currentTab==='upload'?' active':'';
   inner.innerHTML=[
-    '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">📋 Statements</button>',
+    '<button class="tab-btn'+upAct+'" id="tab-btn-upload" onclick="showTab(\'upload\')">📂 Upload</button>',
+    '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">📋 Transactions</button>',
     '<button class="tab-btn'+sumAct+'" id="tab-btn-summary" onclick="showTab(\'summary\')">📊 Summary</button>',
     dynTabs,
     '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>',
-    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);border-radius:0;padding:0 16px">⚙️</button>'
+    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);border-radius:0;padding:0 14px;font-size:13px;gap:5px;display:flex;align-items:center">⚙️ Settings</button>'
   ].join('');
 }
 
@@ -1102,6 +1295,7 @@ function showTab(id){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   const btn=document.getElementById('tab-btn-'+id);
   if(btn) btn.classList.add('active');
+  if(id==='upload'){renderSavedStatements();}
   if(id==='summary'){updateSummary();}
   if(id==='gambling'){renderGambling();}
   if(id==='settings'){renderRules();loadSettings();}
@@ -1323,7 +1517,9 @@ async function parsePDF(f){
     pdf.destroy();
 
     const count=parseBankStructured(pageRows,f.name);
-    if(count===0) toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
+    if(count===0){ toast('0 transactions found in '+f.name+' — bank format may not be supported yet.'); return 0; }
+    // Save statement to library for reference
+    saveStatementToLibrary(f, pageRows).catch(function(e){console.warn('Statement save failed:',e.message);});
     return count;
   }catch(e){
     console.error('parsePDF error:',e);
@@ -1422,9 +1618,25 @@ function parseTDStructured(pageRows,fname){
 
   function finishTx(){
     if(!curTx) return;
-    var desc=cleanD(curTx.descParts.join(' '));
-    if(isGoodDesc(desc)&&curTx.amount&&curTx.amount>0){
-      var amount=curTx.section==='income'?curTx.amount:-curTx.amount;
+    var rawParts=curTx.descParts.slice();
+    var amt=curTx.amount;
+
+    // Handle glued amounts: "VENMO VONDERLINDEN *NY218.12" or "ADDRESS CITY *PA10,250.00"
+    // If we have no amount yet, check if last desc part ends with a number
+    if(amt===null&&rawParts.length){
+      var lastPart=rawParts[rawParts.length-1];
+      var gluedMatch=lastPart.match(/^(.*?)\s*\*?[A-Z]{0,2}([\d,]+\.\d{2})$/);
+      if(gluedMatch){
+        var cleanedPart=gluedMatch[1].trim();
+        amt=parseFloat(gluedMatch[2].replace(/,/g,''));
+        if(cleanedPart) rawParts[rawParts.length-1]=cleanedPart;
+        else rawParts.pop();
+      }
+    }
+
+    var desc=cleanD(rawParts.join(' '));
+    if(isGoodDesc(desc)&&amt&&amt>0){
+      var amount=curTx.section==='income'?amt:-amt;
       var rawDate=curTx.date;
       if(rawDate&&!/\/\d{2,4}$/.test(rawDate)) rawDate=rawDate+'/25';
       tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});
@@ -1494,12 +1706,22 @@ function parseTDStructured(pageRows,fname){
       };
     } else if(curTx){
       if(descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText)){
-        if(/[A-Za-z]{2}/.test(descText)&&descText.length<80){
+        if(/[A-Za-z]{2}/.test(descText)&&descText.length<120){
           curTx.descParts.push(descText);
         }
       }
+      // Pick up amount from explicit amount column OR from a continuation
+      // line that has a standalone amount (some TD layouts put amount on its own line)
       if(amtText&&curTx.amount===null){
         curTx.amount=parseFloat(amtText.replace(/,/g,''));
+      } else if(!amtText&&!descText&&curTx.amount===null){
+        // Check if this row has a standalone amount in desc range
+        var standaloneAmt=items.filter(function(i){
+          return i.x>=100&&i.x<510&&amtPat.test(i.text);
+        });
+        if(standaloneAmt.length){
+          curTx.amount=parseFloat(standaloneAmt[0].text.replace(/,/g,''));
+        }
       }
     }
   });
