@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.0.6</span>
+      <span class="logo-beta">v2.0.7</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2572,21 +2572,9 @@ function _exportAllRun(){
 }
 
 // ── STARTUP ───────────────────────────────────────────────────────────────
-// ── PDF PROCESSING ────────────────────────────────────────────────────────
-// Uses MessageChannel for true async yields between pages
-// Works offline in desktop app (uses electronAPI), online in web app (uses pdfjs CDN)
-function trueYield(){
-  return new Promise(res=>{
-    const ch=new MessageChannel();
-    ch.port1.onmessage=res;
-    ch.port2.postMessage(0);
-  });
-}
-
 window.addEventListener('DOMContentLoaded', async function(){
-  // Fallback: init pdfjs on main thread if workers aren't available
   if(typeof pdfjsLib !== 'undefined'){
-    pdfjsLib.GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
   load();
   await checkAuth();
