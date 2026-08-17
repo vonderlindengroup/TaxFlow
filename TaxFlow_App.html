@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.0.5</span>
+      <span class="logo-beta">v2.0.6</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -815,13 +815,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div id="yoy-content"></div>
     </div>
     </div><!-- end .main -->
-<div id="prog" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:8888;align-items:center;justify-content:center">
-  <div style="background:#1e3a5f;border-radius:12px;padding:24px 32px;text-align:center;max-width:400px;width:90%">
-    <div id="prog-msg" style="font-size:15px;font-weight:700;color:#fff;margin-bottom:6px">Reading statements...</div>
-    <div id="prog-sub" style="font-size:12px;color:rgba(255,255,255,0.6)">Please wait</div>
-    <div id="prog-count" style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:8px"></div>
-  </div>
-</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1132,24 +1126,10 @@ async function handleFiles(files){
   const list=[...files];
   if(!list.length) return;
   const wTier=currentTier();
+  let total=0;
 
-  // Simple progress text only — no bar updates, no per-page DOM writes
-  const pm=document.getElementById('prog-msg');
-  const ps=document.getElementById('prog-sub');
-  const pc=document.getElementById('prog-count');
-  showProg();
-
-  let total=0, filesDone=0;
   for(const f of list){
-    filesDone++;
     const ext=f.name.toLowerCase().split('.').pop();
-    if(pm) pm.textContent='Reading '+f.name+' ('+filesDone+' of '+list.length+')';
-    if(ps) ps.textContent='Please wait...';
-    if(pc) pc.textContent='File '+filesDone+' of '+list.length;
-
-    // Single yield so the status text actually paints before we block
-    await new Promise(res=>setTimeout(res,50));
-
     try{
       if(ext==='pdf'){
         if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){
@@ -1169,14 +1149,13 @@ async function handleFiles(files){
         toast('Unsupported file type: '+f.name);
       }
     }catch(e){
-      console.error('handleFiles error for '+f.name,e);
-      toast('Error reading '+f.name+': '+(e.message||'unknown error'));
+      console.error('Error importing '+f.name,e);
+      toast('Error reading '+f.name+': '+(e.message||'unknown'));
     }
   }
 
-  hideProg();
   if(total>0){ save();render();updateSummary(); }
-  toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions imported — check file format');
+  toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions found — check file format');
 }
 
 function readText(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(f);})}
@@ -1393,8 +1372,8 @@ function parseGeneric(lines,fname){
   return added;
 }
 
-function showProg(){const p=document.getElementById('prog');if(p)p.style.display='flex';}
-function hideProg(){const p=document.getElementById('prog');if(p)p.style.display='none';}
+function showProg(){}
+function hideProg(){}
 function onDragOver(e){e.preventDefault();document.getElementById('dropzone').classList.add('drag')}
 function onDragLeave(){document.getElementById('dropzone').classList.remove('drag')}
 function onDrop(e){e.preventDefault();document.getElementById('dropzone').classList.remove('drag');handleFiles(e.dataTransfer.files)}
