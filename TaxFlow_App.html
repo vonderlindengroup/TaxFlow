@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.1.7</span>
+      <span class="logo-beta">v2.1.8</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1276,8 +1276,7 @@ function parseXLSX(bin,fname){
 }
 
 async function parsePDF(f){
-  // Desktop: use Electron IPC
-  if(window.electronAPI && window.electronAPI.isElectron){
+  if(window.electronAPI&&window.electronAPI.isElectron){
     const buf=await readBuf(f);
     if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
     const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(buf));
@@ -1287,8 +1286,6 @@ async function parsePDF(f){
     if(count===0) toast('0 transactions found in '+f.name);
     return count;
   }
-
-  // Web: use pdfjs — NO DOM updates inside the loop, zero reflows
   if(typeof pdfjsLib==='undefined'){
     toast('PDF reader not loaded — check your internet connection.');
     return 0;
@@ -1296,43 +1293,185 @@ async function parsePDF(f){
   try{
     const buf=await readBuf(f);
     if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true,useSystemFonts:true}).promise;
 
-    const pdf=await pdfjsLib.getDocument({
-      data:new Uint8Array(buf),
-      verbosity:0,
-      disableFontFace:true,
-      useSystemFonts:true
-    }).promise;
-
-    let fullText='';
+    // Extract structured rows: [{y, items:[{x,text}]}] per page
+    // This preserves column structure for coordinate-aware parsing
+    const pageRows=[];
     for(let p=1;p<=pdf.numPages;p++){
       const page=await pdf.getPage(p);
       const ct=await page.getTextContent();
       page.cleanup();
-      const lines={};
+      // Group items by Y coordinate (rounded to nearest 3pt)
+      const byY={};
       ct.items.forEach(function(item){
-        const y=Math.round(item.transform[5]);
-        if(!lines[y]) lines[y]=[];
-        lines[y].push({x:Math.round(item.transform[4]),t:item.str});
+        const x=Math.round(item.transform[4]);
+        const y=Math.round(item.transform[5]/3)*3; // bucket by 3pt
+        const t=(item.str||'').trim();
+        if(!t) return;
+        if(!byY[y]) byY[y]=[];
+        byY[y].push({x:x,text:t});
       });
-      Object.keys(lines).sort(function(a,b){return b-a;}).forEach(function(y){
-        fullText+=lines[y].sort(function(a,b){return a.x-b.x;}).map(function(i){return i.t;}).join(' ')+'\n';
+      // Sort rows by y descending (top of page first in PDF coords)
+      const sortedY=Object.keys(byY).map(Number).sort(function(a,b){return b-a;});
+      sortedY.forEach(function(y){
+        const row=byY[y];
+        row.sort(function(a,b){return a.x-b.x;});
+        pageRows.push({y:y,items:row,page:p});
       });
     }
     pdf.destroy();
 
-    if(!fullText.trim()){
-      toast('No text found in '+f.name+' — may be a scanned image PDF.');
-      return 0;
-    }
-    const count=parseBankText(fullText,f.name);
-    if(count===0) toast('0 transactions found in '+f.name);
+    const count=parseBankStructured(pageRows,f.name);
+    if(count===0) toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
     return count;
   }catch(e){
     console.error('parsePDF error:',e);
     toast('Error reading '+f.name+': '+(e.message||'unknown error'));
     return 0;
   }
+}
+
+function parseBankStructured(pageRows,fname){
+  // Detect bank from text content
+  const allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
+  const isTD=/(td bank|td convenience|statement of account)/i.test(allText);
+  const isBluevine=/(bluevine|blue vine)/i.test(allText);
+  if(isTD) return parseTDStructured(pageRows,fname);
+  // For non-TD: fall back to line-based parsing
+  const lines=[];
+  pageRows.forEach(function(r){
+    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
+    if(line) lines.push(line);
+  });
+  if(isBluevine) return parseBluevine(lines,fname);
+  return parseGeneric(lines,fname);
+}
+
+function parseTDStructured(pageRows,fname){
+  var added=0;
+
+  // Column X boundaries (in PDF points, origin bottom-left)
+  // From analysis: date x~65, desc x~145, amount x~530-560
+  // These are bottom-left coords, so we use raw transform values
+  var DATE_MAX_X=130;
+  var DESC_MIN_X=100;
+  var DESC_MAX_X=520;
+  var AMT_MIN_X=510;
+
+  var datePat=/^\d{2}\/\d{2}$/;
+  var amtPat=/^[\d,]+\.\d{2}$/;
+  var bankPfx=/^(DBCRD|DEBIT\s+POS|DEBIT\s+CARD|ACH\s+DEBIT|CCD\s+DEBIT|ELECTRONIC\s+PMT)/i;
+  var skipPat=/^(STATEMENT OF ACCOUNT|POSTING DATE|DESCRIPTION|AMOUNT$|ACCOUNT SUMMARY|Beginning Balance|Ending Balance|Average Collected|Interest Earned|Interest Paid|Annual Percentage|Days in Period|Grace Period|Total for|DAILY ACCOUNT ACTIVITY|DAILY BALANCE SUMMARY|DATE\s+BALANCE|Call 1-800|xxxxxx|Bank Deposits|Subtotal|How to Balance|For Consumer|For Questions|TD Bank|TD Convenience|cid:|We must|We will|If you|In case|Finance Charge|Interest Notice|FINANCE CHARGES|QUESTIONS ABOUT|BILLING RIGHTS|HERBERT VONDERLINDEN|5811 JACKSON|PHILADELPHIA PA|Mar |Apr |Jan |Feb |Sub Total|Adjusted$|Ending$|Total Deposits|Total Withdrawals|Withdrawals$|Account #|\$0\.00)/i;
+
+  function cleanD(s){
+    return s.replace(/\*{3,}\d+/g,'')
+      .replace(/AUT\s+\d{6}/gi,'')
+      .replace(/VISA\s+DDA\s+(PUR|PMT|REF)\s*AP?/gi,'')
+      .replace(/(DBCRD|DEBIT\s+(POS|CARD))\s*(PUR|PMT|CREDIT|CARD)?\s*AP,?/gi,'')
+      .replace(/DDA\s+(PUR|PMT|PURCHASE)\s*AP,?/gi,'')
+      .replace(/(ACH|CCD)\s+DEBIT,?/gi,'')
+      .replace(/ELECTRONIC\s+PMT-WEB,?/gi,'')
+      .replace(/DEBIT\s+CARD\s+CREDIT,?/gi,'')
+      .replace(/,\s*,+/g,'')
+      .replace(/^\W+|\W+$/g,'')
+      .replace(/\s+/g,' ').trim();
+  }
+
+  function isGoodDesc(d){
+    return d&&d.length>2&&/[A-Za-z]{2}/.test(d);
+  }
+
+  var curSection=null; // 'income' or 'expense'
+  var inActivity=false;
+  var curTx=null; // {section,date,descParts,amount}
+
+  function finishTx(){
+    if(!curTx) return;
+    var desc=cleanD(curTx.descParts.join(' '));
+    if(isGoodDesc(desc)&&curTx.amount>0){
+      var amount=curTx.section==='income'?curTx.amount:-curTx.amount;
+      var rawDate=curTx.date;
+      // Normalize date: MM/DD → MM/DD/25
+      if(rawDate&&!/\/\d{2,4}$/.test(rawDate)) rawDate=rawDate+'/25';
+      tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});
+      added++;
+    }
+    curTx=null;
+  }
+
+  pageRows.forEach(function(row){
+    var items=row.items;
+    // Classify items in this row by x position
+    var dateItems=items.filter(function(i){return i.x<DATE_MAX_X&&datePat.test(i.text);});
+    var descItems=items.filter(function(i){return i.x>=DESC_MIN_X&&i.x<DESC_MAX_X;});
+    var amtItems=items.filter(function(i){return i.x>=AMT_MIN_X&&amtPat.test(i.text);});
+
+    var dateText=dateItems.length?dateItems[0].text:'';
+    var descText=descItems.map(function(i){return i.text;}).join(' ').trim();
+    var amtText=amtItems.length?amtItems[0].text:'';
+    var rowText=items.map(function(i){return i.text;}).join(' ').trim();
+
+    // Stop at balance summary
+    if(/daily balance summary/i.test(rowText)){finishTx();return;}
+
+    // Activity gate
+    if(/daily account activity/i.test(rowText)){
+      finishTx();inActivity=true;curSection=null;return;
+    }
+    if(!inActivity) return;
+
+    // Skip boilerplate rows
+    if(skipPat.test(rowText.trim())) return;
+    if(/^\d+\s+of\s+\d+$/.test(rowText)) return;
+    if(/^\d{4}-\d{2}-\d{2}/.test(rowText)) return; // date ranges
+    if(/^(Mar|Apr|Jan|Feb|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d/.test(rowText)) return;
+    if(rowText.length>100&&/[a-z]{3}.*[a-z]{3}/i.test(rowText)&&!/\d{2}\/\d{2}/.test(rowText)) return; // long legal text
+
+    // Section detection (no amount on same row)
+    if(!amtText){
+      if(/^Deposits$/i.test(descText)&&!dateText){finishTx();curSection='income';return;}
+      if(/^Electronic Deposits$/i.test(descText)&&!dateText){finishTx();curSection='income';return;}
+      if(/^(Electronic Payments|Service Charges|Checks Paid|Other Withdrawals)$/i.test(descText)&&!dateText){finishTx();curSection='expense';return;}
+      if(/^Electronic Payments \(continued\)/i.test(rowText)&&!dateText){finishTx();curSection='expense';return;}
+    }
+
+    if(!curSection) return;
+
+    // New transaction: row has a bank prefix description OR (date + non-header desc)
+    var hasBankPfx=descItems.some(function(i){return bankPfx.test(i.text);});
+    var isNewTx=hasBankPfx||(dateText&&descText&&!/^(POSTING DATE|DESCRIPTION|AMOUNT)/i.test(descText));
+
+    if(isNewTx){
+      finishTx();
+      curTx={
+        section:curSection,
+        date:dateText||'',
+        descParts:descText?[descText]:[],
+        amount:amtText?parseFloat(amtText.replace(/,/g,'')):null
+      };
+    } else if(curTx&&descText&&!skipPat.test(descText)){
+      // Continuation line (merchant name, city, etc.)
+      curTx.descParts.push(descText);
+      if(amtText&&curTx.amount===null){
+        curTx.amount=parseFloat(amtText.replace(/,/g,''));
+      }
+    } else if(curTx&&amtText&&curTx.amount===null){
+      curTx.amount=parseFloat(amtText.replace(/,/g,''));
+    }
+  });
+
+  finishTx();
+  return added||parseGenericFromRows(pageRows,fname);
+}
+
+function parseGenericFromRows(pageRows,fname){
+  var lines=[];
+  pageRows.forEach(function(r){
+    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
+    if(line) lines.push(line);
+  });
+  return parseGeneric(lines,fname);
 }
 
 function parseBankText(text,fname){
