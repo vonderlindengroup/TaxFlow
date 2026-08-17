@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.3.3</span>
+      <span class="logo-beta">v2.3.4</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1056,6 +1056,8 @@ function load(){
   render();
   updateSummary();
   renderUserDropdown();
+  // Activate the current tab so the right panel is visible
+  showTab(S.currentTab||'upload');
 }
 
 // ── CATEGORIES ─────────────────────────────────────────────────────────────
