@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.0.7</span>
+      <span class="logo-beta">v2.0.8</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -829,147 +829,13 @@ function setStyle(id, prop, val) {
   const el = document.getElementById(id);
   if (el) el.style[prop] = val;
 }
-
-// ── CONSTANTS ──────────────────────────────────────────────────────────────
-const CATS=[
-  'Income — Business Deposit / Check','Income — Gambling Winnings','Income — Venmo / Payment Received','Income — Other',
-  'Deductible — Meals & Entertainment (Work)','Deductible — Gas & Fuel (Work)','Deductible — Tools & Supplies',
-  'Deductible — Work Clothing','Deductible — Business Services','Deductible — Labor / Subcontractor',
-  'Deductible — Auto & Vehicle','Deductible — Home Improvement','Deductible — Utilities & Phone',
-  'Deductible — Insurance','Deductible — Bank Fees','Deductible — Travel & Transportation',
-  'Deductible — Professional / Licensing','Deductible — Taxes & Gov Fees','Deductible — Amazon (Work Tools)',
-  'Deductible — Other Business Expense',
-  'Personal — Groceries','Personal — Health & Medical','Personal — Entertainment & Gambling',
-  'Personal — Shopping','Personal — Food Delivery','Personal — Subscriptions',
-  'Personal — Transfer / Reimbursement','Personal — Other',
-  'Needs Review'
-];
-
-const OPTIONAL_TABS=[
-  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
-  {id:'mileage',     icon:'🚗', name:'Vehicle Mileage',     desc:'Log work trips and calculate your mileage deduction'},
-  {id:'homeoffice',  icon:'🏠', name:'Home Office',         desc:'Calculate your home office deduction'},
-  {id:'1099',        icon:'📄', name:'1099 Tracker',        desc:'Track 1099 income from each client or platform'},
-  {id:'quarterly',   icon:'📅', name:'Quarterly Taxes',     desc:'Estimate your quarterly tax payments'},
-  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
-  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
-  {id:'invoices',    icon:'🧾', name:'Invoice Tracker',     desc:'Track client invoices — paid, outstanding, and overdue'},
-  {id:'pl',          icon:'📊', name:'Profit & Loss',       desc:'Auto-generated P&L statement from your transactions'},
-  {id:'clients',     icon:'👥', name:'Client Breakdown',    desc:'Income breakdown by client and payment source'},
-  {id:'yoy',         icon:'📈', name:'Year-over-Year',      desc:'Compare this year to previous years side by side'},
-];
-
-const TAB_LABELS={
-  gambling:'🎰 Gambling W/L', mileage:'🚗 Mileage', homeoffice:'🏠 Home Office',
-  retirement:'🏦 Retirement', equipment:'💻 Equipment',
-  invoices:'🧾 Invoices', pl:'📊 P&L', clients:'👥 Clients', yoy:'📈 Year vs Year',
-  '1099':'📄 1099s', quarterly:'📅 Quarterly', settings:'⚙️ Settings'
-};
-
-const DEFAULT_RULES=[
-  {kw:'deposit|atm check|check deposit',   cat:'Income — Business Deposit / Check'},
-  {kw:'wire transfer incoming',             cat:'Income — Business Deposit / Check'},
-  {kw:'venmo.*incoming|betmgm.*credit|betmgm llc.*visa direct', cat:'Income — Gambling Winnings'},
-  {kw:'betmgm|parx casino|mgm.*casino|casino', cat:'Personal — Entertainment & Gambling'},
-  {kw:'gopuff|uber eats|doordash|grubhub', cat:'Deductible — Meals & Entertainment (Work)'},
-  {kw:'wawa|royal farms|starbucks|chick.fil|restaurant|bistro|diner', cat:'Deductible — Meals & Entertainment (Work)'},
-  {kw:'shell oil|circle k|qt [0-9]|petroleum|3a petroleum|speedway|exxon|sunoco', cat:'Deductible — Gas & Fuel (Work)'},
-  {kw:'amazon',                             cat:'Deductible — Amazon (Work Tools)'},
-  {kw:'home depot|lowes|ace hardware|own boss supply|glory boys', cat:'Deductible — Tools & Supplies'},
-  {kw:'google gsuite|brandcrowd|vistaprint|design.com|simply business', cat:'Deductible — Business Services'},
-  {kw:'gjergj|vero',                        cat:'Deductible — Labor / Subcontractor'},
-  {kw:'progressive ins|simply business',    cat:'Deductible — Insurance'},
-  {kw:'verizon|at&t|comcast|t-mobile',      cat:'Deductible — Utilities & Phone'},
-  {kw:'american air|aa wifi|uber tech|lyft|amtrak|hotel|airport|hudson st', cat:'Deductible — Travel & Transportation'},
-  {kw:'pa driver|pa bcco|gov.*payment|frank vans|dmv', cat:'Deductible — Taxes & Gov Fees'},
-  {kw:'nontd atm|atm fee|maintenance fee|paper statement|wire transfer fee|intl atm|intl txn', cat:'Deductible — Bank Fees'},
-  {kw:'netflix|apple.com|spotify|hulu|playstation|rocket money|affirm|microsoft store|uber one', cat:'Personal — Subscriptions'},
-  {kw:'venmo|cash app|zelle|paypal',        cat:'Personal — Transfer / Reimbursement'},
-  {kw:'walmart|target|costco|shoprite|giant|acme|instacart', cat:'Personal — Groceries'},
-  {kw:'cvs|walgreen|pharmacy|urgent care|medical|dental', cat:'Personal — Health & Medical'},
-  {kw:'fanfix|robinhood|bidassets',         cat:'Personal — Other'},
-];
-
-// ── STATE ──────────────────────────────────────────────────────────────────
-// ── DEFAULT USER DATA ────────────────────────────────────────────────────
-function emptyUser(avatar,color){
-  return {name:'',biz:'',avatar,color,tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]};
-}
-
-const USER_COLORS = ['brand','green','purple','amber','red'];
-const USER_AVATARS = ['U1','U2','U3','U4','U5'];
-
-let S={
-  users:{
-    herbert: emptyUser('U1','brand'),
-  },
-  cur:'herbert',
-  extraUsers: [],  // [{id:'user2',name:'',biz:'',...}, ...] up to 4 more
-  rules:[...DEFAULT_RULES],
-  year: new Date().getFullYear().toString(),
-  years:{},
-  activeTabs:['settings'],
-  currentTab:'statements',
-  profile:{filingStatus:'single',state:''}
-};
-
-function load(){
-  try{
-    const d=localStorage.getItem('tf_v3');
-    if(d){
-      const parsed=JSON.parse(d);
-      S=Object.assign(S,parsed);
-      // Ensure new fields exist
-      if(!S.years) S.years={};
-      if(!S.activeTabs) S.activeTabs=['settings'];
-      if(!S.profile) S.profile={filingStatus:'single',state:''};
-      if(!S.extraUsers) S.extraUsers=[];
-      // Migrate old 'spouse' to extraUsers if present
-      if(S.users && S.users.spouse && !S.extraUsers.find(u=>u.id==='user2')){
-        const sp=S.users.spouse;
-        if(sp.name||sp.tx&&sp.tx.length){
-          S.extraUsers.push(Object.assign({id:'user2'},sp));
-        }
-        delete S.users.spouse;
-      }
-      // Ensure primary user fields
-      if(!S.users.herbert) S.users.herbert=emptyUser('U1','brand');
-      ['invoices','retirement','equipment'].forEach(f=>{
-        if(!S.users.herbert[f]) S.users.herbert[f]=[];
-      });
-      // Ensure extraUsers fields
-      S.extraUsers.forEach(u=>{
-        ['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(f=>{
-          if(!u[f]) u[f]=[];
-        });
-      });
-    } else {
-      // Try migrating from old tf_v2 format
-      const old=localStorage.getItem('tf_v2');
-      if(old){
-        const p=JSON.parse(old);
-        S=Object.assign(S,p);
-        if(!S.years) S.years={};
-        if(!S.profile) S.profile={filingStatus:'single',state:''};
-        ['herbert','spouse'].forEach(u=>{
-          if(S.users[u]&&!S.users[u].invoices) S.users[u].invoices=[];
-          if(S.users[u]&&!S.users[u].retirement) S.users[u].retirement=[];
-          if(S.users[u]&&!S.users[u].equipment) S.users[u].equipment=[];
-        });
-        save(); // migrate to tf_v3
-      }
-    }
-  }catch(e){ console.error('Load error:',e); }
-  populateCatSelects();
-  loadSettings();
-  renderTabs();
-  renderRules();
-  renderGambling();
-  renderMileage();
-  render1099();
-  render();
-  updateSummary();
-  renderUserDropdown();
+function toast(msg, dur){
+  const el=document.getElementById('toast');
+  if(!el) return;
+  el.textContent=msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t=setTimeout(function(){el.classList.remove('show');},dur||3000);
 }
 function save(){try{localStorage.setItem('tf_v3',JSON.stringify(S));}catch(e){}}
 function U(){
@@ -988,6 +854,207 @@ function tx(){return U().tx}
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
 function fmt(n){return'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+
+// ── CATEGORIES ─────────────────────────────────────────────────────────────
+const CATS=[
+  'Income — Client Payment','Income — Direct Deposit','Income — Other',
+  'Deductible — Advertising & Marketing','Deductible — Bank Fees',
+  'Deductible — Business Meals','Deductible — Business Travel',
+  'Deductible — Car & Truck','Deductible — Contract Labor',
+  'Deductible — Education & Training','Deductible — Equipment & Tools',
+  'Deductible — Home Office','Deductible — Insurance',
+  'Deductible — Legal & Professional','Deductible — Medical',
+  'Deductible — Office Supplies','Deductible — Phone & Internet',
+  'Deductible — Rent & Lease','Deductible — Software & Subscriptions',
+  'Deductible — Taxes & Licenses','Deductible — Utilities',
+  'Deductible — Other Business Expense',
+  'Personal — Dining & Restaurants','Personal — Entertainment & Gambling',
+  'Personal — Groceries','Personal — Gas & Fuel',
+  'Personal — Health & Fitness','Personal — Personal Care',
+  'Personal — Shopping','Personal — Transportation',
+  'Personal — Other Personal Expense',
+  'Needs Review'
+];
+
+const TAB_LABELS={
+  gambling:'🎰 Gambling W/L', mileage:'🚗 Mileage', homeoffice:'🏠 Home Office',
+  retirement:'🏦 Retirement', equipment:'💻 Equipment',
+  invoices:'🧾 Invoices', pl:'📊 P&L', clients:'👥 Clients', yoy:'📈 Year vs Year',
+  '1099':'📄 1099 Tracker', quarterly:'📅 Quarterly', settings:'⚙️ Settings',
+};
+
+const OPTIONAL_TABS=[
+  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
+  {id:'mileage',     icon:'🚗', name:'Vehicle Mileage',     desc:'Log work trips and calculate your mileage deduction'},
+  {id:'homeoffice',  icon:'🏠', name:'Home Office',         desc:'Calculate your home office deduction'},
+  {id:'1099',        icon:'📄', name:'1099 Tracker',        desc:'Track 1099 income from each client or platform'},
+  {id:'quarterly',   icon:'📅', name:'Quarterly Taxes',     desc:'Estimate your quarterly tax payments'},
+  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
+  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
+  {id:'invoices',    icon:'🧾', name:'Invoice Tracker',     desc:'Track client invoices — paid, outstanding, and overdue'},
+  {id:'pl',          icon:'📊', name:'Profit & Loss',       desc:'Auto-generated P&L statement from your transactions'},
+  {id:'clients',     icon:'👥', name:'Client Breakdown',    desc:'Income breakdown by client and payment source'},
+  {id:'yoy',         icon:'📈', name:'Year-over-Year',      desc:'Compare this year to previous years side by side'},
+];
+
+// ── DEFAULT RULES ──────────────────────────────────────────────────────────
+const DEFAULT_RULES=[
+  {kw:'stripe',cat:'Income — Client Payment'},
+  {kw:'paypal',cat:'Income — Client Payment'},
+  {kw:'venmo',cat:'Income — Client Payment'},
+  {kw:'zelle',cat:'Income — Client Payment'},
+  {kw:'direct dep',cat:'Income — Direct Deposit'},
+  {kw:'deposit',cat:'Income — Direct Deposit'},
+  {kw:'uber eats',cat:'Deductible — Business Meals'},
+  {kw:'doordash',cat:'Deductible — Business Meals'},
+  {kw:'grubhub',cat:'Deductible — Business Meals'},
+  {kw:'amazon',cat:'Deductible — Office Supplies'},
+  {kw:'office depot',cat:'Deductible — Office Supplies'},
+  {kw:'staples',cat:'Deductible — Office Supplies'},
+  {kw:'at&t',cat:'Deductible — Phone & Internet'},
+  {kw:'verizon',cat:'Deductible — Phone & Internet'},
+  {kw:'t-mobile',cat:'Deductible — Phone & Internet'},
+  {kw:'comcast',cat:'Deductible — Phone & Internet'},
+  {kw:'xfinity',cat:'Deductible — Phone & Internet'},
+  {kw:'google',cat:'Deductible — Software & Subscriptions'},
+  {kw:'microsoft',cat:'Deductible — Software & Subscriptions'},
+  {kw:'adobe',cat:'Deductible — Software & Subscriptions'},
+  {kw:'netflix',cat:'Personal — Entertainment & Gambling'},
+  {kw:'spotify',cat:'Personal — Entertainment & Gambling'},
+  {kw:'hulu',cat:'Personal — Entertainment & Gambling'},
+  {kw:'apple',cat:'Deductible — Software & Subscriptions'},
+  {kw:'betmgm',cat:'Personal — Entertainment & Gambling'},
+  {kw:'draftkings',cat:'Personal — Entertainment & Gambling'},
+  {kw:'fanduel',cat:'Personal — Entertainment & Gambling'},
+  {kw:'wawa',cat:'Personal — Gas & Fuel'},
+  {kw:'shell',cat:'Personal — Gas & Fuel'},
+  {kw:'exxon',cat:'Personal — Gas & Fuel'},
+  {kw:'bp',cat:'Personal — Gas & Fuel'},
+  {kw:'lukoil',cat:'Personal — Gas & Fuel'},
+  {kw:'sunoco',cat:'Personal — Gas & Fuel'},
+  {kw:'progressive',cat:'Deductible — Insurance'},
+  {kw:'geico',cat:'Deductible — Insurance'},
+  {kw:'affirm',cat:'Personal — Shopping'},
+  {kw:'afterpay',cat:'Personal — Shopping'},
+  {kw:'gopuff',cat:'Personal — Groceries'},
+  {kw:'instacart',cat:'Personal — Groceries'},
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+const USER_COLORS=['brand','green','purple','amber','red'];
+const USER_AVATARS=['U1','U2','U3','U4','U5'];
+
+function emptyUser(avatar,color){
+  return {name:'',biz:'',avatar,color,tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]};
+}
+
+let S={
+  users:{ herbert:emptyUser('U1','brand') },
+  cur:'herbert',
+  extraUsers:[],
+  rules:[...DEFAULT_RULES],
+  year:new Date().getFullYear().toString(),
+  years:{},
+  activeTabs:['settings'],
+  currentTab:'statements',
+  profile:{filingStatus:'single',state:''}
+};
+
+// ── PERSISTENCE ────────────────────────────────────────────────────────────
+function load(){
+  try{
+    const d=localStorage.getItem('tf_v3');
+    if(d){
+      const parsed=JSON.parse(d);
+      S=Object.assign(S,parsed);
+      if(!S.years) S.years={};
+      if(!S.activeTabs) S.activeTabs=['settings'];
+      if(!S.profile) S.profile={filingStatus:'single',state:''};
+      if(!S.extraUsers) S.extraUsers=[];
+      if(!S.users.herbert) S.users.herbert=emptyUser('U1','brand');
+      ['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(f=>{
+        if(!S.users.herbert[f]) S.users.herbert[f]=[];
+      });
+      S.extraUsers.forEach(u=>{
+        ['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(f=>{
+          if(!u[f]) u[f]=[];
+        });
+      });
+      // Migrate old 'spouse' key
+      if(S.users.spouse){
+        const sp=S.users.spouse;
+        if((sp.name||'').trim()||(sp.tx||[]).length){
+          if(!S.extraUsers.find(u=>u.id==='user2')){
+            const eu=emptyUser('U2','green');
+            eu.id='user2'; eu.name=sp.name||''; eu.biz=sp.biz||'';
+            eu.tx=sp.tx||[]; eu.gambling=sp.gambling||[];
+            S.extraUsers.push(eu);
+          }
+        }
+        delete S.users.spouse;
+      }
+    }
+  }catch(e){console.error('Load error:',e);}
+  if(!S.rules||!S.rules.length) S.rules=[...DEFAULT_RULES];
+  populateCatSelects();
+  loadSettings();
+  renderTabs();
+  renderRules();
+  render();
+  updateSummary();
+  renderUserDropdown();
+}
+
+// ── CATEGORIES ─────────────────────────────────────────────────────────────
+function bucket(cat){
+  if(!cat) return 'review';
+  if(cat.startsWith('Income')) return 'income';
+  if(cat.startsWith('Deductible')) return 'deductible';
+  if(cat.startsWith('Personal')) return 'personal';
+  return 'review';
+}
+
+function autoCat(desc){
+  if(!desc) return 'Needs Review';
+  const d=desc.toLowerCase();
+  for(const rule of (S.rules||[])){
+    if(d.includes(rule.kw)) return rule.cat;
+  }
+  return 'Needs Review';
+}
+
+function normalizeDate(raw){
+  if(!raw) return '';
+  const s=raw.replace(/[-\.]/g,'/');
+  const p=s.split('/');
+  if(p.length===3){
+    let [a,b,c]=p;
+    if(c.length===2) c='20'+c;
+    if(a.length===4){[a,b,c]=[b,c,a];}
+    return a.padStart(2,'0')+'/'+b.padStart(2,'0')+'/'+c;
+  }
+  return raw;
+}
+
+function cleanDesc(d){
+  return d
+    .replace(/DB[CR]+D\s+\w+\s+AP,\s*\*+[\d]+,\s*AUT\s*\d+\s*(?:VISA\s*)?DDA\s*(?:PUR|PMT)?\s*AP\s*/gi,'')
+    .replace(/DEBIT\s+POS\s+AP,\s*\*+[\d]+,\s*AUT\s*\d+\s*DDA\s*PURCHASE\s*AP\s*/gi,'')
+    .replace(/DEBIT\s+CARD\s+CREDIT,\s*\*+[\d]+,\s*AUT\s*\d+\s*VISA\s*DDA\s*REF\s*/gi,'')
+    .replace(/ELECTRONIC\s+PMT-WEB,\s*/gi,'')
+    .replace(/CCD\s+DEBIT,\s*/gi,'')
+    .replace(/ACH\s+DEBIT,\s*/gi,'')
+    .replace(/\s{2,}/g,' ')
+    .trim();
+}
+
+function populateCatSelects(){
+  document.querySelectorAll('select.cat-filter').forEach(sel=>{
+    if(sel.options.length>1) return;
+    CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
+  });
+}
 
 // ── TABS ───────────────────────────────────────────────────────────────────
 function renderTabs(){
