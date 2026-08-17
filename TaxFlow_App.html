@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.1.0</span>
+      <span class="logo-beta">v2.1.1</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2049,20 +2049,25 @@ function addClient(){
   var modal=document.createElement('div');
   modal.id='client-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
-    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Client</h3>'+
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Client</h3>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-    '<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-name" type="text" placeholder="e.g. Acme Corp" class="field-input"></div>'+
-    '<div><label class="field-label">Contact Name</label><input id="cl-contact" type="text" placeholder="e.g. Jane Smith" class="field-input"></div>'+
+    '<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-name" type="text" placeholder="Acme Corp" class="field-input"></div>'+
+    '<div><label class="field-label">Contact Name</label><input id="cl-contact" type="text" placeholder="Jane Smith" class="field-input"></div>'+
     '<div><label class="field-label">Email</label><input id="cl-email" type="email" placeholder="jane@acme.com" class="field-input"></div>'+
-    '<div><label class="field-label">Phone</label><input id="cl-phone" type="text" placeholder="(555) 555-5555" class="field-input"></div>'+
-    '<div><label class="field-label">Default Rate</label><input id="cl-rate" type="text" placeholder="e.g. $150/hr" class="field-input"></div>'+
-    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-notes" type="text" placeholder="e.g. Net 30, retainer" class="field-input"></div>'+
+    '<div><label class="field-label">Phone</label><input id="cl-phone" type="text" placeholder="555-555-5555" class="field-input"></div>'+
+    '<div><label class="field-label">Default Rate</label><input id="cl-rate" type="text" placeholder="$150/hr" class="field-input"></div>'+
+    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-notes" type="text" placeholder="Net 30, retainer" class="field-input"></div>'+
     '</div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
-    '<button onclick="closeModal(&quot;client-modal&quot;)" class="btn btn-outline">Cancel</button>'+
-    '<button onclick="submitClient()" class="btn btn-primary">Add Client</button></div></div>';
+    '<button id="cl-cancel-btn" class="btn btn-outline">Cancel</button>'+
+    '<button id="cl-submit-btn" class="btn btn-primary">Add Client</button>'+
+    '</div>';
+  modal.appendChild(box);
   document.body.appendChild(modal);
+  document.getElementById('cl-cancel-btn').onclick=function(){modal.remove();};
+  document.getElementById('cl-submit-btn').onclick=submitClient;
   var ni=document.getElementById('cl-name');if(ni)ni.focus();
 }
 
@@ -2097,20 +2102,25 @@ function editClient(id){
   var modal=document.createElement('div');
   modal.id='client-edit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
-    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Edit Client</h3>'+
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Edit Client</h3>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-    '<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-edit-name" type="text" value="'+esc(c.name)+'" class="field-input"></div>'+
-    '<div><label class="field-label">Contact Name</label><input id="cl-edit-contact" type="text" value="'+esc(c.contact||'')+'" class="field-input"></div>'+
-    '<div><label class="field-label">Email</label><input id="cl-edit-email" type="email" value="'+esc(c.email||'')+'" class="field-input"></div>'+
-    '<div><label class="field-label">Phone</label><input id="cl-edit-phone" type="text" value="'+esc(c.phone||'')+'" class="field-input"></div>'+
-    '<div><label class="field-label">Default Rate</label><input id="cl-edit-rate" type="text" value="'+esc(c.rate||'')+'" class="field-input"></div>'+
-    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-edit-notes" type="text" value="'+esc(c.notes||'')+'" class="field-input"></div>'+
+    '<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-edit-name" type="text" class="field-input" value="'+esc(c.name)+'"></div>'+
+    '<div><label class="field-label">Contact Name</label><input id="cl-edit-contact" type="text" class="field-input" value="'+esc(c.contact||'')+'"></div>'+
+    '<div><label class="field-label">Email</label><input id="cl-edit-email" type="email" class="field-input" value="'+esc(c.email||'')+'"></div>'+
+    '<div><label class="field-label">Phone</label><input id="cl-edit-phone" type="text" class="field-input" value="'+esc(c.phone||'')+'"></div>'+
+    '<div><label class="field-label">Default Rate</label><input id="cl-edit-rate" type="text" class="field-input" value="'+esc(c.rate||'')+'"></div>'+
+    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-edit-notes" type="text" class="field-input" value="'+esc(c.notes||'')+'"></div>'+
     '</div>'+
     '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
-    '<button onclick="closeModal(&quot;client-edit-modal&quot;)" class="btn btn-outline">Cancel</button>'+
-    '<button onclick="saveEditClient(this.dataset.id)" data-id="'+id+'" class="btn btn-primary">Save</button></div></div>';
+    '<button id="cl-edit-cancel-btn" class="btn btn-outline">Cancel</button>'+
+    '<button id="cl-edit-save-btn" class="btn btn-primary">Save</button>'+
+    '</div>';
+  modal.appendChild(box);
   document.body.appendChild(modal);
+  document.getElementById('cl-edit-cancel-btn').onclick=function(){modal.remove();};
+  document.getElementById('cl-edit-save-btn').onclick=function(){saveEditClient(id);};
 }
 
 function saveEditClient(idOrEl){
