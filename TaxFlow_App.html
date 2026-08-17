@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.2.0</span>
+      <span class="logo-beta">v2.2.2</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1370,6 +1370,34 @@ function parseTDStructured(pageRows,fname){
   var skipPat=/^(STATEMENT OF ACCOUNT|POSTING DATE|DESCRIPTION|AMOUNT$|ACCOUNT SUMMARY|Beginning Balance|Ending Balance|Average Collected|Interest Earned|Interest Paid|Annual Percentage|Days in Period|Grace Period|Total for|DAILY ACCOUNT ACTIVITY|DATE\s+BALANCE|Call 1-800|xxxxxx|Bank Deposits|Subtotal|How to Balance|For Consumer|For Questions|TD Bank|TD Convenience|cid:|We must|We will|If you|In case|Finance Charge|Interest Notice|FINANCE CHARGES|QUESTIONS ABOUT|BILLING RIGHTS|HERBERT VONDERLINDEN|5811 JACKSON|PHILADELPHIA PA|Sub Total|Adjusted$|Ending$|Total Deposits|Total Withdrawals|Withdrawals$|Account #|\$0\.00|Please see important)/i;
   var pageHdrPat=/^(Page:|Statement Period|Cust Ref|Primary Account|Mar |Apr |Jan |Feb |Jun |Jul |Aug |Sep |Oct |Nov |Dec |\d+ of \d+|4433181734|443-3181734)/i;
 
+  // Normalize text for section matching — strips ALL spaces so
+  // "Electronic Deposits" and "ElectronicDeposits" both match
+  function normSection(s){ return s.replace(/\s+/g,'').toLowerCase(); }
+
+  var INCOME_SECTIONS=[
+    'deposits','electronicdeposits','otherdeposits','othercredits',
+    'atmdeposits','mobiledeposits','checkdeposits','electroniccredits',
+    'zellereceivedcredits','achcredits','wirecredits','incomingwire',
+    'creditadjustments','depositscontinued','electronicdeposits(continued)',
+    'othercreditscontinued'
+  ];
+  var EXPENSE_SECTIONS=[
+    'electronicpayments','servicefees','servicefee','servicecharges',
+    'checkspaid','otherwithdrawals','atmwithdrawals','debitcardpurchases',
+    'wiretransfers','otherdebits','electronicpayments(continued)',
+    'otherwithdrawals(continued)','checkspaid(continued)',
+    'servicefees(continued)','servicecharges(continued)'
+  ];
+
+  function isSectionIncome(text){
+    var n=normSection(text);
+    return INCOME_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});
+  }
+  function isSectionExpense(text){
+    var n=normSection(text);
+    return EXPENSE_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});
+  }
+
   function cleanD(s){
     return s.replace(/\*{3,}\d+/g,'')
       .replace(/AUT\s+\d{6}/gi,'')
@@ -1408,48 +1436,47 @@ function parseTDStructured(pageRows,fname){
   pageRows.forEach(function(row){
     var items=row.items;
 
-    // Classify by x position
     var dateItems=items.filter(function(i){return i.x<DATE_MAX_X&&datePat.test(i.text);});
     var descItems=items.filter(function(i){return i.x>=DESC_MIN_X&&i.x<DESC_MAX_X;});
     var amtItems=items.filter(function(i){return i.x>=AMT_MIN_X&&amtPat.test(i.text);});
     var allText=items.map(function(i){return i.text;}).join(' ').trim();
 
-    // ── CRITICAL: Stop at DAILY BALANCE SUMMARY FIRST ─────────────────
+    // ── Hard stops ─────────────────────────────────────────────────────
     if(/daily balance summary/i.test(allText)){finishTx();inActivity=false;return;}
-
-    // ── Activity gate ──────────────────────────────────────────────────
     if(/daily account activity/i.test(allText)){
       finishTx();inActivity=true;curSection=null;return;
     }
     if(!inActivity) return;
 
-    // ── Skip page headers (top margin area) ───────────────────────────
-    // Page headers: "Page:", "Statement Period:", "Cust Ref #:" etc.
-    // These appear at x~347 (inside DESC range) and must be skipped
+    // ── Skip page headers ──────────────────────────────────────────────
     if(pageHdrPat.test(allText.trim())) return;
-    if(items.every(function(i){return i.x>300&&i.x<560&&pageHdrPat.test(i.text);})) return;
-
-    // ── Skip boilerplate ──────────────────────────────────────────────
     if(skipPat.test(allText.trim())) return;
-    // Skip long legal text (no transaction dates, long lowercase text)
     if(allText.length>100&&!/\d{2}\/\d{2}/.test(allText)&&/[a-z]{5}/.test(allText)) return;
 
     var dateText=dateItems.length?dateItems[0].text:'';
     var descText=descItems.filter(function(i){return !pageHdrPat.test(i.text);}).map(function(i){return i.text;}).join(' ').trim();
     var amtText=amtItems.length?amtItems[0].text:'';
 
-    // ── Section detection: use full allText ───────────────────────────
-    var noAmt=!amtText;
-    if(noAmt){
-      if(/^Deposits$/i.test(allText)){finishTx();curSection='income';return;}
-      if(/^Electronic Deposits$/i.test(allText)){finishTx();curSection='income';return;}
-      if(/^(Electronic Payments|Service Charges|Checks Paid|Other Withdrawals)$/i.test(allText)){finishTx();curSection='expense';return;}
-      if(/^Electronic Payments \(continued\)/i.test(allText)){finishTx();curSection='expense';return;}
+    // ── Section detection: normalize whitespace for matching ───────────
+    // Handles both "Electronic Deposits" and "ElectronicDeposits" (glued)
+    var noDate=!dateText;
+    var textForSection=allText.replace(/\s*\(continued\)/i,'(continued)');
+
+    if(isSectionIncome(textForSection)&&noDate){
+      finishTx();curSection='income';return;
+    }
+    if(isSectionExpense(textForSection)&&noDate){
+      finishTx();curSection='expense';return;
+    }
+    // Also catch sections that appear alongside an amount (some TD formats)
+    if(isSectionIncome(allText)&&noDate&&!amtPat.test(allText)){
+      finishTx();curSection='income';return;
+    }
+    if(isSectionExpense(allText)&&noDate&&!amtPat.test(allText)){
+      finishTx();curSection='expense';return;
     }
 
     if(!curSection) return;
-
-    // Skip if descText is a page header fragment
     if(!descText&&!dateText&&!amtText) return;
     if(descText&&pageHdrPat.test(descText.trim())) return;
 
@@ -1466,9 +1493,7 @@ function parseTDStructured(pageRows,fname){
         amount:amtText?parseFloat(amtText.replace(/,/g,'')):null
       };
     } else if(curTx){
-      // Continuation line
       if(descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText)){
-        // Only add if it looks like merchant text, not a balance or header
         if(/[A-Za-z]{2}/.test(descText)&&descText.length<80){
           curTx.descParts.push(descText);
         }
