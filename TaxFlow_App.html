@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.0.3</span>
+      <span class="logo-beta">v2.0.4</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -699,8 +699,8 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     </div>
     <div class="settings-card">
       <div class="settings-title">👤 User profiles</div>
-      <div class="setting-row"><div><div class="setting-label">Primary user name</div><div class="setting-sub">Appears in header and exports</div></div><input type="text" id="s-n1" placeholder="e.g. Herbert VonderLinden" style="width:100%;max-width:260px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
-      <div class="setting-row"><div><div class="setting-label">Business name</div><div class="setting-sub">Shown on all Excel exports</div></div><input type="text" id="s-biz" placeholder="e.g. VonderLinden Group, LLC" style="width:100%;max-width:300px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
+      <div class="setting-row"><div><div class="setting-label">Primary user name</div><div class="setting-sub">Appears in header and exports</div></div><input type="text" id="s-n1" placeholder="e.g. John Doe" style="width:100%;max-width:260px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
+      <div class="setting-row"><div><div class="setting-label">Business name</div><div class="setting-sub">Shown on all Excel exports</div></div><input type="text" id="s-biz" placeholder="e.g. Business Name LLC" style="width:100%;max-width:300px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
       <div style="margin-top:12px;margin-bottom:16px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
       <div class="settings-title" style="margin-top:8px">👥 Additional users</div>
       <div id="settings-extra-users" style="margin-bottom:12px"></div>
@@ -1126,34 +1126,23 @@ async function handleFiles(files){
   const list=[...files];
   if(!list.length) return;
   const wTier=currentTier();
-  function yieldUI(){ return new Promise(res=>requestAnimationFrame(()=>setTimeout(res,0))); }
 
-  function setProgMsg(msg, fileNum, fileTotal){
-    const m=document.getElementById('prog-msg');
-    const b=document.getElementById('prog-bar');
-    const c=document.getElementById('prog-count');
-    const s=document.getElementById('prog-sub');
-    if(m) m.textContent=msg;
-    if(fileNum&&fileTotal){
-      if(b) b.style.width=Math.round((fileNum-1)/fileTotal*100)+'%';
-      if(c) c.textContent='File '+fileNum+' of '+fileTotal;
-      if(s) s.textContent='Please wait — do not close this tab';
-    }
-  }
-  function setProgComplete(){
-    const b=document.getElementById('prog-bar');if(b)b.style.width='100%';
-    const c=document.getElementById('prog-count');if(c)c.textContent='Done!';
-    const s=document.getElementById('prog-sub');if(s)s.textContent='Finished!';
-  }
-
+  // Simple progress text only — no bar updates, no per-page DOM writes
+  const pm=document.getElementById('prog-msg');
+  const ps=document.getElementById('prog-sub');
+  const pc=document.getElementById('prog-count');
   showProg();
-  let total=0, filesDone=0;
 
+  let total=0, filesDone=0;
   for(const f of list){
-    const ext=f.name.toLowerCase().split('.').pop();
     filesDone++;
-    setProgMsg('Reading '+f.name, filesDone, list.length);
-    await yieldUI(); // let the browser repaint before heavy work
+    const ext=f.name.toLowerCase().split('.').pop();
+    if(pm) pm.textContent='Reading '+f.name+' ('+filesDone+' of '+list.length+')';
+    if(ps) ps.textContent='Please wait...';
+    if(pc) pc.textContent='File '+filesDone+' of '+list.length;
+
+    // Single yield so the status text actually paints before we block
+    await new Promise(res=>setTimeout(res,50));
 
     try{
       if(ext==='pdf'){
@@ -1166,16 +1155,10 @@ async function handleFiles(files){
         total+=n;
       } else if(ext==='csv'){
         const text=await readText(f);
-        await yieldUI();
-        const n=parseCSV(text,f.name);
-        if(n===0) toast('0 transactions found in '+f.name+' — check CSV format');
-        total+=n;
+        total+=parseCSV(text,f.name);
       } else if(ext==='xlsx'||ext==='xls'){
         const bin=await readBin(f);
-        await yieldUI();
-        const n=parseXLSX(bin,f.name);
-        if(n===0) toast('0 transactions found in '+f.name);
-        total+=n;
+        total+=parseXLSX(bin,f.name);
       } else {
         toast('Unsupported file type: '+f.name);
       }
@@ -1183,15 +1166,11 @@ async function handleFiles(files){
       console.error('handleFiles error for '+f.name,e);
       toast('Error reading '+f.name+': '+(e.message||'unknown error'));
     }
-
-    await new Promise(res=>setTimeout(res,500)); // 500ms between PDFs — lets GC free memory
   }
 
-  setProgComplete();
-  await new Promise(res=>setTimeout(res,500));
   hideProg();
   if(total>0){ save();render();updateSummary(); }
-  toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions imported — check file format or try a different statement');
+  toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions imported — check file format');
 }
 
 function readText(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(f);})}
@@ -1224,93 +1203,58 @@ function parseXLSX(bin,fname){
 }
 
 async function parsePDF(f){
-  function setMsg(msg,sub){
-    const m=document.getElementById('prog-msg');if(m)m.textContent=msg;
-    const s=document.getElementById('prog-sub');if(s)s.textContent=sub||'';
-  }
-  function setBar(pct){
-    const b=document.getElementById('prog-bar');if(b)b.style.width=pct+'%';
+  // Desktop: use Electron IPC
+  if(window.electronAPI && window.electronAPI.isElectron){
+    const buf=await readBuf(f);
+    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
+    const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(buf));
+    if(!result||!result.success){toast('PDF error: '+(result&&result.error||'unknown'));return 0;}
+    if(!result.text||!result.text.trim()){toast('No text found in '+f.name);return 0;}
+    const count=parseBankText(result.text,f.name);
+    if(count===0) toast('0 transactions found in '+f.name);
+    return count;
   }
 
+  // Web: use pdfjs — NO DOM updates inside the loop, zero reflows
+  if(typeof pdfjsLib==='undefined'){
+    toast('PDF reader not loaded — check your internet connection.');
+    return 0;
+  }
   try{
-    setMsg('Loading '+f.name+'...','Reading file');
-    await trueYield();
-
-    // ── DESKTOP: use Electron IPC (works offline, runs in Node.js) ──────────
-    if(window.electronAPI && window.electronAPI.isElectron){
-      const arrayBuf=await readBuf(f);
-      if(!arrayBuf||arrayBuf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
-      setMsg('Parsing '+f.name+'...','Running PDF extractor');
-      await trueYield();
-      const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(arrayBuf));
-      if(!result||!result.success){
-        toast('PDF error: '+(result&&result.error||'unknown'));return 0;
-      }
-      if(!result.text||!result.text.trim()){
-        toast('No text found in '+f.name+' — may be a scanned image PDF.');return 0;
-      }
-      setBar(100);
-      const count=parseBankText(result.text,f.name);
-      if(count===0) toast('0 transactions found in '+f.name);
-      return count;
-    }
-
-    // ── WEB: use pdfjs CDN (requires internet) ───────────────────────────────
-    if(typeof pdfjsLib==='undefined'){
-      toast('PDF reader not loaded — check your internet connection and reload.');
-      return 0;
-    }
-
     const buf=await readBuf(f);
     if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
 
-    setMsg('Opening '+f.name+'...','Parsing PDF structure');
-    await trueYield();
+    const pdf=await pdfjsLib.getDocument({
+      data:new Uint8Array(buf),
+      verbosity:0,
+      disableFontFace:true,
+      useSystemFonts:true
+    }).promise;
 
-    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0}).promise;
-    const totalPages=pdf.numPages;
     let fullText='';
-
-    for(let p=1;p<=totalPages;p++){
-      // Only update DOM every 3 pages — DOM writes cause reflows that freeze the UI
-      if(p===1 || p%3===0 || p===totalPages){
-        const bar=document.getElementById('prog-bar');
-        if(bar) bar.style.width=Math.round((p-1)/totalPages*100)+'%';
-        const pm=document.getElementById('prog-msg');
-        if(pm) pm.textContent='Reading '+f.name+' — page '+p+' of '+totalPages;
-        const ps=document.getElementById('prog-sub');
-        if(ps) ps.textContent='Page '+p+' of '+totalPages;
-        // Single yield after DOM update so browser can paint
-        await new Promise(res=>setTimeout(res,16));
-      }
-
+    for(let p=1;p<=pdf.numPages;p++){
       const page=await pdf.getPage(p);
       const ct=await page.getTextContent();
       page.cleanup();
-
       const lines={};
-      ct.items.forEach(item=>{
+      ct.items.forEach(function(item){
         const y=Math.round(item.transform[5]);
-        if(!lines[y])lines[y]=[];
+        if(!lines[y]) lines[y]=[];
         lines[y].push({x:Math.round(item.transform[4]),t:item.str});
       });
-      Object.keys(lines).sort((a,b)=>b-a).forEach(y=>{
-        fullText+=lines[y].sort((a,b)=>a.x-b.x).map(i=>i.t).join(' ')+'\n';
+      Object.keys(lines).sort(function(a,b){return b-a;}).forEach(function(y){
+        fullText+=lines[y].sort(function(a,b){return a.x-b.x;}).map(function(i){return i.t;}).join(' ')+'\n';
       });
     }
-
     pdf.destroy();
-    setMsg('Categorizing '+f.name+'...','Processing transactions');
-    await trueYield();
 
     if(!fullText.trim()){
-      toast('No text found in '+f.name+' — it may be a scanned image PDF.');
+      toast('No text found in '+f.name+' — may be a scanned image PDF.');
       return 0;
     }
     const count=parseBankText(fullText,f.name);
-    if(count===0) toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
+    if(count===0) toast('0 transactions found in '+f.name);
     return count;
-
   }catch(e){
     console.error('parsePDF error:',e);
     toast('Error reading '+f.name+': '+(e.message||'unknown error'));
