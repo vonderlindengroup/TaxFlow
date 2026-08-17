@@ -313,7 +313,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px;letter-spacing:0.05em">v2.3.7</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px;letter-spacing:0.05em">v2.3.9</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -398,7 +398,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.3.7</span>
+      <span class="logo-beta">v2.3.9</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1224,106 +1224,53 @@ async function saveStatementToLibrary(file, pageRows){
   if(S.savedStatements.find(function(s){return s.name===file.name;})) return;
 
   // Extract statement period from pageRows text
-  var allText = pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
-  var periodMatch = allText.match(/(\w+\s+\d+\s+\d{4})\s*[-–]\s*(\w+\s+\d+\s+\d{4})/);
-  var period = periodMatch ? periodMatch[1]+' – '+periodMatch[2] : '';
+  var allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
+  var periodMatch=allText.match(/(\w+\s+\d+\s+\d{4})\s*[-–]\s*(\w+\s+\d+\s+\d{4})/);
+  var period=periodMatch?periodMatch[1]+' – '+periodMatch[2]:'';
 
-  // Render first page as thumbnail using pdfjs canvas
-  var thumbnail = null;
-  try{
-    if(typeof pdfjsLib !== 'undefined'){
-      var buf = await readBuf(file);
-      var pdf = await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0}).promise;
-      var page = await pdf.getPage(1);
-      var scale = 0.6;
-      var viewport = page.getViewport({scale:scale});
-      var canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      var ctx = canvas.getContext('2d');
-      await page.render({canvasContext:ctx, viewport:viewport}).promise;
-      thumbnail = canvas.toDataURL('image/jpeg', 0.7);
-      pdf.destroy();
-    }
-  }catch(e){ console.warn('Thumbnail failed:', e.message); }
-
-  // Save the file as a data URL for the viewer
-  var dataUrl = await new Promise(function(res){
-    var reader = new FileReader();
-    reader.onload = function(e){ res(e.target.result); };
+  // Save dataUrl for PDF viewer
+  var dataUrl=await new Promise(function(res){
+    var reader=new FileReader();
+    reader.onload=function(e){res(e.target.result);};
     reader.readAsDataURL(file);
   });
 
-  S.savedStatements.push({
-    id: uid(),
-    name: file.name,
-    period: period,
-    date: new Date().toISOString().split('T')[0],
-    pages: pageRows.filter(function(r){
-      return r.items.some(function(i){return /^\d+ of \d+$/.test(i.text);});
-    }).length || '?',
-    thumbnail: thumbnail,
-    dataUrl: dataUrl
-  });
-  save();
-}
-
-
-// ── AUTO-CATEGORIZATION RULES ─────────────────────────────────────────────
-function renderRules(){
-  var el=document.getElementById('rule-list');
-  if(!el) return;
-  var rules=S.rules||[];
-  if(!rules.length){
-    el.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 0">No custom rules yet.</div>';
-    return;
-  }
-  el.innerHTML=rules.map(function(r,i){
-    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">'
-      +'<span style="font-size:12px;background:var(--brand-light);color:var(--brand);padding:2px 8px;border-radius:99px;font-weight:600;min-width:80px;text-align:center">'+esc(r.kw)+'</span>'
-      +'<span style="font-size:12px;color:var(--text2);flex:1">→ '+esc(r.cat)+'</span>'
-      +'<button data-i="'+i+'" onclick="deleteRule(parseInt(this.dataset.i))" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 6px">✕</button>'
-      +'</div>';
-  }).join('');
-}
-
-function addRule(){
-  var kw=prompt('Keyword to match (e.g. "stripe", "amazon"):');
-  if(!kw||!kw.trim()) return;
-  kw=kw.trim().toLowerCase();
-  var modal=document.createElement('div');
-  modal.id='add-rule-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  var box=document.createElement('div');
-  box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-  var sel='<select id="rule-cat-sel" class="field-input">'+CATS.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select>';
-  box.innerHTML='<h3 style="margin:0 0 16px;font-size:16px;font-weight:800">Add Rule</h3>'
-    +'<div style="font-size:13px;margin-bottom:8px">When description contains <strong>"'+esc(kw)+'"</strong>, categorize as:</div>'
-    +sel
-    +'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'
-    +'<button id="rule-cancel" class="btn btn-outline">Cancel</button>'
-    +'<button id="rule-save" class="btn btn-primary">Save Rule</button>'
-    +'</div>';
-  modal.appendChild(box);
-  document.body.appendChild(modal);
-  document.getElementById('rule-cancel').onclick=function(){modal.remove();};
-  document.getElementById('rule-save').onclick=function(){
-    var cat=document.getElementById('rule-cat-sel').value;
-    if(!S.rules) S.rules=[];
-    // Remove existing rule for same keyword
-    S.rules=S.rules.filter(function(r){return r.kw!==kw;});
-    S.rules.unshift({kw:kw,cat:cat});
-    modal.remove();
-    save();renderRules();
-    toast('Rule added: "'+kw+'" → '+cat);
+  // ── Step 1: Save immediately with no thumbnail so card appears right away ──
+  var entry={
+    id:uid(),
+    name:file.name,
+    period:period,
+    date:new Date().toISOString().split('T')[0],
+    pages:'?',
+    thumbnail:null,
+    dataUrl:dataUrl
   };
-}
+  S.savedStatements.push(entry);
+  save();
+  renderSavedStatements(); // render immediately — card shows as placeholder
 
-function deleteRule(i){
-  if(!confirm('Remove this rule?')) return;
-  S.rules.splice(i,1);
-  save();renderRules();
-  toast('Rule removed');
+  // ── Step 2: Generate thumbnail in background, update card when ready ──────
+  try{
+    if(typeof pdfjsLib!=='undefined'){
+      var buf=await readBuf(file);
+      var pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true}).promise;
+      entry.pages=pdf.numPages;
+      var page=await pdf.getPage(1);
+      var scale=0.6;
+      var viewport=page.getViewport({scale:scale});
+      var canvas=document.createElement('canvas');
+      canvas.width=viewport.width;
+      canvas.height=viewport.height;
+      var ctx=canvas.getContext('2d');
+      await page.render({canvasContext:ctx,viewport:viewport}).promise;
+      entry.thumbnail=canvas.toDataURL('image/jpeg',0.7);
+      pdf.destroy();
+      save();
+      renderSavedStatements(); // re-render with thumbnail
+    }
+  }catch(e){
+    console.warn('Thumbnail generation failed:',e.message);
+  }
 }
 
 function renderTabs(){
@@ -1343,14 +1290,11 @@ function renderTabs(){
   }).join('');
   const sAct=S.currentTab==='statements'?' active':'';
   const sumAct=S.currentTab==='summary'?' active':'';
-  const upAct=S.currentTab==='upload'?' active':'';
   inner.innerHTML=[
-    '<button class="tab-btn'+upAct+'" id="tab-btn-upload" onclick="showTab(\'upload\')">📂 Upload</button>',
-    '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">📋 Transactions</button>',
+    '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">📋 Statements</button>',
     '<button class="tab-btn'+sumAct+'" id="tab-btn-summary" onclick="showTab(\'summary\')">📊 Summary</button>',
     dynTabs,
-    '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>',
-    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);padding:0 16px">⚙️ Settings</button>'
+    '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>'
   ].join('');
 }
 
@@ -1362,16 +1306,11 @@ function showTab(id){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   const btn=document.getElementById('tab-btn-'+id);
   if(btn) btn.classList.add('active');
-  if(id==='upload'){renderSavedStatements();}
   if(id==='summary'){updateSummary();}
   if(id==='gambling'){renderGambling();}
   if(id==='settings'){renderRules();loadSettings();}
   if(id==='retirement'){renderRetirement();}
   if(id==='equipment'){renderEquipment();}
-  if(id==='invoices'){renderInvoices();}
-  if(id==='pl'){renderPL();}
-  if(id==='clients'){renderClients();}
-  if(id==='yoy'){renderYOY();}
   save();
 }
 
@@ -1445,367 +1384,6 @@ function updateHeaderUser(){
 }
 
 // ── AUTO-CATEGORIZE ────────────────────────────────────────────────────────
-function autoCat(desc){
-  const d=(desc||'').toLowerCase();
-  for(const r of S.rules){
-    try{if(new RegExp(r.kw,'i').test(d)) return r.cat;}catch(e){}
-  }
-  return 'Needs Review';
-}
-
-function bucket(cat){
-  if(!cat) return 'review';
-  if(cat.startsWith('Income')) return 'income';
-  if(cat.startsWith('Deductible')) return 'deductible';
-  if(cat.startsWith('Personal')) return 'personal';
-  return 'review';
-}
-
-// ── FILE HANDLING ──────────────────────────────────────────────────────────
-async function handleFiles(files){
-  const list=[...files];
-  if(!list.length) return;
-  const wTier=currentTier();
-  let total=0;
-
-  // Show the import banner
-  const banner=document.getElementById('import-banner');
-  const bannerMsg=document.getElementById('import-banner-msg');
-  if(banner) banner.style.display='block';
-
-  for(const f of list){
-    const ext=f.name.toLowerCase().split('.').pop();
-    // Update banner text — single DOM write per file, no reflow
-    if(bannerMsg) bannerMsg.textContent='Reading '+f.name+'...';
-    try{
-      if(ext==='pdf'){
-        if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){
-          toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade for unlimited!');
-          showUpgradeModal(); break;
-        }
-        const n=await parsePDF(f);
-        if(n>0) statementsUploaded++;
-        total+=n;
-      } else if(ext==='csv'){
-        const text=await readText(f);
-        total+=parseCSV(text,f.name);
-      } else if(ext==='xlsx'||ext==='xls'){
-        const bin=await readBin(f);
-        total+=parseXLSX(bin,f.name);
-      } else {
-        toast('Unsupported file type: '+f.name);
-      }
-    }catch(e){
-      console.error('Error importing '+f.name,e);
-      toast('Error reading '+f.name+': '+(e.message||'unknown'));
-    }
-  }
-
-  if(total>0){ save();render();updateSummary(); }
-  // Hide banner
-  if(banner) banner.style.display='none';
-  toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions found — check file format');
-}
-
-function readText(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsText(f);})}
-function readBin(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsBinaryString(f);})}
-function readBuf(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsArrayBuffer(f);})}
-
-function parseCSV(text,fname){
-  const rows=text.trim().split('\n').map(l=>l.split(',').map(c=>c.replace(/^"|"$/g,'').trim()));
-  if(rows.length<2) return 0;
-  const h=rows[0].map(x=>x.toLowerCase());
-  const di=h.findIndex(x=>x.includes('date')||x.includes('posting'));
-  const ni=h.findIndex(x=>x.includes('desc')||x.includes('memo')||x.includes('name'));
-  const ai=h.findIndex(x=>x.includes('amount')||x.includes('debit')||x.includes('credit'));
-  if(di<0||ni<0||ai<0) return 0;
-  let n=0;
-  rows.slice(1).forEach(r=>{
-    const amt=parseFloat((r[ai]||'0').replace(/[$,()]/g,''));
-    if(isNaN(amt)||amt===0) return;
-    const desc=r[ni]||'Unknown';
-    tx().push({id:uid(),date:r[di]||'',desc,amount:amt,cat:autoCat(desc),src:fname});
-    n++;
-  });
-  return n;
-}
-
-function parseXLSX(bin,fname){
-  const wb=XLSX.read(bin,{type:'binary'});
-  const ws=wb.Sheets[wb.SheetNames[0]];
-  return parseCSV(XLSX.utils.sheet_to_csv(ws),fname);
-}
-
-async function parsePDF(f){
-  if(window.electronAPI&&window.electronAPI.isElectron){
-    const buf=await readBuf(f);
-    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
-    const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(buf));
-    if(!result||!result.success){toast('PDF error: '+(result&&result.error||'unknown'));return 0;}
-    if(!result.text||!result.text.trim()){toast('No text found in '+f.name);return 0;}
-    const count=parseBankText(result.text,f.name);
-    if(count===0) toast('0 transactions found in '+f.name);
-    return count;
-  }
-  if(typeof pdfjsLib==='undefined'){
-    toast('PDF reader not loaded — check your internet connection.');
-    return 0;
-  }
-  try{
-    const buf=await readBuf(f);
-    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
-    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true,useSystemFonts:true}).promise;
-
-    // Extract structured rows: [{y, items:[{x,text}]}] per page
-    // This preserves column structure for coordinate-aware parsing
-    const pageRows=[];
-    for(let p=1;p<=pdf.numPages;p++){
-      const page=await pdf.getPage(p);
-      const ct=await page.getTextContent();
-      page.cleanup();
-      // Group items by Y coordinate (rounded to nearest 3pt)
-      const byY={};
-      ct.items.forEach(function(item){
-        const x=Math.round(item.transform[4]);
-        const y=Math.round(item.transform[5]/3)*3; // bucket by 3pt
-        const t=(item.str||'').trim();
-        if(!t) return;
-        if(!byY[y]) byY[y]=[];
-        byY[y].push({x:x,text:t});
-      });
-      // Sort rows by y descending (top of page first in PDF coords)
-      const sortedY=Object.keys(byY).map(Number).sort(function(a,b){return b-a;});
-      sortedY.forEach(function(y){
-        const row=byY[y];
-        row.sort(function(a,b){return a.x-b.x;});
-        pageRows.push({y:y,items:row,page:p});
-      });
-    }
-    pdf.destroy();
-
-    const count=parseBankStructured(pageRows,f.name);
-    if(count===0){ toast('0 transactions found in '+f.name+' — bank format may not be supported yet.'); return 0; }
-    // Save statement to library for reference
-    saveStatementToLibrary(f, pageRows).catch(function(e){console.warn('Statement save failed:',e.message);});
-    return count;
-  }catch(e){
-    console.error('parsePDF error:',e);
-    toast('Error reading '+f.name+': '+(e.message||'unknown error'));
-    return 0;
-  }
-}
-
-function parseBankStructured(pageRows,fname){
-  // Detect bank from text content
-  const allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
-  // TD Bank: must have BOTH "td" AND specific TD identifiers
-  const isTD=/(td bank|td convenience|td convenience checking|td savings)/i.test(allText);
-  const isBluevine=/(bluevine|blue vine)/i.test(allText);
-  
-  // Always try coordinate-aware TD parser first for TD statements
-  if(isTD){
-    const n=parseTDStructured(pageRows,fname);
-    if(n>0) return n;
-    // Fallthrough to line-based if structured fails
-  }
-  
-  // Line-based fallback for all banks
-  const lines=[];
-  pageRows.forEach(function(r){
-    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
-    if(line) lines.push(line);
-  });
-  if(isBluevine) return parseBluevine(lines,fname);
-  if(isTD) return parseTD(lines,fname);  // TD line-based fallback
-  return parseGeneric(lines,fname);
-}
-
-function parseTDStructured(pageRows,fname){
-  var added=0;
-  var DATE_MAX_X=130;
-  var DESC_MIN_X=100;
-  var DESC_MAX_X=520;
-  var AMT_MIN_X=510;
-
-  var datePat=/^\d{2}\/\d{2}$/;
-  var amtPat=/^[\d,]+\.\d{2}$/;
-  var bankPfx=/^(DBCRD|DEBIT\s+POS|DEBIT\s+CARD|ACH\s+DEBIT|CCD\s+DEBIT|ELECTRONIC\s+PMT)/i;
-  var skipPat=/^(STATEMENT OF ACCOUNT|POSTING DATE|DESCRIPTION|AMOUNT$|ACCOUNT SUMMARY|Beginning Balance|Ending Balance|Average Collected|Interest Earned|Interest Paid|Annual Percentage|Days in Period|Grace Period|Total for|DAILY ACCOUNT ACTIVITY|DATE\s+BALANCE|Call 1-800|xxxxxx|Bank Deposits|Subtotal|How to Balance|For Consumer|For Questions|TD Bank|TD Convenience|cid:|We must|We will|If you|In case|Finance Charge|Interest Notice|FINANCE CHARGES|QUESTIONS ABOUT|BILLING RIGHTS|HERBERT VONDERLINDEN|5811 JACKSON|PHILADELPHIA PA|Sub Total|Adjusted$|Ending$|Total Deposits|Total Withdrawals|Withdrawals$|Account #|\$0\.00|Please see important)/i;
-  var pageHdrPat=/^(Page:|Statement Period|Cust Ref|Primary Account|Mar |Apr |Jan |Feb |Jun |Jul |Aug |Sep |Oct |Nov |Dec |\d+ of \d+|4433181734|443-3181734)/i;
-
-  // Normalize text for section matching — strips ALL spaces so
-  // "Electronic Deposits" and "ElectronicDeposits" both match
-  function normSection(s){ return s.replace(/\s+/g,'').toLowerCase(); }
-
-  var INCOME_SECTIONS=[
-    'deposits','electronicdeposits','otherdeposits','othercredits',
-    'atmdeposits','mobiledeposits','checkdeposits','electroniccredits',
-    'zellereceivedcredits','achcredits','wirecredits','incomingwire',
-    'creditadjustments','depositscontinued','electronicdeposits(continued)',
-    'othercreditscontinued'
-  ];
-  var EXPENSE_SECTIONS=[
-    'electronicpayments','servicefees','servicefee','servicecharges',
-    'checkspaid','otherwithdrawals','atmwithdrawals','debitcardpurchases',
-    'wiretransfers','otherdebits','electronicpayments(continued)',
-    'otherwithdrawals(continued)','checkspaid(continued)',
-    'servicefees(continued)','servicecharges(continued)'
-  ];
-
-  function isSectionIncome(text){
-    var n=normSection(text);
-    return INCOME_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});
-  }
-  function isSectionExpense(text){
-    var n=normSection(text);
-    return EXPENSE_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});
-  }
-
-  function cleanD(s){
-    return s.replace(/\*{3,}\d+/g,'')
-      .replace(/AUT\s+\d{6}/gi,'')
-      .replace(/VISA\s+DDA\s+(PUR|PMT|REF)\s*AP?/gi,'')
-      .replace(/(DBCRD|DEBIT\s+(POS|CARD))\s*(PUR|PMT|CREDIT|CARD)?\s*AP,?/gi,'')
-      .replace(/DDA\s+(PUR|PMT|PURCHASE)\s*AP,?/gi,'')
-      .replace(/(ACH|CCD)\s+DEBIT,?/gi,'')
-      .replace(/ELECTRONIC\s+PMT-WEB,?/gi,'')
-      .replace(/DEBIT\s+CARD\s+CREDIT,?/gi,'')
-      .replace(/,\s*,+/g,'')
-      .replace(/^\W+|\W+$/g,'')
-      .replace(/\s+/g,' ').trim();
-  }
-
-  function isGoodDesc(d){
-    return d&&d.length>2&&/[A-Za-z]{2}/.test(d)&&d.length<120;
-  }
-
-  var curSection=null;
-  var inActivity=false;
-  var curTx=null;
-
-  function finishTx(){
-    if(!curTx) return;
-    var rawParts=curTx.descParts.slice();
-    var amt=curTx.amount;
-
-    // Handle glued amounts: "VENMO VONDERLINDEN *NY218.12" or "ADDRESS CITY *PA10,250.00"
-    // If we have no amount yet, check if last desc part ends with a number
-    if(amt===null&&rawParts.length){
-      var lastPart=rawParts[rawParts.length-1];
-      var gluedMatch=lastPart.match(/^(.*?)\s*\*?[A-Z]{0,2}([\d,]+\.\d{2})$/);
-      if(gluedMatch){
-        var cleanedPart=gluedMatch[1].trim();
-        amt=parseFloat(gluedMatch[2].replace(/,/g,''));
-        if(cleanedPart) rawParts[rawParts.length-1]=cleanedPart;
-        else rawParts.pop();
-      }
-    }
-
-    var desc=cleanD(rawParts.join(' '));
-    if(isGoodDesc(desc)&&amt&&amt>0){
-      var amount=curTx.section==='income'?amt:-amt;
-      var rawDate=curTx.date;
-      if(rawDate&&!/\/\d{2,4}$/.test(rawDate)) rawDate=rawDate+'/25';
-      tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});
-      added++;
-    }
-    curTx=null;
-  }
-
-  pageRows.forEach(function(row){
-    var items=row.items;
-
-    var dateItems=items.filter(function(i){return i.x<DATE_MAX_X&&datePat.test(i.text);});
-    var descItems=items.filter(function(i){return i.x>=DESC_MIN_X&&i.x<DESC_MAX_X;});
-    var amtItems=items.filter(function(i){return i.x>=AMT_MIN_X&&amtPat.test(i.text);});
-    var allText=items.map(function(i){return i.text;}).join(' ').trim();
-
-    // ── Hard stops ─────────────────────────────────────────────────────
-    if(/daily balance summary/i.test(allText)){finishTx();inActivity=false;return;}
-    if(/daily account activity/i.test(allText)){
-      finishTx();inActivity=true;curSection=null;return;
-    }
-    if(!inActivity) return;
-
-    // ── Skip page headers ──────────────────────────────────────────────
-    if(pageHdrPat.test(allText.trim())) return;
-    if(skipPat.test(allText.trim())) return;
-    if(allText.length>100&&!/\d{2}\/\d{2}/.test(allText)&&/[a-z]{5}/.test(allText)) return;
-
-    var dateText=dateItems.length?dateItems[0].text:'';
-    var descText=descItems.filter(function(i){return !pageHdrPat.test(i.text);}).map(function(i){return i.text;}).join(' ').trim();
-    var amtText=amtItems.length?amtItems[0].text:'';
-
-    // ── Section detection: normalize whitespace for matching ───────────
-    // Handles both "Electronic Deposits" and "ElectronicDeposits" (glued)
-    var noDate=!dateText;
-    var textForSection=allText.replace(/\s*\(continued\)/i,'(continued)');
-
-    if(isSectionIncome(textForSection)&&noDate){
-      finishTx();curSection='income';return;
-    }
-    if(isSectionExpense(textForSection)&&noDate){
-      finishTx();curSection='expense';return;
-    }
-    // Also catch sections that appear alongside an amount (some TD formats)
-    if(isSectionIncome(allText)&&noDate&&!amtPat.test(allText)){
-      finishTx();curSection='income';return;
-    }
-    if(isSectionExpense(allText)&&noDate&&!amtPat.test(allText)){
-      finishTx();curSection='expense';return;
-    }
-
-    if(!curSection) return;
-    if(!descText&&!dateText&&!amtText) return;
-    if(descText&&pageHdrPat.test(descText.trim())) return;
-
-    // ── Transaction detection ─────────────────────────────────────────
-    var hasBankPfx=descItems.some(function(i){return bankPfx.test(i.text);});
-    var isNewTx=hasBankPfx||(dateText&&descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText));
-
-    if(isNewTx){
-      finishTx();
-      curTx={
-        section:curSection,
-        date:dateText,
-        descParts:descText?[descText]:[],
-        amount:amtText?parseFloat(amtText.replace(/,/g,'')):null
-      };
-    } else if(curTx){
-      if(descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText)){
-        if(/[A-Za-z]{2}/.test(descText)&&descText.length<120){
-          curTx.descParts.push(descText);
-        }
-      }
-      // Pick up amount from explicit amount column OR from a continuation
-      // line that has a standalone amount (some TD layouts put amount on its own line)
-      if(amtText&&curTx.amount===null){
-        curTx.amount=parseFloat(amtText.replace(/,/g,''));
-      } else if(!amtText&&!descText&&curTx.amount===null){
-        // Check if this row has a standalone amount in desc range
-        var standaloneAmt=items.filter(function(i){
-          return i.x>=100&&i.x<510&&amtPat.test(i.text);
-        });
-        if(standaloneAmt.length){
-          curTx.amount=parseFloat(standaloneAmt[0].text.replace(/,/g,''));
-        }
-      }
-    }
-  });
-
-  finishTx();
-  return added||parseGenericFromRows(pageRows,fname);
-}
-
-function parseGenericFromRows(pageRows,fname){
-  var lines=[];
-  pageRows.forEach(function(r){
-    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
-    if(line) lines.push(line);
-  });
-  return parseGeneric(lines,fname);
-}
-
 function parseBankText(text,fname){
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
   const isTD=lines.some(l=>/td bank|td convenience|statement of account/i.test(l));
@@ -1865,90 +1443,27 @@ function isBoilerplate(s){
   return /subtotal|beginning balance|ending balance|daily balance|average collected|interest earned|days in period|statement period|account summary|annual percentage|page \d+ of|how to balance|bank-by-phone|fdic insured|equal housing|privacy notice|deposit operations|grace period/i.test(s);
 }
 
-function cleanDesc(s){
-  return s
-    .replace(/\*{3,}\d+/g,'')
-    .replace(/AUT\s+\d{6}/gi,'')
-    .replace(/VISA\s+DDA\s+(PUR|PMT)\s+AP/gi,'')
-    .replace(/DBCRD\s+(PUR|PMT)\s+AP,?/gi,'')
-    .replace(/DEBIT\s+(POS|CARD)\s+AP,?/gi,'')
-    .replace(/DEBIT\s+CARD\s+CREDIT,?/gi,'')
-    .replace(/CCD\s+(DEBIT|CREDIT),?/gi,'')
-    .replace(/ACH\s+(DEBIT|CREDIT),?/gi,'')
-    .replace(/ELECTRONIC\s+PMT-WEB,?/gi,'')
-    .replace(/DDA\s+(PUR|PMT|PURCHASE)\s+AP,?/gi,'')
-    .replace(/,\s*,/g,',')
-    .replace(/^[,\s]+|[,\s]+$/g,'')
-    .replace(/\s{2,}/g,' ')
-    .trim();
-}
-
-function normalizeDate(s){
-  if(!s) return '';
-  s=s.trim();
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){const[y,m,d]=s.split('-');return`${m}/${d}/${y.slice(2)}`;}
-  if(/^\d{1,2}\/\d{1,2}$/.test(s)) return s+'/25';
-  return s;
-}
-
 function parseTD(lines,fname){
-  let added=0,inDep=false,inPmt=false,inSvc=false,done=false,seenSection=false;
-  const balanceLine=/^\d{2}\/\d{2}\s+[\d,]+\.\d{2}\s+\d{2}\/\d{2}\s+[\d,]+\.\d{2}/;
-  const hasMoney=/[\d,]+\.\d{2}/;
-  const amtOnly=/^[\d,]+\.\d{2}$/;
+  let added=0,inDep=false,inPmt=false;
   const fullPat=/^(\d{2}\/\d{2}(?:\/\d{2})?)\s+(.+?)\s+([\d,]+\.\d{2})$/;
-  const datePat=/^\d{2}\/\d{2}/;
-  const summaryLine=/^(beginning balance|ending balance|deposits|electronic deposits|electronic payments|other withdrawals|service charges|average collected|interest earned|interest paid|annual percentage|days in period|grace period|total for|subtotal)/i;
-  const skipLine=/posting date|description\s+amount|daily account activity|account summary|statement of account|cust ref|page:\s*\d|call 1-800|fdic insured|equal housing|how to balance|date\s+balance/i;
-
+  const datePat=/^(\d{2}\/\d{2}(?:\/\d{2})?)$/;
   for(let i=0;i<lines.length;i++){
-    const l=lines[i].trim();
-    if(!l||done) continue;
-
-    if(/daily balance summary/i.test(l)){done=true;break;}
-    if(balanceLine.test(l)) continue;
-    if(skipLine.test(l)) continue;
-
-    // Section headers — only when no amount follows on same line
-    if(/^electronic deposits/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;seenSection=true;continue;}
-    if(/^deposits$/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;seenSection=true;continue;}
-    if(/^(electronic payments|other withdrawals)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=true;inSvc=false;seenSection=true;continue;}
-    if(/^(service charges|checks paid)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=false;inSvc=true;seenSection=true;continue;}
-
-    // Skip summary totals (keyword + amount on same line)
-    if(summaryLine.test(l)&&hasMoney.test(l)) continue;
-    if(/^subtotal/i.test(l)) continue;
-    if(!seenSection) continue;
-    if(!inDep&&!inPmt&&!inSvc) continue;
-
-    // Try to build a complete "date desc amount" from 1, 2, or 3 lines
-    if(!datePat.test(l)) continue; // line must start with a date
-
-    let combined=l;
-    let skip=0;
-
-    // Try joining up to 2 more lines to get date+desc+amount
-    for(let j=1;j<=2;j++){
-      if(fullPat.test(combined)) break; // already complete
-      if(i+j>=lines.length) break;
-      const next=lines[i+j].trim();
-      if(!next) break;
-      // Stop if next line looks like a new transaction date
-      if(j>0&&datePat.test(next)&&!amtOnly.test(next)) break;
-      combined=combined+' '+next;
-      skip=j;
+    const l=lines[i];
+    if(/electronic deposits/i.test(l)){inDep=true;inPmt=false;continue;}
+    if(/electronic payments|other withdrawals|service charges/i.test(l)){inDep=false;inPmt=true;continue;}
+    if(/daily account activity|daily balance/i.test(l)) continue;
+    let m=l.match(fullPat);
+    if(!m&&datePat.test(l.split(' ')[0])&&i+1<lines.length){
+      m=(l+' '+lines[i+1]).match(fullPat);
+      if(m) i++;
     }
-
-    const m=combined.match(fullPat);
     if(m){
-      i+=skip; // consume joined lines
       const[,rawDate,rawDesc,rawAmt]=m;
       const desc=cleanDesc(rawDesc);
-      // Require meaningful description — at least 3 real word characters
-      if(!desc||!/[A-Za-z]{3}/.test(desc)) continue;
+      if(isBoilerplate(desc)||isBoilerplate(l)) continue;
       const amt=parseFloat(rawAmt.replace(/,/g,''));
-      if(isNaN(amt)||amt<=0) continue;
-      const amount=(inPmt||inSvc)?-amt:amt;
+      if(isNaN(amt)||amt<=0||desc.length<2) continue;
+      const amount=inDep?amt:-amt;
       tx().push({id:uid(),date:normalizeDate(rawDate),desc,amount,cat:autoCat(desc),src:fname});
       added++;
     }
@@ -1982,8 +1497,6 @@ function parseGeneric(lines,fname){
   return added;
 }
 
-function showProg(){}
-function hideProg(){}
 function onDragOver(e){e.preventDefault();document.getElementById('dropzone').classList.add('drag')}
 function onDragLeave(){document.getElementById('dropzone').classList.remove('drag')}
 function onDrop(e){e.preventDefault();document.getElementById('dropzone').classList.remove('drag');handleFiles(e.dataTransfer.files)}
@@ -2012,20 +1525,6 @@ function render(){
     {k:'personal',  label:'Personal expenses',   dotClass:'dot-red',   totalClass:'red'},
     {k:'review',    label:'Needs review',         dotClass:'dot-amber', totalClass:'amber'},
   ];
-  // Apply per-section sort
-  if(!S._sort) S._sort={};
-  Object.keys(buckets).forEach(k=>{
-    const sort=S._sort[k]||'date-desc';
-    buckets[k].sort((a,b)=>{
-      if(sort==='date-asc')  return a.date.localeCompare(b.date);
-      if(sort==='date-desc') return b.date.localeCompare(a.date);
-      if(sort==='amt-desc')  return Math.abs(b.amount)-Math.abs(a.amount);
-      if(sort==='amt-asc')   return Math.abs(a.amount)-Math.abs(b.amount);
-      if(sort==='client')    return (getClientName(a.clientId)||'').localeCompare(getClientName(b.clientId)||'');
-      if(sort==='desc-asc')  return a.desc.localeCompare(b.desc);
-      return 0;
-    });
-  });
   const el=document.getElementById('tx-sections');
   el.innerHTML='';
   cfg.forEach(({k,label,dotClass,totalClass})=>{
@@ -2042,23 +1541,13 @@ function render(){
           <span class="sec-title">${label}</span>
           <span class="sec-meta">${txs.length} transactions</span>
         </div>
-        <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
-          <select onchange="setSectionSort('${k}',this.value)" style="font-size:11px;padding:3px 7px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;cursor:pointer" title="Sort">
-            <option value="date-desc"${(S._sort&&S._sort[k])==='date-desc'?' selected':''}>📅 Newest</option>
-            <option value="date-asc"${(S._sort&&S._sort[k])==='date-asc'?' selected':''}>📅 Oldest</option>
-            <option value="amt-desc"${(S._sort&&S._sort[k])==='amt-desc'?' selected':''}>💰 Largest</option>
-            <option value="amt-asc"${(S._sort&&S._sort[k])==='amt-asc'?' selected':''}>💰 Smallest</option>
-            <option value="client"${(S._sort&&S._sort[k])==='client'?' selected':''}>👤 Client</option>
-            <option value="desc-asc"${(S._sort&&S._sort[k])==='desc-asc'?' selected':''}>🔤 A–Z</option>
-          </select>
-          <span class="sec-total ${totalClass}">${fmt(total)}</span>
-        </div>
+        <span class="sec-total ${totalClass}">${fmt(total)}</span>
       </div>
       <div id="sec-${k}" style="${isOpen?'':'display:none'}">
         ${txs.length===0?`<div class="empty-row"><div>📭</div><div>No transactions in this category yet</div></div>`:`
         <div class="tx-wrap">
           <table class="tx-table">
-            <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Amount</th><th>Category</th><th>Client</th><th style="text-align:center">Receipt</th><th></th></tr></thead>
+            <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Amount</th><th>Category</th><th></th></tr></thead>
             <tbody>
               ${txs.map(t=>`
                 <tr>
@@ -2066,11 +1555,7 @@ function render(){
                   <td><div class="tx-desc" title="${esc(t.desc)}">${esc(t.desc)}</div></td>
                   <td style="text-align:right;white-space:nowrap" class="${t.amount>0?'amt-pos':'amt-neg'}">${t.amount>0?'+':''}${fmt(Math.abs(t.amount))}</td>
                   <td><select class="cat-select" onchange="setCat('${t.id}',this.value)">${CATS.map(c=>`<option${c===t.cat?' selected':''}>${c}</option>`).join('')}</select></td>
-                  <td style="white-space:nowrap;min-width:140px">${bucket(t.cat)==='income'?renderClientCell(t):''}</td>
-                  <td style="white-space:nowrap">
-                    <button id="rcpt-${t.id}" onclick="toggleReceipt('${t.id}')" title="${t.receipt?'Receipt on file (click to remove)':'Click to mark receipt on file'}" style="background:none;border:none;cursor:pointer;font-size:16px;opacity:${t.receipt?'1':'0.3'};padding:2px 4px">${t.receipt?'🧾':'📎'}</button>
-                    <button class="del-btn" onclick="delTx('${t.id}')">✕</button>
-                  </td>
+                  <td><button class="del-btn" onclick="delTx('${t.id}')">✕</button></td>
                 </tr>`).join('')}
             </tbody>
           </table>
@@ -2081,11 +1566,6 @@ function render(){
   updateMetrics(filtered);
 }
 
-function setSectionSort(k,val){
-  if(!S._sort) S._sort={};
-  S._sort[k]=val;
-  render();
-}
 function toggleSec(id,head){
   const b=document.getElementById(id);
   const open=b.style.display!=='none';
@@ -2357,13 +1837,6 @@ function addManual(){
   toast('Transaction added');
 }
 
-function populateCatSelects(){
-  ['af-cat'].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');
-  });
-}
-
 function autoCategAll(){
   tx().forEach(t=>{t.cat=autoCat(t.desc);});
   save();render();updateSummary();toast('✨ All transactions re-categorized');
@@ -2371,592 +1844,1168 @@ function autoCategAll(){
 
 function clearData(){
   if(!confirm('Delete all transactions for '+U().name+'?')) return;
-  S.users[S.cur].tx=[];
-  // If no transactions remain anywhere, clear saved statements too
-  var hasTx=(S.users.herbert.tx||[]).length>0||
-    (S.extraUsers||[]).some(function(u){return (u.tx||[]).length>0;});
-  if(!hasTx){S.savedStatements=[];statementsUploaded=0;}
-  save();render();updateSummary();renderSavedStatements();toast('Transactions cleared');
-}
-
-function clearAllData(){
-  if(!confirm('This will delete ALL transactions AND all saved statements. Are you sure?')) return;
-  // Clear transactions for all users
-  S.users.herbert.tx=[];
-  (S.extraUsers||[]).forEach(function(u){u.tx=[];});
-  // Clear saved statements
-  S.savedStatements=[];
-  statementsUploaded=0;
-  save();render();updateSummary();renderSavedStatements();
-  toast('All data cleared');
+  S.users[S.cur].tx=[];save();render();updateSummary();toast('Data cleared');
 }
 
 function setYear(y){S.year=y;save();updateSummary();setEl('s-year', y);}
 
 // ── SETTINGS ───────────────────────────────────────────────────────────────
 function loadSettings(){
-  const h=S.users.herbert;
-  const n1=document.getElementById('s-n1'); if(n1) n1.value=h.name||'';
-  const bz=document.getElementById('s-biz'); if(bz) bz.value=h.biz||'';
-  renderYearBtns();
-  renderSettingsUsers();
+  document.getElementById('s-n1').value=S.users.herbert.name;
+  document.getElementById('s-biz').value=S.users.herbert.biz;
+  document.getElementById('s-n2').value=S.users.spouse.name;
 }
-
-function renderSettingsUsers(){
-  const tier=currentTier();
-  const maxU=maxUsers();
-  const el=document.getElementById('settings-extra-users');
-  const addArea=document.getElementById('settings-add-user-area');
-  if(!el) return;
-  
-  if(S.extraUsers.length===0){
-    el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0">No additional users yet.</div>';
-  } else {
-    el.innerHTML=S.extraUsers.map((eu,i)=>`
-      <div class="setting-row" style="align-items:flex-start;gap:12px;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <div class="setting-label">${esc(eu.name||'User '+(i+2))}</div>
-          <div class="setting-sub">${esc(eu.biz||'Secondary Account')}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" value="${esc(eu.name||'')}" placeholder="Name" 
-            style="width:130px;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px"
-            onchange="S.extraUsers[${i}].name=this.value;save();renderUserDropdown()">
-          <input type="text" value="${esc(eu.biz||'')}" placeholder="Label"
-            style="width:120px;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px"
-            onchange="S.extraUsers[${i}].biz=this.value;save();renderUserDropdown()">
-          <button class="del-btn" onclick="removeUser('${eu.id}')" title="Remove user">✕</button>
-        </div>
-      </div>`).join('');
-  }
-  
-  if(addArea){
-    const totalUsers=1+S.extraUsers.length;
-    if(totalUsers<maxU){
-      addArea.innerHTML=`<button class="btn btn-outline" onclick="addUser()" style="margin-top:4px">+ Add User (${totalUsers}/${maxU})</button>`;
-    } else if(maxU<=1){
-      addArea.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-top:4px">Upgrade to Household or Business to add more users.</div><button class="btn btn-primary" onclick="showUpgradeModal()" style="margin-top:8px">Upgrade Plan ⭐</button>`;
-    } else {
-      addArea.innerHTML=`<div style="font-size:13px;color:var(--text2);margin-top:4px">Maximum ${maxU} users reached for your plan.</div>`;
-    }
-  }
-}
-
 
 function saveSettings(){
-  S.users.herbert.name=document.getElementById('s-n1').value.trim()||'Primary User';
-  S.users.herbert.biz=document.getElementById('s-biz').value.trim()||'';
-  save();
-  renderUserDropdown();
-  updateHeaderUser();
-  updateDropdownNames();
-  toast('Settings saved');
+  S.users.herbert.name=document.getElementById('s-n1').value||'User 1';
+  S.users.herbert.biz=document.getElementById('s-biz').value||'';
+  S.users.spouse.name=document.getElementById('s-n2').value||'User 2';
+  const ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=S.users.herbert.name||'User 1';
+  const ud2=document.getElementById('ud-name2');if(ud2)ud2.textContent=S.users.spouse.name||'User 2';
+  const ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
+  const ub2=document.getElementById('ud-biz2');if(ub2)ub2.textContent=S.users.spouse.biz||'Secondary Account';
+  updateHeaderUser();save();toast('Settings saved');
 }
 
+function renderRules(){
+  const el=document.getElementById('rule-list');
+  if(!el) return;
+  el.innerHTML=S.rules.map((r,i)=>`
+    <div class="rule-item">
+      <span class="rule-kw">${esc(r.kw)}</span>
+      <span class="rule-arrow">→</span>
+      <span class="rule-cat">${esc(r.cat)}</span>
+      <button class="del-btn" onclick="delRule(${i})">✕</button>
+    </div>`).join('');
+}
 
+function addRule(){
+  // Build a modal with proper keyword input + category dropdown
+  const existing = document.getElementById('rule-modal');
+  if(existing) existing.remove();
 
-function getAvailableYears(){
-  var ys=new Set([S.year]);
-  Object.keys(S.years||{}).forEach(function(y){ys.add(y);});
-  return Array.from(ys).sort(function(a,b){return b-a;});
-}
-function renderYearBtns(){
-  var el=document.getElementById('year-btns');if(!el)return;
-  var years=getAvailableYears();
-  el.innerHTML=years.map(function(y){
-    return '<button class="btn '+(y===S.year?'btn-primary':'btn-outline')+'" onclick="switchYear(\''+y+'\')" style="min-width:70px">'+y+'</button>';
-  }).join('');
-}
-function switchYear(y){
-  if(!S.years)S.years={};
-  S.years[S.year]={herbert:JSON.parse(JSON.stringify(S.users.herbert)),extraUsers:JSON.parse(JSON.stringify(S.extraUsers||[]))};
-  if(S.years[y]){
-    S.users.herbert=S.years[y].herbert;
-    S.extraUsers=S.years[y].extraUsers||[];
-    ['invoices','retirement','equipment'].forEach(function(f){if(!S.users.herbert[f])S.users.herbert[f]=[];});
-    (S.extraUsers||[]).forEach(function(u){['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(function(f){if(!u[f])u[f]=[];});});
-  }else{
-    var n=S.users.herbert.name,b=S.users.herbert.biz;
-    S.users.herbert=emptyUser('U1','brand');S.users.herbert.name=n;S.users.herbert.biz=b;S.extraUsers=[];
-  }
-  if(S.cur!=='herbert'&&!(S.extraUsers||[]).find(function(u){return u.id===S.cur;}))S.cur='herbert';
-  S.year=y;save();render();updateSummary();renderTabs();renderYearBtns();renderUserDropdown();toast('Switched to '+y);updateHeaderUser();
-}
-function addYear(){
-  var input=document.getElementById('new-year-input');
-  var y=(input?input.value:'').trim();
-  if(!y||isNaN(y)||+y<2018||+y>2030){toast('Enter a valid year (2018-2030)');return;}
-  if(getAvailableYears().includes(y)){switchYear(y);if(input)input.value='';return;}
-  if(!S.years)S.years={};
-  S.years[y]={herbert:emptyUser('U1','brand'),extraUsers:[]};
-  S.years[y].herbert.name=S.users.herbert.name;S.years[y].herbert.biz=S.users.herbert.biz;
-  save();switchYear(y);if(input)input.value='';toast('Tax year '+y+' created');
-}
-function renderUserDropdown(){
-  var maxU=maxUsers(),totalUsers=1+(S.extraUsers||[]).length;
-  var extraEl=document.getElementById('ud-extra-users');
-  if(extraEl){
-    extraEl.innerHTML=(S.extraUsers||[]).map(function(eu){
-      var colorMap={brand:'rgba(37,99,235,0.15)',green:'rgba(22,163,74,0.15)',purple:'rgba(124,58,237,0.15)',amber:'rgba(217,119,6,0.15)',red:'rgba(220,38,38,0.15)'};
-      var textMap={brand:'var(--brand)',green:'var(--green)',purple:'var(--purple)',amber:'var(--amber)',red:'var(--red)'};
-      var isCur=S.cur===eu.id;
-      return '<div class="ud-item'+(isCur?' active':'')+'" onclick="switchUserDyn(\''+eu.id+'\',event)">'+
-        '<div class="ud-avatar" style="background:'+(colorMap[eu.color]||'rgba(37,99,235,0.15)')+';color:'+(textMap[eu.color]||'var(--brand)')+'">'+  (eu.avatar||'U?')+'</div>'+
-        '<div><div style="font-weight:700">'+(eu.name||'User '+(eu.avatar||'?'))+'</div>'+
-        '<div style="font-size:11px;color:var(--text3)">'+(eu.biz||'Secondary Account')+'</div></div>'+
-        '<button onclick="removeUser(\''+eu.id+'\',event)" style="margin-left:auto;background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:4px">&#x2715;</button></div>';
-    }).join('');
-  }
-  var addBtn=document.getElementById('ud-add-user-btn');
-  if(addBtn){
-    if(totalUsers<maxU){addBtn.innerHTML='<div class="ud-item" onclick="addUser()" style="color:var(--brand);font-weight:600">+ Add User</div>';}
-    else if(maxU<=1){addBtn.innerHTML='<div class="ud-item" style="color:var(--text3);font-size:12px;cursor:default">Upgrade to add more users</div>';}
-    else{addBtn.innerHTML='';}
-  }
-  var h=S.users.herbert;
-  var ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=h.name||'Primary User';
-  var ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=h.biz||'Primary Account';
-}
-function switchUserDyn(id,event){
-  if(event)event.stopPropagation();
-  S.cur=id;save();render();updateSummary();renderUserDropdown();
-  var el=document.getElementById('user-dropdown');if(el)el.classList.remove('open');
-  updateHeaderUser();var u=U();toast('Switched to '+(u.name||id));
-}
-function addUser(){
-  var tier=typeof currentTier==='function'?currentTier():{maxUsers:1};
-  var maxU=tier.maxUsers||1,totalUsers=1+(S.extraUsers||[]).length;
-  if(totalUsers>=maxU){if(maxU<=1&&typeof showUpgradeModal==='function')showUpgradeModal();else toast('Maximum '+maxU+' users reached');return;}
-  var modal=document.createElement('div');
-  modal.id='add-user-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
-    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add User</h3>'+
-    '<div><label class="field-label">Full Name</label>'+
-    '<input id="new-user-name" type="text" placeholder="e.g. Jane Smith" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Business / Account Label (optional)</label>'+
-    '<input id="new-user-biz" type="text" placeholder="e.g. Spouse, Partner" class="field-input"></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
-    '<button onclick="document.getElementById(\'add-user-modal\').remove()" class="btn btn-outline">Cancel</button>'+
-    '<button onclick="submitAddUser()" class="btn btn-primary">Add User</button></div></div>';
+  const modal = document.createElement('div');
+  modal.id = 'rule-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
+      <h3 style="margin:0 0 20px;font-size:17px;font-weight:800;color:var(--text1)">Add Categorization Rule</h3>
+      <div style="margin-bottom:16px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Keyword or phrase to match</label>
+        <input id="rule-kw-input" type="text" placeholder="e.g. Amazon, Uber, Stripe..." style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none">
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Will match any transaction description containing this text</div>
+      </div>
+      <div style="margin-bottom:24px">
+        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Assign to category</label>
+        <select id="rule-cat-input" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;background:#fff;box-sizing:border-box;outline:none">
+          <option value="">— Select a category —</option>
+          ${CATS.map(c=>`<option value="${c}">${c}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button onclick="document.getElementById('rule-modal').remove()" style="padding:10px 20px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:var(--text1)">Cancel</button>
+        <button onclick="submitRule()" style="padding:10px 20px;background:var(--brand);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Add Rule</button>
+      </div>
+    </div>
+  `;
   document.body.appendChild(modal);
-  var ni=document.getElementById('new-user-name');
-  if(ni){ni.focus();ni.addEventListener('keydown',function(e){if(e.key==='Enter'){var bi=document.getElementById('new-user-biz');if(bi)bi.focus();}});}
-  var bi=document.getElementById('new-user-biz');
-  if(bi)bi.addEventListener('keydown',function(e){if(e.key==='Enter')submitAddUser();});
-  var ud=document.getElementById('user-dropdown');if(ud)ud.classList.remove('open');
+  document.getElementById('rule-kw-input').focus();
+  // Allow pressing Enter to submit
+  document.getElementById('rule-kw-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('rule-cat-input').focus(); });
+  document.getElementById('rule-cat-input').addEventListener('keydown', e => { if(e.key==='Enter') submitRule(); });
 }
-function submitAddUser(){
-  var nameEl=document.getElementById('new-user-name'),bizEl=document.getElementById('new-user-biz');
-  var name=(nameEl?nameEl.value:'').trim(),biz=(bizEl?bizEl.value:'').trim();
-  if(!name){toast('Please enter a name');return;}
-  if(!S.extraUsers)S.extraUsers=[];
-  var idx=S.extraUsers.length;
-  var colors=['green','purple','amber','red'],avatars=['U2','U3','U4','U5'];
-  var newUser=emptyUser(avatars[idx]||'U?',colors[idx]||'green');
-  newUser.id='user'+(idx+2);newUser.name=name;newUser.biz=biz;
-  S.extraUsers.push(newUser);
-  var m=document.getElementById('add-user-modal');if(m)m.remove();
-  save();renderUserDropdown();renderSettingsUsers();toast('User added: '+name);
+
+function submitRule(){
+  const kw  = (document.getElementById('rule-kw-input').value||'').trim();
+  const cat = document.getElementById('rule-cat-input').value;
+  if(!kw){ toast('Please enter a keyword'); return; }
+  if(!cat){ toast('Please select a category'); return; }
+  document.getElementById('rule-modal').remove();
+  S.rules.unshift({kw:kw.toLowerCase(), cat});
+  save(); renderRules(); toast('Rule added: "'+kw+'" → '+cat.split(' — ')[1]||cat);
 }
-function removeUser(id,event){
-  if(event){event.stopPropagation();event.preventDefault();}
-  if(!S.extraUsers)return;
-  var u=S.extraUsers.find(function(u){return u.id===id;});if(!u)return;
-  if(!confirm('Remove '+(u.name||id)+'? Their data will be deleted.'))return;
-  S.extraUsers=S.extraUsers.filter(function(u){return u.id!==id;});
-  if(S.cur===id)S.cur='herbert';
-  save();render();updateSummary();renderUserDropdown();updateHeaderUser();toast('User removed');
+
+function delRule(i){S.rules.splice(i,1);save();renderRules();}
+
+
+// ── RETIREMENT ────────────────────────────────────────────────────────────
+function renderRetirement(){
+  const rows = U().retirement || [];
+  const total = rows.reduce((s,r)=>s+(r.amt||0),0);
+  const tbody = document.getElementById('retirement-body');
+  if(!tbody) return;
+  tbody.innerHTML = rows.map((r,i)=>`
+    <tr>
+      <td>${esc(r.type||'')}</td>
+      <td>${esc(r.institution||'')}</td>
+      <td>${esc(r.date||'')}</td>
+      <td style="text-align:right">$${(r.amt||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td>${esc(r.notes||'')}</td>
+      <td><button class="del-btn" onclick="delRetirement(${i})">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">No contributions yet — click "+ Add Contribution" to get started</td></tr>';
+  const tot = document.getElementById('retirement-total');
+  if(tot) tot.textContent = rows.length ? 'Total Contributions: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
 }
+
+function addRetirement(){
+  const types = ['SEP-IRA','Solo 401(k) — Employee','Solo 401(k) — Employer','Traditional IRA','Roth IRA','SIMPLE IRA'];
+  const type = prompt('Account type:\n\n'+types.join('\n')+'\n\n(or type your own)');
+  if(!type) return;
+  const institution = prompt('Institution (e.g. Fidelity, Vanguard, Schwab):') || '';
+  const dateStr = prompt('Date of contribution (MM/DD/YYYY):') || '';
+  const amtStr = prompt('Amount contributed ($):');
+  if(!amtStr) return;
+  const amt = parseFloat(amtStr.replace(/[$,]/g,''));
+  if(isNaN(amt)||amt<=0){ toast('Invalid amount'); return; }
+  const notes = prompt('Notes (optional):') || '';
+  if(!U().retirement) U().retirement=[];
+  U().retirement.push({type,institution,date:dateStr,amt,notes});
+  save(); renderRetirement();
+  toast('Contribution added: $'+amt.toLocaleString());
+}
+
+function delRetirement(i){
+  U().retirement.splice(i,1); save(); renderRetirement();
+}
+
+// ── EQUIPMENT ─────────────────────────────────────────────────────────────
+function renderEquipment(){
+  const rows = U().equipment || [];
+  const total = rows.reduce((s,r)=>s+(r.deductible||0),0);
+  const tbody = document.getElementById('equipment-body');
+  if(!tbody) return;
+  tbody.innerHTML = rows.map((r,i)=>`
+    <tr>
+      <td>${esc(r.desc||'')}</td>
+      <td>${esc(r.date||'')}</td>
+      <td style="text-align:right">$${(r.cost||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="text-align:center">${r.biz||100}%</td>
+      <td style="text-align:right;color:var(--green);font-weight:700">$${(r.deductible||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td>${esc(r.notes||'')}</td>
+      <td><button class="del-btn" onclick="delEquipment(${i})">✕</button></td>
+    </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px">No assets yet — click "+ Add Asset" to get started</td></tr>';
+  const tot = document.getElementById('equipment-total');
+  if(tot) tot.textContent = rows.length ? 'Total Section 179 Deduction: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '';
+}
+
+function addEquipment(){
+  const desc = prompt('Asset description (e.g. MacBook Pro, iPhone 15, Camera):');
+  if(!desc) return;
+  const dateStr = prompt('Purchase date (MM/DD/YYYY):') || '';
+  const costStr = prompt('Total purchase cost ($):');
+  if(!costStr) return;
+  const cost = parseFloat(costStr.replace(/[$,]/g,''));
+  if(isNaN(cost)||cost<=0){ toast('Invalid cost'); return; }
+  const bizPct = parseFloat(prompt('Business use percentage (e.g. 100 for fully business, 50 for half):') || '100');
+  const deductible = Math.round(cost*(bizPct/100)*100)/100;
+  const notes = prompt('Notes (optional, e.g. Section 179, Used for video production):') || '';
+  if(!U().equipment) U().equipment=[];
+  U().equipment.push({desc,date:dateStr,cost,biz:bizPct,deductible,notes});
+  save(); renderEquipment();
+  toast('Asset added — deductible amount: $'+deductible.toLocaleString());
+}
+
+function delEquipment(i){
+  U().equipment.splice(i,1); save(); renderEquipment();
+}
+
+// ── EXPORT ─────────────────────────────────────────────────────────────────
+function exportAll(){
+  const tier=currentTier();
+  if(!tier.canExportExcel){
+    showUpgradeModal();
+    toast('Excel export requires a paid plan. Upgrade at gettaxflow.com!');
+    return;
+  }
+
+  _exportAllRun();
+}
+function _exportAllRun(){
+  const u=U(); const txs=tx();
+  if(!txs.length){ toast('No transactions to export'); return; }
+
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'TaxFlow';
+  wb.created = new Date();
+
+  const C = {
+    BLUE_HDR:  '2E74B5',
+    GREEN_HDR: '375623',
+    NAVY_HDR:  '1F4E79',
+    PURP_HDR:  '7030A0',
+    ORG_HDR:   'ED7D31',
+    TEAL_HDR:  '00B0F0',
+    RED_NET:   'C00000',
+    ROW_LTBL:  'EBF5EB',
+    ROW_LTGN:  'F0FFF0',
+    ROW_LTBL2: 'D6E4F0',
+    ROW_PEACH: 'FCE4D6',
+    ROW_WHITE: 'FFFFFF',
+    ROW_FAINT: 'FAFAFA',
+    TOT_INC:   'D6E4F0',
+    TOT_DED:   'E2EFDA',
+    TOT_PER:   'FCE4D6',
+  };
+
+  const FONT = 'Arial';
+  const AMT_FMT = '"$"#,##0.00;"($"#,##0.00)';
+
+  function fill(hex){ return {type:'pattern',pattern:'solid',fgColor:{argb:'FF'+hex}}; }
+
+  function styleHdrRow(row, hdrColor){
+    row.height = 22;
+    row.eachCell(cell => {
+      cell.fill = fill(hdrColor);
+      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FFFFFFFF'}};
+      cell.alignment = {vertical:'middle', horizontal:'center', wrapText:false};
+      cell.border = {bottom:{style:'thin', color:{argb:'FF000000'}}};
+    });
+  }
+
+  function styleDataRow(row, bg, amtCols){
+    row.height = 16;
+    row.eachCell({includeEmpty:false}, (cell, colNum) => {
+      if(bg) cell.fill = fill(bg);
+      cell.font = {name:FONT, size:10, color:{argb:'FF000000'}};
+      if(amtCols.includes(colNum)){
+        cell.alignment = {vertical:'middle', horizontal:'right'};
+        cell.numFmt = AMT_FMT;
+        // Round to 2 decimal places to avoid floating point display issues
+        if(typeof cell.value === 'number') cell.value = Math.round(cell.value * 100) / 100;
+      } else if(colNum === 1){
+        cell.alignment = {vertical:'middle', horizontal:'center'};
+      } else {
+        cell.alignment = {vertical:'middle', horizontal:'left'};
+      }
+    });
+  }
+
+  function styleTotalRow(row, bg, amtCols){
+    row.height = 18;
+    row.eachCell({includeEmpty:false}, (cell, colNum) => {
+      cell.fill = fill(bg);
+      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FF000000'}};
+      cell.border = {top:{style:'thin',color:{argb:'FF000000'}}, bottom:{style:'double',color:{argb:'FF000000'}}};
+      if(amtCols.includes(colNum)){
+        cell.alignment = {vertical:'middle', horizontal:'right'};
+        cell.numFmt = AMT_FMT;
+        if(typeof cell.value === 'number') cell.value = Math.round(cell.value * 100) / 100;
+      } else {
+        cell.alignment = {vertical:'middle', horizontal:'left'};
+      }
+    });
+  }
+
+  function addSheet(name, headers, rows, hdrColor, alt1, alt2, colWidths, amtCols){
+    const ws = wb.addWorksheet(name);
+    ws.columns = colWidths.map((w,i) => ({key:'c'+i, width:w}));
+
+    // Header row — no blank row before it
+    const hdrRow = ws.addRow(headers);
+    styleHdrRow(hdrRow, hdrColor);
+
+    // Data rows
+    rows.forEach((rowData, i) => {
+      const row = ws.addRow(rowData);
+      styleDataRow(row, i%2===0 ? alt1 : alt2, amtCols);
+    });
+
+    return ws;
+  }
+
+  function getMonth(date){
+    const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return m[(parseInt((date||'').split('/')[0])||1)-1]||'';
+  }
+  function getYear(date){
+    // Always return 4-digit year
+    const p=(date||'').split('/');
+    if(!p[2]) return S.year;
+    return p[2].length===2 ? '20'+p[2] : p[2];
+  }
+  function roundAmt(n){ return Math.round((n||0)*100)/100; }
+
+  const incTxs = txs.filter(t=>bucket(t.cat)==='income');
+  const dedTxs = txs.filter(t=>bucket(t.cat)==='deductible');
+  const perTxs = txs.filter(t=>bucket(t.cat)==='personal');
+  const incTotal = roundAmt(incTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
+  const dedTotal = roundAmt(dedTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
+  const perTotal = roundAmt(perTxs.reduce((s,t)=>s+Math.abs(t.amount),0));
+  const mi    = roundAmt(u.mileage.reduce((s,m)=>s+m.miles,0));
+  const miVal = roundAmt(mi*0.70);
+  const gLoss = roundAmt(u.gambling.reduce((s,v)=>s+(v.loss||0),0));
+  const netTax = roundAmt(Math.max(0, incTotal - dedTotal - miVal));
+
+  // ── ALL TRANSACTIONS ───────────────────────────────────────────────────
+  addSheet('All Transactions',
+    ['Date','Month','Year','Description','Amount ($)','Type','Category'],
+    txs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc,
+      roundAmt(Math.abs(t.amount)),
+      bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',
+      t.cat]),
+    C.BLUE_HDR, C.ROW_LTBL, C.ROW_FAINT, [12,8,7,45,14,10,42], [5]
+  );
+
+  // ── INCOME ─────────────────────────────────────────────────────────────
+  const wsInc = addSheet('Income',
+    ['Date','Month','Year','Description','Amount ($)','Category'],
+    incTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
+    C.GREEN_HDR, C.ROW_LTGN, C.ROW_WHITE, [12,8,7,45,14,42], [5]
+  );
+  const incTotalRow = wsInc.addRow(['','','','TOTAL INCOME', incTotal, '']);
+  styleTotalRow(incTotalRow, C.TOT_INC, [5]);
+
+  // ── DEDUCTIBLE ─────────────────────────────────────────────────────────
+  const wsDed = addSheet('Deductible Expenses',
+    ['Date','Month','Year','Description','Amount ($)','Category'],
+    dedTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
+    C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,8,7,45,14,42], [5]
+  );
+  const dedTotalRow = wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES', dedTotal, '']);
+  styleTotalRow(dedTotalRow, C.TOT_DED, [5]);
+
+  // ── PERSONAL ───────────────────────────────────────────────────────────
+  const wsPer = addSheet('Personal Expenses',
+    ['Date','Month','Year','Description','Amount ($)','Category'],
+    perTxs.map(t=>[t.date, getMonth(t.date), getYear(t.date), t.desc, roundAmt(Math.abs(t.amount)), t.cat]),
+    C.PURP_HDR, C.ROW_PEACH, C.ROW_WHITE, [12,8,7,45,14,42], [5]
+  );
+  const perTotalRow = wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES', perTotal, '']);
+  styleTotalRow(perTotalRow, C.TOT_PER, [5]);
+
+  // ── SUMMARY ────────────────────────────────────────────────────────────
+  const wsSum = wb.addWorksheet('Summary');
+  wsSum.columns = [{width:46},{width:18}];
+
+  function sumAddRow(vals, opts){
+    const row = wsSum.addRow(vals);
+    row.height = opts.height || 16;
+    const c1 = row.getCell(1);
+    const c2 = row.getCell(2);
+    c1.font = {name:FONT, bold:opts.bold||false, size:opts.sz||11, color:{argb:'FF'+(opts.c1color||'000000')}};
+    c2.font = {name:FONT, bold:opts.bold||false, size:opts.sz||11, color:{argb:'FF'+(opts.c2color||'000000')}};
+    c1.alignment = {horizontal:'left', vertical:'middle'};
+    c2.alignment = {horizontal:'right', vertical:'middle'};
+    if(opts.bg1) c1.fill = fill(opts.bg1);
+    if(opts.bg2) c2.fill = fill(opts.bg2);
+    if(opts.numFmt && vals[1]!==undefined) { c2.numFmt = opts.numFmt; if(typeof vals[1]==='number') c2.value = roundAmt(vals[1]); }
+    if(opts.border){ c1.border={top:{style:'thin'},bottom:{style:'double'}}; c2.border={top:{style:'thin'},bottom:{style:'double'}}; }
+    return row;
+  }
+  function sumHdr(label){
+    const row = wsSum.addRow([label, '']);
+    row.height = 20;
+    [1,2].forEach(c => {
+      const cell = row.getCell(c);
+      cell.fill = fill(C.NAVY_HDR);
+      cell.font = {name:FONT, bold:true, size:11, color:{argb:'FFFFFFFF'}};
+      cell.alignment = {horizontal:'left', vertical:'middle'};
+    });
+    return row;
+  }
+
+  // Title block
+  sumAddRow([(u.biz||'TaxFlow')+' \u2014 '+S.year+' Tax Year Summary', ''], {bold:true, sz:14, height:28});
+  sumAddRow(['Prepared for: '+(u.name||''), ''], {sz:11});
+  sumAddRow(['Tax Year: '+S.year, ''], {sz:11});
+  wsSum.addRow([]);
+
+  // Income
+  sumHdr('INCOME');
+  sumAddRow(['Total Gross Income', incTotal], {numFmt:AMT_FMT});
+  sumAddRow(['TOTAL TAXABLE INCOME', incTotal], {bold:true, bg1:C.TOT_INC, bg2:C.TOT_INC, numFmt:AMT_FMT, border:true, height:18});
+  wsSum.addRow([]);
+
+  // Deductions
+  sumHdr('DEDUCTIBLE EXPENSES');
+  sumAddRow(['Total Business Deductions', dedTotal], {numFmt:AMT_FMT});
+  sumAddRow(['Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70/mi)', miVal], {numFmt:AMT_FMT});
+  sumAddRow(['TOTAL DEDUCTIBLE EXPENSES', dedTotal+miVal], {bold:true, bg1:C.TOT_DED, bg2:C.TOT_DED, numFmt:AMT_FMT, border:true, height:18});
+  wsSum.addRow([]);
+
+  // Personal
+  sumHdr('PERSONAL EXPENSES');
+  sumAddRow(['Total Personal Spending', perTotal], {numFmt:AMT_FMT});
+  sumAddRow(['TOTAL PERSONAL EXPENSES', perTotal], {bold:true, bg1:C.TOT_PER, bg2:C.TOT_PER, numFmt:AMT_FMT, border:true, height:18});
+  wsSum.addRow([]);
+
+  // Gambling
+  sumHdr('GAMBLING');
+  sumAddRow(['Total Gambling Losses', gLoss], {numFmt:AMT_FMT});
+  sumAddRow(['Net Taxable Gambling Income', Math.max(0,gLoss)], {numFmt:AMT_FMT});
+  wsSum.addRow([]);
+
+  // RETIREMENT
+  const retTotal = roundAmt((u.retirement||[]).reduce((s,r)=>s+(r.amt||0),0));
+  const eqTotal  = roundAmt((u.equipment||[]).reduce((s,e)=>s+(e.deductible||0),0));
+  if(retTotal > 0 || eqTotal > 0){
+    wsSum.addRow([]);
+    sumHdr('RETIREMENT & EQUIPMENT');
+    if(retTotal > 0) sumAddRow(['Total Retirement Contributions', retTotal], {numFmt:AMT_FMT});
+    if(eqTotal > 0)  sumAddRow(['Total Section 179 Equipment Deductions', eqTotal], {numFmt:AMT_FMT});
+    const retEqTotal = roundAmt(retTotal + eqTotal);
+    sumAddRow(['TOTAL ADDITIONAL DEDUCTIONS', retEqTotal], {bold:true, bg1:'E2EFDA', bg2:'E2EFDA', numFmt:AMT_FMT, border:true, height:18});
+  }
+
+  // NET TAXABLE — big red
+  const netRow = wsSum.addRow(['NET TAXABLE INCOME', netTax]);
+  netRow.height = 30;
+  [1,2].forEach(c => {
+    const cell = netRow.getCell(c);
+    cell.fill  = fill(C.RED_NET);
+    cell.font  = {name:FONT, bold:true, size:14, color:{argb:'FFFFFFFF'}};
+    cell.alignment = {horizontal: c===1?'left':'right', vertical:'middle'};
+  });
+  netRow.getCell(2).numFmt = AMT_FMT;
+  netRow.getCell(2).value  = roundAmt(netTax);
+  wsSum.addRow([]);
+
+  // Transaction counts
+  sumHdr('TRANSACTION SUMMARY');
+  sumAddRow(['Total Transactions', txs.length], {});
+  sumAddRow(['Income Transactions', incTxs.length], {c1color:'375623', c2color:'375623'});
+  sumAddRow(['Deductible Transactions', dedTxs.length], {c1color:'1F4E79', c2color:'1F4E79'});
+  sumAddRow(['Personal Transactions', perTxs.length], {c1color:'7030A0', c2color:'7030A0'});
+  wsSum.addRow([]);
+
+  const discRow = wsSum.addRow(['TaxFlow is a financial organization tool \u2014 NOT tax advice. Always consult a qualified CPA before filing.']);
+  discRow.getCell(1).font = {name:FONT, italic:true, size:9, color:{argb:'FF94A3B8'}};
+
+  // ── GAMBLING SHEET ─────────────────────────────────────────────────────
+  if(u.gambling && u.gambling.length){
+    const wsG = addSheet('Gambling W-L',
+      ['Venue / Casino','Account #','Net Loss','Total Wagered'],
+      u.gambling.map(v=>[v.name, v.acc||'', roundAmt(v.loss), roundAmt(v.wagered||0)]),
+      C.ORG_HDR, C.ROW_LTBL2, C.ROW_WHITE, [32,16,14,16], [3,4]
+    );
+    const gTotalRow = wsG.addRow(['TOTAL LOSSES','', gLoss, '']);
+    styleTotalRow(gTotalRow, C.TOT_DED, [3]);
+  }
+
+  // ── MILEAGE SHEET ──────────────────────────────────────────────────────
+  if(u.mileage && u.mileage.length){
+    const wsM = addSheet('Mileage Log',
+      ['Date','From','To','Miles','Purpose','Value ($0.70/mi)'],
+      u.mileage.map(m=>[m.date, m.from, m.to, roundAmt(m.miles), m.purpose, roundAmt(m.miles*0.70)]),
+      C.TEAL_HDR, C.ROW_LTBL2, C.ROW_WHITE, [12,20,20,10,28,16], [4,6]
+    );
+    const mTotalRow = wsM.addRow(['TOTAL','','', roundAmt(mi),'', roundAmt(miVal)]);
+    styleTotalRow(mTotalRow, C.TOT_DED, [4,6]);
+  }
+
+  // ── 1099 SHEET ─────────────────────────────────────────────────────────
+  if(u.c1099 && u.c1099.length){
+    addSheet('1099 Tracker',
+      ['Client / Payer','Type','EIN / SSN','Amount'],
+      u.c1099.map(c=>[c.name, c.type, c.ein, roundAmt(c.amt)]),
+      C.NAVY_HDR, C.ROW_LTBL2, C.ROW_WHITE, [32,16,16,14], [4]
+    );
+  }
+
+  // ── RETIREMENT SHEET ─────────────────────────────────────────────────────
+  if(u.retirement && u.retirement.length){
+    const retTotal = u.retirement.reduce((s,r)=>s+(r.amt||0),0);
+    const wsRet = addSheet('Retirement Contributions',
+      ['Account Type','Institution','Date','Amount ($)','Notes'],
+      u.retirement.map(r=>[r.type||'', r.institution||'', r.date||'', roundAmt(r.amt||0), r.notes||'']),
+      '1F4E79', 'EBF5EB', 'FFFFFF', [22,20,12,14,30], [4]
+    );
+    const retTotalRow = wsRet.addRow(['','','','TOTAL CONTRIBUTIONS', roundAmt(retTotal)]);
+    styleTotalRow(retTotalRow, 'D6E4F0', [5]);
+  }
+
+  // ── EQUIPMENT SHEET ───────────────────────────────────────────────────────
+  if(u.equipment && u.equipment.length){
+    const eqTotal = u.equipment.reduce((s,e)=>s+(e.deductible||0),0);
+    const wsEq = addSheet('Equipment & Assets',
+      ['Asset Description','Purchase Date','Cost ($)','Business %','Deductible Amount ($)','Notes'],
+      u.equipment.map(e=>[e.desc||'', e.date||'', roundAmt(e.cost||0), (e.biz||100)+'%', roundAmt(e.deductible||0), e.notes||'']),
+      '375623', 'F0FFF0', 'FFFFFF', [35,12,14,12,18,25], [3,5]
+    );
+    const eqTotalRow = wsEq.addRow(['','','','','TOTAL SEC. 179 DEDUCTION', roundAmt(eqTotal)]);
+    styleTotalRow(eqTotalRow, 'E2EFDA', [6]);
+  }
+
+  // ── EXPORT ─────────────────────────────────────────────────────────────
+  const fname = ((u.biz||u.name||'TaxFlow').replace(/\s+/g,'_'))+'_'+S.year+'_TaxFlow.xlsx';
+  wb.xlsx.writeBuffer().then(function(buffer){
+    if(window.electronAPI && window.electronAPI.isElectron){
+      window.electronAPI.saveFile(fname, new Uint8Array(buffer), 'xlsx')
+        .then(r=>{ if(r&&r.success) toast('Saved: '+r.filePath.split(/[\\/]/).pop()); else if(r&&r.error) toast('Save failed: '+r.error); });
+      return;
+    }
+    const blob = new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href=url; a.download=fname; a.click();
+    URL.revokeObjectURL(url);
+    toast('Exported: '+fname);
+  }).catch(function(err){ toast('Export error: '+err.message); console.error(err); });
+}
+
+function exportCsv(){
+  const tier=currentTier();
+  if(!tier.canExportCsv){
+    showUpgradeModal();
+    toast('CSV export requires a paid plan. Upgrade at gettaxflow.com!');
+    return;
+  }
+
+  if(!tier.canExportCsv){showUpgradeModal();toast('CSV export requires a paid plan.');return;}
+  const rows=['Date,Description,Amount,Category'];
+  tx().forEach(t=>rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(',')));
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='transactions_'+S.year+'.csv';a.click();
+  toast('CSV exported');
+}
+
+// ── PROGRESS / TOAST ───────────────────────────────────────────────────────
+function showProg(){const p=document.getElementById('prog');if(p)p.style.display='flex';}
+function hideProg(){const p=document.getElementById('prog');if(p)p.style.display='none';}
+function clearSession(){}
+
+window.addEventListener('beforeunload', () => { clearSession(); });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { clearSession(); }
+});
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+  load();
+  await checkAuth();
+});
+
+function currentTier() {
+  const plan   = currentProfile?.plan   ?? 'free';
+  const status = currentProfile?.plan_status ?? 'active';
+  if (status === 'canceled') return TIERS.free;
+  return TIERS[plan] ?? TIERS.free;
+}
+
+// ── Auth screen helpers ───────────────────────────────────────────────────────
+function showAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = ''; s.style.opacity = '1'; s.style.display = 'flex';
+}
+function hideAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = 'opacity 0.35s ease'; s.style.opacity = '0';
+  setTimeout(() => { s.style.display='none'; s.style.opacity='1'; s.style.transition=''; }, 360);
+  updateHeaderUser(); updateDropdownNames();
+}
+function authTab(tab) {
+  document.getElementById('form-login').style.display    = tab==='login'    ? 'block' : 'none';
+  document.getElementById('form-register').style.display = tab==='register' ? 'block' : 'none';
+  document.getElementById('tab-login').classList.toggle('active',    tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+  clearAuthMessages();
+}
+function showAuthError(msg)   { const e=document.getElementById('auth-error');   e.textContent=msg; e.style.display='block'; document.getElementById('auth-success').style.display='none'; }
+function showAuthSuccess(msg) { const e=document.getElementById('auth-success'); e.textContent=msg; e.style.display='block'; document.getElementById('auth-error').style.display='none'; }
+function clearAuthMessages()  { document.getElementById('auth-error').style.display='none'; document.getElementById('auth-success').style.display='none'; }
+
+function selectPlan(plan) {
+  selectedPlan = plan;
+  ['free','household','business'].forEach(p => {
+    document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
+  });
+}
+
+// ── Load profile from Supabase ────────────────────────────────────────────────
+async function loadProfile(userId) {
+  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+  if (error) { console.error('Profile load error:', error); return null; }
+  return data;
+}
+
+function applyProfile(profile) {
+  currentProfile = profile;
+  if (profile.full_name)     S.users.herbert.name = profile.full_name;
+  if (profile.business_name) S.users.herbert.biz  = profile.business_name;
+  if (profile.user2_name)    S.users.spouse.name  = profile.user2_name;
+  applyTierRestrictions();
+}
+
+// ── Check session on load ─────────────────────────────────────────────────────
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    const profile = await loadProfile(session.user.id);
+    if (profile) { applyProfile(profile); hideAuthScreen(); return true; }
+  }
+  showAuthScreen();
+  return false;
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  clearAuthMessages();
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-pass').value;
+  if (!email || !email.includes('@')) { showAuthError('Please enter your email address.'); return; }
+  if (!pass) { showAuthError('Please enter your password.'); return; }
+
+  const btn = document.querySelector('#form-login .auth-btn');
+  btn.textContent = 'Signing in…'; btn.disabled = true;
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.textContent = 'Sign in to TaxFlow'; btn.disabled = false;
+
+  if (error) {
+    if (error.message.includes('Invalid login')) showAuthError('Incorrect email or password.');
+    else if (error.message.includes('Email not confirmed')) showAuthError('Please confirm your email first.');
+    else showAuthError(error.message);
+    return;
+  }
+
+  const profile = await loadProfile(data.user.id);
+  if (!profile) { showAuthError('Account error — please contact support.'); return; }
+  applyProfile(profile);
+  hideAuthScreen(); save();
+  toast('✅ Welcome back, ' + (profile.full_name || email.split('@')[0]) + '!');
+}
+
+// ── Register ──────────────────────────────────────────────────────────────────
+async function doRegister() {
+  clearAuthMessages();
+  const name  = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('reg-pass').value;
+  const pass2 = document.getElementById('reg-pass2').value;
+  const name2 = document.getElementById('reg-name2').value.trim();
+
+  if (!name)  { showAuthError('Please enter your name.'); return; }
+  if (!email || !email.includes('@')) { showAuthError('Please enter a valid email.'); return; }
+  if (!pass || pass.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
+  if (pass !== pass2) { showAuthError('Passwords do not match.'); return; }
+
+  const btn = document.querySelector('#form-register .auth-btn');
+  btn.textContent = 'Creating account…'; btn.disabled = true;
+
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: name } }
+  });
+  btn.textContent = 'Create account & sign in'; btn.disabled = false;
+
+  if (error) { showAuthError(error.message); return; }
+
+  if (data.user) {
+    await sb.from('profiles').update({
+      full_name: name, user2_name: name2 || null, plan: 'free',
+    }).eq('id', data.user.id);
+  }
+
+  // If paid plan selected, redirect to Stripe after account creation
+  if (selectedPlan !== 'free') {
+    showAuthSuccess('Account created! Redirecting to payment…');
+    setTimeout(() => {
+      const link = STRIPE_LINKS[selectedPlan + '_monthly'];
+      if (link) window.open(link + '?prefilled_email=' + encodeURIComponent(email), '_blank');
+    }, 1500);
+    setTimeout(() => { showAuthSuccess('Payment opened! Sign in after completing payment.'); authTab('login'); }, 2500);
+    return;
+  }
+
+  showAuthSuccess('Account created! Check your email to confirm, then sign in.');
+  setTimeout(() => authTab('login'), 2000);
+}
+
+// ── Sign out ──────────────────────────────────────────────────────────────────
+async function signOut() {
+  if (!confirm('Sign out of TaxFlow? Your data will remain saved on this device.')) return;
+  await sb.auth.signOut();
+  currentProfile = null;
+  const badge = document.getElementById('tier-badge');
+  if (badge) badge.remove();
+  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
+  const le = document.getElementById('login-email'); if(le) le.value='';
+  const lp = document.getElementById('login-pass');  if(lp) lp.value='';
+  clearAuthMessages(); authTab('login'); showAuthScreen();
+}
+
+// ── Tier restrictions ─────────────────────────────────────────────────────────
+function applyTierRestrictions() {
+  const tier = currentTier();
+  S.activeTabs = S.activeTabs.filter(t => tier.optionalTabs.includes(t));
+  // Settings tab is always visible regardless of tier
+  if(!S.activeTabs.includes('settings')) S.activeTabs.push('settings');
+  showUpgradeBanners(tier);
+  const ud2 = document.getElementById('ud-spouse');
+  if (ud2) {
+    ud2.style.opacity      = tier.maxUsers < 2 ? '0.4' : '';
+    ud2.style.pointerEvents = tier.maxUsers < 2 ? 'none' : '';
+    ud2.title = tier.maxUsers < 2 ? 'Upgrade to Household to add a second user' : '';
+  }
+  updateTierBadge(tier);
+}
+
+function updateTierBadge(tier) {
+  let badge = document.getElementById('tier-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'tier-badge';
+    badge.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff;letter-spacing:0.05em;cursor:pointer;margin-right:8px;';
+    badge.onclick = () => showUpgradeModal();
+    const hdr = document.querySelector('.header-right');
+    if (hdr) hdr.insertBefore(badge, hdr.firstChild);
+  }
+  badge.textContent = tier.label.toUpperCase();
+  badge.style.background = tier.label === 'Free' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)';
+}
+
+function showUpgradeBanners(tier) {
+  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
+  if (!tier.showUpgradeBanner) return;
+  const panel = document.getElementById('panel-statements');
+  if (!panel) return;
+  const banner = document.createElement('div');
+  banner.className = 'upgrade-banner';
+  banner.innerHTML = '<div><strong>You are on the Free plan</strong> — limited to ' + TIERS.free.maxTransactions + ' transactions and core features.</div><button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px" onclick="showUpgradeModal()">Upgrade ⭐</button>';
+  panel.insertBefore(banner, panel.firstChild);
+}
+
+function showUpgradeModal() {
+  const email = currentProfile?.email || '';
+  const link  = STRIPE_LINKS.household_monthly + (email ? '?prefilled_email=' + encodeURIComponent(email) : '');
+  window.open(link, '_blank');
+}
+
+function updateDropdownNames() {
+  const ud1=document.getElementById('ud-name1'); if(ud1) ud1.textContent=S.users.herbert.name||'User 1';
+  const ud2=document.getElementById('ud-name2'); if(ud2) ud2.textContent=S.users.spouse.name||'User 2';
+  const ub1=document.getElementById('ud-biz1');  if(ub1) ub1.textContent=S.users.herbert.biz||'Primary Account';
+}
+// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
+// Clears the session when the tab/window is closed or the app exits.
+// Transaction data remains saved — only the login session is cleared.
+
+// ── PDF PARSING (coordinate-aware) ────────────────────────────────────────
+async function parsePDF(f){
+  if(window.electronAPI&&window.electronAPI.isElectron){
+    const buf=await readBuf(f);
+    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
+    const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(buf));
+    if(!result||!result.success){toast('PDF error: '+(result&&result.error||'unknown'));return 0;}
+    if(!result.text||!result.text.trim()){toast('No text found in '+f.name);return 0;}
+    const count=parseBankText(result.text,f.name);
+    if(count===0) toast('0 transactions found in '+f.name);
+    return count;
+  }
+  if(typeof pdfjsLib==='undefined'){
+    toast('PDF reader not loaded — check your internet connection.');
+    return 0;
+  }
+  try{
+    const buf=await readBuf(f);
+    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true,useSystemFonts:true}).promise;
+    const pageRows=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const ct=await page.getTextContent();
+      page.cleanup();
+      const byY={};
+      ct.items.forEach(function(item){
+        const x=Math.round(item.transform[4]);
+        const y=Math.round(item.transform[5]/3)*3;
+        const t=(item.str||'').trim();
+        if(!t) return;
+        if(!byY[y]) byY[y]=[];
+        byY[y].push({x:x,text:t});
+      });
+      const sortedY=Object.keys(byY).map(Number).sort(function(a,b){return b-a;});
+      sortedY.forEach(function(y){
+        const row=byY[y];
+        row.sort(function(a,b){return a.x-b.x;});
+        pageRows.push({y:y,items:row,page:p});
+      });
+    }
+    pdf.destroy();
+    const count=parseBankStructured(pageRows,f.name);
+    if(count===0) toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
+    // Save to library (async, non-blocking)
+    saveStatementToLibrary(f,pageRows).catch(function(e){console.warn('Statement save failed:',e.message);});
+    return count;
+  }catch(e){
+    console.error('parsePDF error:',e);
+    toast('Error reading '+f.name+': '+(e.message||'unknown error'));
+    return 0;
+  }
+}
+
+function parseBankStructured(pageRows,fname){
+  const allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
+  const isTD=/(td bank|td convenience|td convenience checking|td savings)/i.test(allText);
+  const isBluevine=/(bluevine|blue vine)/i.test(allText);
+  if(isTD){
+    const n=parseTDStructured(pageRows,fname);
+    if(n>0) return n;
+  }
+  const lines=[];
+  pageRows.forEach(function(r){
+    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
+    if(line) lines.push(line);
+  });
+  if(isBluevine) return parseBluevine(lines,fname);
+  if(isTD) return parseTD(lines,fname);
+  return parseGeneric(lines,fname);
+}
+
+function parseGenericFromRows(pageRows,fname){
+  var lines=[];
+  pageRows.forEach(function(r){
+    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
+    if(line) lines.push(line);
+  });
+  return parseGeneric(lines,fname);
+}
+
+function parseTDStructured(pageRows,fname){
+  var added=0;
+  var DATE_MAX_X=130,DESC_MIN_X=100,DESC_MAX_X=520,AMT_MIN_X=510;
+  var datePat=/^\d{2}\/\d{2}$/;
+  var amtPat=/^[\d,]+\.\d{2}$/;
+  var bankPfx=/^(DBCRD|DEBIT\s+POS|DEBIT\s+CARD|ACH\s+DEBIT|CCD\s+DEBIT|ELECTRONIC\s+PMT)/i;
+  var skipPat=/^(STATEMENT OF ACCOUNT|POSTING DATE|DESCRIPTION|AMOUNT$|ACCOUNT SUMMARY|Beginning Balance|Ending Balance|Average Collected|Interest Earned|Interest Paid|Annual Percentage|Days in Period|Grace Period|Total for|DAILY ACCOUNT ACTIVITY|DATE\s+BALANCE|Call 1-800|xxxxxx|Bank Deposits|Subtotal|How to Balance|For Consumer|For Questions|TD Bank|TD Convenience|cid:|We must|We will|If you|In case|Finance Charge|Interest Notice|FINANCE CHARGES|QUESTIONS ABOUT|BILLING RIGHTS|HERBERT VONDERLINDEN|5811 JACKSON|PHILADELPHIA PA|Sub Total|Adjusted$|Ending$|Total Deposits|Total Withdrawals|Withdrawals$|Account #|\$0\.00|Please see important)/i;
+  var pageHdrPat=/^(Page:|Statement Period|Cust Ref|Primary Account|Mar |Apr |Jan |Feb |Jun |Jul |Aug |Sep |Oct |Nov |Dec |\d+ of \d+|4433181734|443-3181734)/i;
+  function normSection(s){return s.replace(/\s+/g,'').toLowerCase();}
+  var INCOME_SECTIONS=['deposits','electronicdeposits','otherdeposits','othercredits','atmdeposits','mobiledeposits','checkdeposits','electroniccredits','zellereceivedcredits','zelledirectcredits','achcredits','wirecredits','incomingwire','creditadjustments'];
+  var EXPENSE_SECTIONS=['electronicpayments','servicefees','servicefee','servicecharges','checkspaid','otherwithdrawals','atmwithdrawals','debitcardpurchases','wiretransfers','otherdebits'];
+  function isSectionIncome(text){var n=normSection(text);return INCOME_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});}
+  function isSectionExpense(text){var n=normSection(text);return EXPENSE_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});}
+  function cleanD(s){
+    return s.replace(/\*{3,}\d+/g,'').replace(/AUT\s+\d{6}/gi,'').replace(/VISA\s+DDA\s+(PUR|PMT|REF)\s*AP?/gi,'').replace(/(DBCRD|DEBIT\s+(POS|CARD))\s*(PUR|PMT|CREDIT|CARD)?\s*AP,?/gi,'').replace(/DDA\s+(PUR|PMT|PURCHASE)\s*AP,?/gi,'').replace(/(ACH|CCD)\s+DEBIT,?/gi,'').replace(/ELECTRONIC\s+PMT-WEB,?/gi,'').replace(/DEBIT\s+CARD\s+CREDIT,?/gi,'').replace(/,\s*,+/g,'').replace(/^\W+|\W+$/g,'').replace(/\s+/g,' ').trim();
+  }
+  function isGoodDesc(d){return d&&d.length>2&&/[A-Za-z]{2}/.test(d)&&d.length<120;}
+  var curSection=null,inActivity=false,curTx=null;
+  function finishTx(){
+    if(!curTx) return;
+    var rawParts=curTx.descParts.slice();
+    var amt=curTx.amount;
+    if(amt===null&&rawParts.length){
+      var lastPart=rawParts[rawParts.length-1];
+      var gluedMatch=lastPart.match(/^(.*?)\s*\*?[A-Z]{0,2}([\d,]+\.\d{2})$/);
+      if(gluedMatch){var cleanedPart=gluedMatch[1].trim();amt=parseFloat(gluedMatch[2].replace(/,/g,''));if(cleanedPart)rawParts[rawParts.length-1]=cleanedPart;else rawParts.pop();}
+    }
+    var desc=cleanD(rawParts.join(' '));
+    if(isGoodDesc(desc)&&amt&&amt>0){
+      var amount=curTx.section==='income'?amt:-amt;
+      var rawDate=curTx.date;
+      if(rawDate&&!/\/\d{2,4}$/.test(rawDate)) rawDate=rawDate+'/25';
+      tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});
+      added++;
+    }
+    curTx=null;
+  }
+  pageRows.forEach(function(row){
+    var items=row.items;
+    var dateItems=items.filter(function(i){return i.x<DATE_MAX_X&&datePat.test(i.text);});
+    var descItems=items.filter(function(i){return i.x>=DESC_MIN_X&&i.x<DESC_MAX_X;});
+    var amtItems=items.filter(function(i){return i.x>=AMT_MIN_X&&amtPat.test(i.text);});
+    var allText=items.map(function(i){return i.text;}).join(' ').trim();
+    if(/daily balance summary/i.test(allText)){finishTx();inActivity=false;return;}
+    if(/daily account activity/i.test(allText)){finishTx();inActivity=true;curSection=null;return;}
+    if(!inActivity) return;
+    if(pageHdrPat.test(allText.trim())) return;
+    if(skipPat.test(allText.trim())) return;
+    if(allText.length>100&&!/\d{2}\/\d{2}/.test(allText)&&/[a-z]{5}/.test(allText)) return;
+    var dateText=dateItems.length?dateItems[0].text:'';
+    var descText=descItems.filter(function(i){return !pageHdrPat.test(i.text);}).map(function(i){return i.text;}).join(' ').trim();
+    var amtText=amtItems.length?amtItems[0].text:'';
+    var noDate=!dateText;
+    var textForSection=allText.replace(/\s*\(continued\)/i,'(continued)');
+    if(isSectionIncome(textForSection)&&noDate){finishTx();curSection='income';return;}
+    if(isSectionExpense(textForSection)&&noDate){finishTx();curSection='expense';return;}
+    if(isSectionIncome(allText)&&noDate&&!amtPat.test(allText)){finishTx();curSection='income';return;}
+    if(isSectionExpense(allText)&&noDate&&!amtPat.test(allText)){finishTx();curSection='expense';return;}
+    if(!curSection) return;
+    if(!descText&&!dateText&&!amtText) return;
+    if(descText&&pageHdrPat.test(descText.trim())) return;
+    var hasBankPfx=descItems.some(function(i){return bankPfx.test(i.text);});
+    var isNewTx=hasBankPfx||(dateText&&descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText));
+    if(isNewTx){
+      finishTx();
+      curTx={section:curSection,date:dateText,descParts:descText?[descText]:[],amount:amtText?parseFloat(amtText.replace(/,/g,'')):null};
+    } else if(curTx){
+      if(descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText)){if(/[A-Za-z]{2}/.test(descText)&&descText.length<120)curTx.descParts.push(descText);}
+      if(amtText&&curTx.amount===null) curTx.amount=parseFloat(amtText.replace(/,/g,''));
+    }
+  });
+  finishTx();
+  return added||parseGenericFromRows(pageRows,fname);
+}
+
+function handleFiles(files){
+  var list=[].slice.call(files);
+  if(!list.length) return;
+  var wTier=currentTier();
+  var total=0;
+  // Show import banner
+  var banner=document.getElementById('import-banner');
+  var bannerMsg=document.getElementById('import-banner-msg');
+  if(banner) banner.style.display='block';
+  var i=0;
+  function next(){
+    if(i>=list.length){
+      if(banner) banner.style.display='none';
+      if(total>0){save();render();updateSummary();}
+      toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions found — check file format');
+      return;
+    }
+    var f=list[i++];
+    var ext=f.name.toLowerCase().split('.').pop();
+    if(bannerMsg) bannerMsg.textContent='Reading '+f.name+'...';
+    setTimeout(function(){
+      var p;
+      if(ext==='pdf'){
+        if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){
+          toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade for unlimited!');
+          showUpgradeModal();
+          if(banner) banner.style.display='none';
+          if(total>0){save();render();updateSummary();}
+          return;
+        }
+        p=parsePDF(f).then(function(n){if(n>0)statementsUploaded++;total+=n;next();}).catch(function(e){toast('Error: '+e.message);next();});
+      } else if(ext==='csv'){
+        try{var text=readTextSync(f);total+=parseCSV(text,f.name);}catch(e){toast('Error reading '+f.name);}
+        next();
+      } else if(ext==='xlsx'||ext==='xls'){
+        try{var bin=readBinSync(f);total+=parseXLSX(bin,f.name);}catch(e){toast('Error reading '+f.name);}
+        next();
+      } else {
+        toast('Unsupported file type: '+f.name);
+        next();
+      }
+    },50);
+  }
+  next();
+}
+
+function readBuf(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsArrayBuffer(f);});}
+function readText(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsText(f);});}
+function readBin(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsBinaryString(f);});}
+
+function parseCSV(text,fname){
+  var lines=text.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  var added=0;
+  var datePat=/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/;
+  lines.forEach(function(line){
+    var parts=line.split(',');
+    if(parts.length<3) return;
+    var date=parts[0].replace(/"/g,'').trim();
+    if(!datePat.test(date)) return;
+    var desc=parts[1].replace(/"/g,'').trim();
+    var amtStr=parts[parts.length-1].replace(/"/g,'').replace(/[\$,]/g,'').trim();
+    var amt=parseFloat(amtStr);
+    if(isNaN(amt)||!desc) return;
+    tx().push({id:uid(),date:normalizeDate(date),desc:desc,amount:amt,cat:autoCat(desc),src:fname});
+    added++;
+  });
+  return added;
+}
+
+function parseXLSX(bin,fname){
+  if(typeof XLSX==='undefined') return 0;
+  var wb=XLSX.read(bin,{type:'binary'});
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var rows=XLSX.utils.sheet_to_json(ws,{header:1});
+  var added=0;
+  var datePat=/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/;
+  rows.forEach(function(row){
+    if(!row||row.length<3) return;
+    var date=String(row[0]||'').trim();
+    if(!datePat.test(date)) return;
+    var desc=String(row[1]||'').trim();
+    var amt=parseFloat(String(row[row.length-1]).replace(/[\$,]/g,''));
+    if(isNaN(amt)||!desc) return;
+    tx().push({id:uid(),date:normalizeDate(date),desc:desc,amount:amt,cat:autoCat(desc),src:fname});
+    added++;
+  });
+  return added;
+}
+
+// ── AUTO-CATEGORIZATION RULES ─────────────────────────────────────────────
+function deleteRule(i){if(!confirm('Remove this rule?'))return;S.rules.splice(i,1);save();renderRules();toast('Rule removed');}
 
 // ── CLIENT MANAGEMENT ─────────────────────────────────────────────────────
-
 function renderClientCell(t){
   var clients=S.clients||[];
   var cBg=t.clientId?'var(--green-bg)':'#fff';
   var cCol=t.clientId?'var(--green)':'var(--text2)';
-  var opts='<option value="">— Client —</option>'+
-    clients.map(function(c){return '<option value="'+c.id+'"'+(t.clientId===c.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('');
+  var opts='<option value="">— Client —</option>'+clients.map(function(c){return '<option value="'+c.id+'"'+(t.clientId===c.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('');
   var sel='<select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:'+cBg+';color:'+cCol+';max-width:130px;cursor:pointer" onchange="setTxClient(this.dataset.tid,this.value)" data-tid="'+t.id+'">'+opts+'</select>';
   var invSel='';
   if(t.clientId){
     var clientInvs=(U().invoices||[]).filter(function(inv){return inv.clientId===t.clientId;});
     if(clientInvs.length){
-      var iBg=t.invoiceId?'var(--brand-light)':'#fff';
-      var iCol=t.invoiceId?'var(--brand)':'var(--text2)';
-      var iOpts='<option value="">— Invoice —</option>'+
-        clientInvs.map(function(inv){var ref=inv.num||inv.desc||'INV';return '<option value="'+ref+'"'+(t.invoiceId===ref?' selected':'')+'>'+esc(ref)+'</option>';}).join('');
+      var iBg=t.invoiceId?'var(--brand-light)':'#fff';var iCol=t.invoiceId?'var(--brand)':'var(--text2)';
+      var iOpts='<option value="">— Invoice —</option>'+clientInvs.map(function(inv){var ref=inv.num||inv.desc||'INV';return '<option value="'+ref+'"'+(t.invoiceId===ref?' selected':'')+'>'+esc(ref)+'</option>';}).join('');
       invSel='<select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:'+iBg+';color:'+iCol+';max-width:120px;cursor:pointer;margin-top:3px" onchange="setTxInvoice(this.dataset.tid,this.value)" data-tid="'+t.id+'">'+iOpts+'</select>';
     }
   }
   return '<div style="display:flex;flex-direction:column;gap:3px">'+sel+invSel+'</div>';
 }
-
-function getClientName(clientId){
-  var c=(S.clients||[]).find(function(c){return c.id===clientId;});
-  return c?c.name:'';
-}
-
-function setTxClient(txId,clientId){
-  var t=(tx()||[]).find(function(x){return x.id===txId;});
-  if(!t) return;
-  t.clientId=clientId||null;
-  t.invoiceId=null;
-  save();render();
-}
-
+function getClientName(clientId){var c=(S.clients||[]).find(function(c){return c.id===clientId;});return c?c.name:'';}
+function setTxClient(txId,clientId){var t=(tx()||[]).find(function(x){return x.id===txId;});if(!t)return;t.clientId=clientId||null;t.invoiceId=null;save();render();}
 function setTxInvoice(txId,invoiceRef){
-  var t=(tx()||[]).find(function(x){return x.id===txId;});
-  if(!t) return;
+  var t=(tx()||[]).find(function(x){return x.id===txId;});if(!t)return;
   t.invoiceId=invoiceRef||null;
-  if(invoiceRef){
-    var inv=(U().invoices||[]).find(function(i){return (i.num||i.desc)===invoiceRef;});
-    if(inv&&inv.status!=='paid'){inv.status='paid';toast('Invoice '+invoiceRef+' marked as Paid');}
-  }
+  if(invoiceRef){var inv=(U().invoices||[]).find(function(i){return(i.num||i.desc)===invoiceRef;});if(inv&&inv.status!=='paid'){inv.status='paid';toast('Invoice '+invoiceRef+' marked as Paid');}}
   save();render();
 }
-
 function addClient(){
-  var modal=document.createElement('div');
-  modal.id='client-modal';
+  var modal=document.createElement('div');modal.id='client-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  var box=document.createElement('div');
-  box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Client</h3>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-    '<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-name" type="text" placeholder="Acme Corp" class="field-input"></div>'+
-    '<div><label class="field-label">Contact Name</label><input id="cl-contact" type="text" placeholder="Jane Smith" class="field-input"></div>'+
-    '<div><label class="field-label">Email</label><input id="cl-email" type="email" placeholder="jane@acme.com" class="field-input"></div>'+
-    '<div><label class="field-label">Phone</label><input id="cl-phone" type="text" placeholder="555-555-5555" class="field-input"></div>'+
-    '<div><label class="field-label">Default Rate</label><input id="cl-rate" type="text" placeholder="$150/hr" class="field-input"></div>'+
-    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-notes" type="text" placeholder="Net 30, retainer" class="field-input"></div>'+
-    '</div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
-    '<button id="cl-cancel-btn" class="btn btn-outline">Cancel</button>'+
-    '<button id="cl-submit-btn" class="btn btn-primary">Add Client</button>'+
-    '</div>';
-  modal.appendChild(box);
-  document.body.appendChild(modal);
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Client</h3>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +'<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-name" type="text" placeholder="Acme Corp" class="field-input"></div>'
+    +'<div><label class="field-label">Contact Name</label><input id="cl-contact" type="text" placeholder="Jane Smith" class="field-input"></div>'
+    +'<div><label class="field-label">Email</label><input id="cl-email" type="email" placeholder="jane@acme.com" class="field-input"></div>'
+    +'<div><label class="field-label">Phone</label><input id="cl-phone" type="text" placeholder="555-555-5555" class="field-input"></div>'
+    +'<div><label class="field-label">Default Rate</label><input id="cl-rate" type="text" placeholder="$150/hr" class="field-input"></div>'
+    +'<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-notes" type="text" placeholder="Net 30, retainer" class="field-input"></div>'
+    +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'
+    +'<button id="cl-cancel-btn" class="btn btn-outline">Cancel</button>'
+    +'<button id="cl-submit-btn" class="btn btn-primary">Add Client</button></div>';
+  modal.appendChild(box);document.body.appendChild(modal);
   document.getElementById('cl-cancel-btn').onclick=function(){modal.remove();};
   document.getElementById('cl-submit-btn').onclick=submitClient;
   var ni=document.getElementById('cl-name');if(ni)ni.focus();
 }
-
 function submitClient(){
-  var name=(document.getElementById('cl-name').value||'').trim();
-  if(!name){toast('Please enter a client name');return;}
-  var client={
-    id:'cl_'+uid(),name:name,
-    contact:(document.getElementById('cl-contact').value||'').trim(),
-    email:(document.getElementById('cl-email').value||'').trim(),
-    phone:(document.getElementById('cl-phone').value||'').trim(),
-    rate:(document.getElementById('cl-rate').value||'').trim(),
-    notes:(document.getElementById('cl-notes').value||'').trim(),
-    added:new Date().toISOString().split('T')[0]
-  };
-  if(!S.clients) S.clients=[];
-  S.clients.push(client);
+  var name=(document.getElementById('cl-name').value||'').trim();if(!name){toast('Please enter a client name');return;}
+  var client={id:'cl_'+uid(),name:name,contact:(document.getElementById('cl-contact').value||'').trim(),email:(document.getElementById('cl-email').value||'').trim(),phone:(document.getElementById('cl-phone').value||'').trim(),rate:(document.getElementById('cl-rate').value||'').trim(),notes:(document.getElementById('cl-notes').value||'').trim(),added:new Date().toISOString().split('T')[0]};
+  if(!S.clients)S.clients=[];S.clients.push(client);
   var modal=document.getElementById('client-modal');if(modal)modal.remove();
-  save();renderClients();
-  toast('Client added: '+name+' ✓');
+  save();renderClients();toast('Client added: '+name+' ✓');
 }
-
 function deleteClient(id){
   if(!confirm('Remove this client? Their tags on transactions will be cleared.'))return;
   S.clients=(S.clients||[]).filter(function(c){return c.id!==id;});
   (U().tx||[]).forEach(function(t){if(t.clientId===id){t.clientId=null;t.invoiceId=null;}});
   save();renderClients();render();
 }
-
 function editClient(id){
   var c=(S.clients||[]).find(function(c){return c.id===id;});if(!c)return;
-  var modal=document.createElement('div');
-  modal.id='client-edit-modal';
+  var modal=document.createElement('div');modal.id='client-edit-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  var box=document.createElement('div');
-  box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Edit Client</h3>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'+
-    '<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-edit-name" type="text" class="field-input" value="'+esc(c.name)+'"></div>'+
-    '<div><label class="field-label">Contact Name</label><input id="cl-edit-contact" type="text" class="field-input" value="'+esc(c.contact||'')+'"></div>'+
-    '<div><label class="field-label">Email</label><input id="cl-edit-email" type="email" class="field-input" value="'+esc(c.email||'')+'"></div>'+
-    '<div><label class="field-label">Phone</label><input id="cl-edit-phone" type="text" class="field-input" value="'+esc(c.phone||'')+'"></div>'+
-    '<div><label class="field-label">Default Rate</label><input id="cl-edit-rate" type="text" class="field-input" value="'+esc(c.rate||'')+'"></div>'+
-    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-edit-notes" type="text" class="field-input" value="'+esc(c.notes||'')+'"></div>'+
-    '</div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
-    '<button id="cl-edit-cancel-btn" class="btn btn-outline">Cancel</button>'+
-    '<button id="cl-edit-save-btn" class="btn btn-primary">Save</button>'+
-    '</div>';
-  modal.appendChild(box);
-  document.body.appendChild(modal);
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Edit Client</h3>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
+    +'<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-edit-name" type="text" class="field-input" value="'+esc(c.name)+'"></div>'
+    +'<div><label class="field-label">Contact Name</label><input id="cl-edit-contact" type="text" class="field-input" value="'+esc(c.contact||'')+'"></div>'
+    +'<div><label class="field-label">Email</label><input id="cl-edit-email" type="email" class="field-input" value="'+esc(c.email||'')+'"></div>'
+    +'<div><label class="field-label">Phone</label><input id="cl-edit-phone" type="text" class="field-input" value="'+esc(c.phone||'')+'"></div>'
+    +'<div><label class="field-label">Default Rate</label><input id="cl-edit-rate" type="text" class="field-input" value="'+esc(c.rate||'')+'"></div>'
+    +'<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-edit-notes" type="text" class="field-input" value="'+esc(c.notes||'')+'"></div>'
+    +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'
+    +'<button id="cl-edit-cancel-btn" class="btn btn-outline">Cancel</button>'
+    +'<button id="cl-edit-save-btn" class="btn btn-primary">Save</button></div>';
+  modal.appendChild(box);document.body.appendChild(modal);
   document.getElementById('cl-edit-cancel-btn').onclick=function(){modal.remove();};
   document.getElementById('cl-edit-save-btn').onclick=function(){saveEditClient(id);};
 }
-
-function saveEditClient(idOrEl){
-  var id=typeof idOrEl==='string'?idOrEl:idOrEl;
+function saveEditClient(id){
   var c=(S.clients||[]).find(function(c){return c.id===id;});if(!c)return;
-  var name=(document.getElementById('cl-edit-name').value||'').trim();
-  if(!name){toast('Please enter a client name');return;}
-  c.name=name;
-  c.contact=(document.getElementById('cl-edit-contact').value||'').trim();
-  c.email=(document.getElementById('cl-edit-email').value||'').trim();
-  c.phone=(document.getElementById('cl-edit-phone').value||'').trim();
-  c.rate=(document.getElementById('cl-edit-rate').value||'').trim();
-  c.notes=(document.getElementById('cl-edit-notes').value||'').trim();
+  var name=(document.getElementById('cl-edit-name').value||'').trim();if(!name){toast('Please enter a client name');return;}
+  c.name=name;c.contact=(document.getElementById('cl-edit-contact').value||'').trim();c.email=(document.getElementById('cl-edit-email').value||'').trim();c.phone=(document.getElementById('cl-edit-phone').value||'').trim();c.rate=(document.getElementById('cl-edit-rate').value||'').trim();c.notes=(document.getElementById('cl-edit-notes').value||'').trim();
   var em=document.getElementById('client-edit-modal');if(em)em.remove();
-  save();renderClients();render();
-  toast('Client updated ✓');
+  save();renderClients();render();toast('Client updated ✓');
+}
+function renderClients(){
+  var roster=document.getElementById('client-roster');
+  if(roster){
+    var clients=S.clients||[];
+    if(!clients.length){roster.innerHTML='<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;color:var(--text2);font-size:13px">No clients yet — click &ldquo;+ Add Client&rdquo; to build your roster.</div>';}
+    else{roster.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">'+clients.map(function(c){var txs=(U().tx||[]).filter(function(t){return t.clientId===c.id&&bucket(t.cat)==='income';});var total=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);var invCount=(U().invoices||[]).filter(function(i){return i.clientId===c.id;}).length;return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow)"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div style="font-weight:800;font-size:15px">'+esc(c.name)+'</div>'+(c.contact?'<div style="font-size:12px;color:var(--text2)">'+esc(c.contact)+'</div>':'')+'</div><div style="display:flex;gap:6px"><button data-id="'+c.id+'" onclick="editClient(this.dataset.id)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--text2)">✏️</button><button data-id="'+c.id+'" onclick="deleteClient(this.dataset.id)" style="background:none;border:1px solid var(--red-mid);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--red)">✕</button></div></div>'+(c.email?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">📧 '+esc(c.email)+'</div>':'')+(c.phone?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">📞 '+esc(c.phone)+'</div>':'')+(c.rate?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">💰 '+esc(c.rate)+'</div>':'')+'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px"><div><div style="font-size:18px;font-weight:800;color:var(--green)">$'+total.toLocaleString('en-US',{maximumFractionDigits:0})+'</div><div style="font-size:10px;color:var(--text2)">'+txs.length+' payment'+(txs.length!==1?'s':'')+'</div></div>'+(invCount?'<div><div style="font-size:18px;font-weight:800;color:var(--brand)">'+invCount+'</div><div style="font-size:10px;color:var(--text2)">invoice'+(invCount!==1?'s':'')+'</div></div>':'')+'</div></div>';}).join('')+'</div>';}
+  }
+  var el=document.getElementById('clients-content');if(!el)return;
+  var txs=(U().tx||[]).filter(function(t){return bucket(t.cat)==='income';});
+  if(!txs.length){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:20px">No income transactions yet.</div>';return;}
+  var groups={};var totalInc=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
+  txs.forEach(function(t){var key,label,tagged=false;if(t.clientId){key=t.clientId;label=getClientName(t.clientId)||'Unknown Client';tagged=true;}else{var src=t.desc;if(/stripe/i.test(src))src='Stripe';else if(/paypal/i.test(src))src='PayPal';else if(/venmo/i.test(src))src='Venmo';else if(/zelle/i.test(src))src='Zelle';else if(/ach|deposit|transfer|direct dep/i.test(src))src='Bank Deposit';else if(/check|ccd|ppd/i.test(src))src='Check / Wire';else src=src.length>30?src.slice(0,28)+'...':src;key='_untagged_'+src;label=src+' — untagged';}if(!groups[key])groups[key]={label:label,total:0,count:0,tagged:tagged};groups[key].total+=Math.abs(t.amount);groups[key].count++;});
+  var sorted=Object.entries(groups).sort(function(a,b){return b[1].total-a[1].total;});
+  function fmtC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  el.innerHTML=sorted.map(function(e){var data=e[1];var barW=Math.round(data.total/totalInc*100);return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><div style="font-weight:700;font-size:15px;color:'+(data.tagged?'var(--text)':'var(--text2)')+'">'+esc(data.label)+'</div><div style="font-size:12px;color:var(--text2)">'+barW+'% · '+data.count+' transaction'+(data.count!==1?'s':'')+'</div></div><div style="font-weight:800;font-size:16px;color:var(--green)">'+fmtC(data.total)+'</div></div><div style="background:var(--bg3);border-radius:99px;height:6px;overflow:hidden"><div style="background:'+(data.tagged?'var(--green)':'var(--border)')+';height:100%;width:'+barW+'%;border-radius:99px"></div></div></div>';}).join('');
+}
+
+function renderPL(){
+  var el=document.getElementById('pl-content');if(!el)return;
+  var u=U(),txs=tx();var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));var miVal=roundAmt(mi*0.70);var retT=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eqT=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var incByCat={},dedByCat={},totalInc=0,totalDed=0,totalPer=0;txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income'){incByCat[t.cat]=(incByCat[t.cat]||0)+a;totalInc+=a;}else if(bucket(t.cat)==='deductible'){dedByCat[t.cat]=(dedByCat[t.cat]||0)+a;totalDed+=a;}else totalPer+=a;});totalInc=roundAmt(totalInc);totalDed=roundAmt(totalDed);totalPer=roundAmt(totalPer);var totalExp=roundAmt(totalDed+miVal+retT+eqT);var netInc=roundAmt(totalInc-totalExp);function fmtP(n){return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}var incRows=Object.entries(incByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' — ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">'+fmtP(e[1])+'</td></tr>';}).join('');var dedRows=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' — ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">('+fmtP(e[1])+')</td></tr>';}).join('');el.innerHTML='<div style="border:1px solid var(--border);border-radius:14px;overflow:hidden"><div style="background:#1F4E79;color:#fff;padding:20px 24px"><div style="font-size:18px;font-weight:800">'+esc(u.biz||u.name||'Business')+' Profit & Loss</div><div style="font-size:13px;opacity:0.8;margin-top:4px">Tax Year '+S.year+' · Generated by TaxFlow</div></div><div style="padding:16px 24px;background:var(--green-bg);border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:8px">Revenue</div><table style="width:100%;border-collapse:collapse">'+incRows+'</table><div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--green);color:#fff;border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Revenue</span><span>'+fmtP(totalInc)+'</span></div></div><div style="padding:16px 24px;border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:8px">Operating Expenses</div><table style="width:100%;border-collapse:collapse">'+dedRows+(miVal>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Vehicle Mileage</td><td style="text-align:right;padding:8px 12px">('+fmtP(miVal)+')</td></tr>':'')+(retT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Retirement Contributions</td><td style="text-align:right;padding:8px 12px">('+fmtP(retT)+')</td></tr>':'')+(eqT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Section 179 Equipment</td><td style="text-align:right;padding:8px 12px">('+fmtP(eqT)+')</td></tr>':'')+'</table><div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Expenses</span><span>('+fmtP(totalExp)+')</span></div></div><div style="padding:20px 24px;background:'+(netInc>=0?'#1F4E79':'#C00000')+';color:#fff;display:flex;justify-content:space-between;align-items:center"><span style="font-size:18px;font-weight:800">Net '+(netInc>=0?'Profit':'Loss')+'</span><span style="font-size:22px;font-weight:900">'+(netInc<0?'-':'')+fmtP(netInc)+'</span></div><div style="padding:12px 24px;background:var(--bg2);font-size:12px;color:var(--text2)">Personal spending of '+fmtP(totalPer)+' excluded. TaxFlow is not tax advice.</div></div>';
 }
 
 function renderInvoices(){
-  var invs=U().invoices||[],today=new Date();
-  var paid=0,paidC=0,out=0,outC=0,over=0,overC=0,total=0;
-  invs.forEach(function(inv){
-    total+=inv.amount||0;
-    if(inv.status==='paid'){paid+=inv.amount||0;paidC++;}
-    else{var due=inv.due?new Date(inv.due):null;if(due&&due<today){over+=inv.amount||0;overC++;}else{out+=inv.amount||0;outC++;}}
-  });
-  function fmt(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  setEl('inv-paid-total',fmt(paid));setEl('inv-paid-count',paidC+' invoice'+(paidC!==1?'s':''));
-  setEl('inv-out-total',fmt(out));setEl('inv-out-count',outC+' invoice'+(outC!==1?'s':''));
-  setEl('inv-over-total',fmt(over));setEl('inv-over-count',overC+' invoice'+(overC!==1?'s':''));
-  setEl('inv-total-total',fmt(total));setEl('inv-total-count',invs.length+' invoice'+(invs.length!==1?'s':''));
+  var invs=U().invoices||[],today=new Date();var paid=0,paidC=0,out=0,outC=0,over=0,overC=0,total=0;invs.forEach(function(inv){total+=inv.amount||0;if(inv.status==='paid'){paid+=inv.amount||0;paidC++;}else{var due=inv.due?new Date(inv.due):null;if(due&&due<today){over+=inv.amount||0;overC++;}else{out+=inv.amount||0;outC++;}}});function fmtI(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}setEl('inv-paid-total',fmtI(paid));setEl('inv-paid-count',paidC+' invoice'+(paidC!==1?'s':''));setEl('inv-out-total',fmtI(out));setEl('inv-out-count',outC+' invoice'+(outC!==1?'s':''));setEl('inv-over-total',fmtI(over));setEl('inv-over-count',overC+' invoice'+(overC!==1?'s':''));setEl('inv-total-total',fmtI(total));setEl('inv-total-count',invs.length+' invoice'+(invs.length!==1?'s':''));
   var tbody=document.getElementById('invoice-body');if(!tbody)return;
   if(!invs.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">No invoices yet</td></tr>';return;}
-  tbody.innerHTML=invs.map(function(inv,i){
-    var due=inv.due?new Date(inv.due):null,isOv=inv.status!=='paid'&&due&&due<today;
-    var sC=inv.status==='paid'?'var(--green)':isOv?'var(--red)':'var(--amber)';
-    var sB=inv.status==='paid'?'var(--green-bg)':isOv?'var(--red-bg)':'var(--amber-bg)';
-    return '<tr style="'+(isOv?'background:var(--red-bg)':'')+'">'+
-      '<td style="font-weight:700;color:var(--brand)">'+esc(inv.num||'#'+(i+1))+'</td>'+
-      '<td>'+esc(inv.client||'')+'</td><td>'+esc(inv.desc||'')+'</td>'+
-      '<td>'+esc(inv.sent||'')+'</td><td style="'+(isOv?'color:var(--red);font-weight:700':'')+'">'+esc(inv.due||'--')+'</td>'+
-      '<td style="text-align:right;font-weight:700">$'+(inv.amount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
-      '<td><select onchange="updateInvoiceStatus('+i+',this.value)" style="background:'+sB+';color:'+sC+';border:1px solid '+sC+';border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700">'+
-        '<option value="outstanding"'+(inv.status==='outstanding'?' selected':'')+'>Outstanding</option>'+
-        '<option value="paid"'+(inv.status==='paid'?' selected':'')+'>Paid</option>'+
-        '<option value="overdue"'+(inv.status==='overdue'?' selected':'')+'>Overdue</option>'+
-        '<option value="cancelled"'+(inv.status==='cancelled'?' selected':'')+'>Cancelled</option>'+
-      '</select></td><td style="font-size:12px;color:var(--text2)">'+esc(inv.notes||'')+'</td>'+
-      '<td><button class="del-btn" onclick="delInvoice('+i+')">&#x2715;</button></td></tr>';
-  }).join('');
+  tbody.innerHTML=invs.map(function(inv,i){var due=inv.due?new Date(inv.due):null,isOv=inv.status!=='paid'&&due&&due<today;var sC=inv.status==='paid'?'var(--green)':isOv?'var(--red)':'var(--amber)';var sB=inv.status==='paid'?'var(--green-bg)':isOv?'var(--red-bg)':'var(--amber-bg)';return '<tr style="'+(isOv?'background:var(--red-bg)':'')+'">'+'<td style="font-weight:700;color:var(--brand)">'+esc(inv.num||'#'+(i+1))+'</td>'+'<td>'+esc(inv.client||'')+'</td><td>'+esc(inv.desc||'')+'</td>'+'<td>'+esc(inv.sent||'')+'</td><td style="'+(isOv?'color:var(--red);font-weight:700':'')+'">'+ esc(inv.due||'--')+'</td>'+'<td style="text-align:right;font-weight:700">$'+(inv.amount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+'<td><select onchange="updateInvoiceStatus('+i+',this.value)" style="background:'+sB+';color:'+sC+';border:1px solid '+sC+';border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700">'+'<option value="outstanding"'+(inv.status==='outstanding'?' selected':'')+'>Outstanding</option>'+'<option value="paid"'+(inv.status==='paid'?' selected':'')+'>Paid</option>'+'<option value="overdue"'+(inv.status==='overdue'?' selected':'')+'>Overdue</option>'+'<option value="cancelled"'+(inv.status==='cancelled'?' selected':'')+'>Cancelled</option>'+'</select></td><td style="font-size:12px;color:var(--text2)">'+esc(inv.notes||'')+'</td>'+'<td><button class="del-btn" onclick="delInvoice('+i+')">✕</button></td></tr>';}).join('');
 }
 function addInvoice(){
   var modal=document.createElement('div');modal.id='inv-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
   var t2=new Date().toISOString().split('T')[0];
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto">'+
-    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Invoice</h3>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'+
-    '<div><label class="field-label">Invoice #</label><input id="inv-num" type="text" placeholder="INV-001" class="field-input"></div>'+
-    '<div><label class="field-label">Client</label><input id="inv-client" type="text" placeholder="Client name" class="field-input"></div>'+
-    '<div><label class="field-label">Date Sent</label><input id="inv-sent" type="date" class="field-input" value="'+t2+'"></div>'+
-    '<div><label class="field-label">Due Date</label><input id="inv-due" type="date" class="field-input"></div>'+
-    '<div style="grid-column:1/-1"><label class="field-label">Description</label><input id="inv-desc" type="text" placeholder="e.g. Web design services" class="field-input"></div>'+
-    '<div><label class="field-label">Amount ($)</label><input id="inv-amount" type="number" placeholder="0.00" min="0" step="0.01" class="field-input"></div>'+
-    '<div><label class="field-label">Status</label><select id="inv-status" class="field-input"><option value="outstanding">Outstanding</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></div>'+
-    '<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="inv-notes" type="text" placeholder="e.g. Net 30" class="field-input"></div>'+
-    '</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">'+
-    '<button onclick="document.getElementById(\'inv-modal\').remove()" class="btn btn-outline">Cancel</button>'+
-    '<button onclick="submitInvoice()" class="btn btn-primary">Save Invoice</button></div></div>';
-  document.body.appendChild(modal);
+  var box=document.createElement('div');
+  box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Invoice</h3>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
+    +'<div><label class="field-label">Invoice #</label><input id="inv-num" type="text" placeholder="INV-001" class="field-input"></div>'
+    +'<div><label class="field-label">Client</label><input id="inv-client" type="text" placeholder="Client name" class="field-input"></div>'
+    +'<div><label class="field-label">Date Sent</label><input id="inv-sent" type="date" class="field-input" value="'+t2+'"></div>'
+    +'<div><label class="field-label">Due Date</label><input id="inv-due" type="date" class="field-input"></div>'
+    +'<div style="grid-column:1/-1"><label class="field-label">Description</label><input id="inv-desc" type="text" placeholder="e.g. Web design services" class="field-input"></div>'
+    +'<div><label class="field-label">Amount ($)</label><input id="inv-amount" type="number" placeholder="0.00" min="0" step="0.01" class="field-input"></div>'
+    +'<div><label class="field-label">Status</label><select id="inv-status" class="field-input"><option value="outstanding">Outstanding</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></div>'
+    +'<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="inv-notes" type="text" placeholder="e.g. Net 30" class="field-input"></div>'
+    +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">'
+    +'<button id="inv-cancel-btn" class="btn btn-outline">Cancel</button>'
+    +'<button id="inv-save-btn" class="btn btn-primary">Save Invoice</button></div>';
+  modal.appendChild(box);document.body.appendChild(modal);
+  document.getElementById('inv-cancel-btn').onclick=function(){modal.remove();};
+  document.getElementById('inv-save-btn').onclick=submitInvoice;
   var ni=document.getElementById('inv-num');if(ni)ni.focus();
 }
+
+
 function submitInvoice(){
-  var num=(document.getElementById('inv-num').value||'').trim();
-  var client=(document.getElementById('inv-client').value||'').trim();
-  var sent=document.getElementById('inv-sent').value;
-  var due=document.getElementById('inv-due').value;
-  var desc=(document.getElementById('inv-desc').value||'').trim();
-  var amount=parseFloat(document.getElementById('inv-amount').value)||0;
-  var status=document.getElementById('inv-status').value;
-  var notes=(document.getElementById('inv-notes').value||'').trim();
-  if(!client){toast('Please enter a client name');return;}
-  if(!amount||amount<=0){toast('Please enter a valid amount');return;}
+  var num=(document.getElementById('inv-num').value||'').trim();var client=(document.getElementById('inv-client').value||'').trim();var sent=document.getElementById('inv-sent').value;var due=document.getElementById('inv-due').value;var desc=(document.getElementById('inv-desc').value||'').trim();var amount=parseFloat(document.getElementById('inv-amount').value)||0;var status=document.getElementById('inv-status').value;var notes=(document.getElementById('inv-notes').value||'').trim();
+  if(!client){toast('Please enter a client name');return;}if(!amount||amount<=0){toast('Please enter a valid amount');return;}
   if(!U().invoices)U().invoices=[];
-  // Find matching client by name
-  const matchedClient=(S.clients||[]).find(c=>c.name.toLowerCase()===client.toLowerCase());
+  var matchedClient=(S.clients||[]).find(function(c){return c.name.toLowerCase()===client.toLowerCase();});
   U().invoices.push({num:num,client:client,clientId:matchedClient?matchedClient.id:null,sent:sent,due:due,desc:desc,amount:Math.round(amount*100)/100,status:status,notes:notes});
-  var m=document.getElementById('inv-modal');if(m)m.remove();
-  save();renderInvoices();toast('Invoice added');
+  var m=document.getElementById('inv-modal');if(m)m.remove();save();renderInvoices();toast('Invoice added');
 }
 function updateInvoiceStatus(i,status){if(U().invoices&&U().invoices[i]){U().invoices[i].status=status;save();renderInvoices();}}
 function delInvoice(i){if(!confirm('Delete this invoice?'))return;U().invoices.splice(i,1);save();renderInvoices();}
-function renderPL(){
-  var el=document.getElementById('pl-content');if(!el)return;
-  var txs=tx(),u=U();
-  var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
-  var miVal=roundAmt(mi*0.70);
-  var retT=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
-  var eqT=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
-  var incByCat={},dedByCat={},totalInc=0,totalDed=0,totalPer=0;
-  txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income'){incByCat[t.cat]=(incByCat[t.cat]||0)+a;totalInc+=a;}else if(bucket(t.cat)==='deductible'){dedByCat[t.cat]=(dedByCat[t.cat]||0)+a;totalDed+=a;}else totalPer+=a;});
-  totalInc=roundAmt(totalInc);totalDed=roundAmt(totalDed);totalPer=roundAmt(totalPer);
-  var totalExp=roundAmt(totalDed+miVal+retT+eqT);
-  var netInc=roundAmt(totalInc-totalExp);
-  function fmt(n){return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  var incRows=Object.entries(incByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' -- ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">'+fmt(e[1])+'</td></tr>';}).join('');
-  var dedRows=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' -- ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">('+fmt(e[1])+')</td></tr>';}).join('');
-  el.innerHTML='<div style="border:1px solid var(--border);border-radius:14px;overflow:hidden">'+
-    '<div style="background:#1F4E79;color:#fff;padding:20px 24px"><div style="font-size:18px;font-weight:800">'+esc(u.biz||u.name||'Business')+' Profit & Loss</div>'+
-    '<div style="font-size:13px;opacity:0.8;margin-top:4px">Tax Year '+S.year+' · Generated by TaxFlow</div></div>'+
-    '<div style="padding:16px 24px;background:var(--green-bg);border-bottom:1px solid var(--border)">'+
-    '<div style="font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:8px">Revenue</div>'+
-    '<table style="width:100%;border-collapse:collapse">'+incRows+'</table>'+
-    '<div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--green);color:#fff;border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Revenue</span><span>'+fmt(totalInc)+'</span></div></div>'+
-    '<div style="padding:16px 24px;border-bottom:1px solid var(--border)">'+
-    '<div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:8px">Operating Expenses</div>'+
-    '<table style="width:100%;border-collapse:collapse">'+dedRows+
-    (miVal>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Vehicle Mileage</td><td style="text-align:right;padding:8px 12px">('+fmt(miVal)+')</td></tr>':'')+
-    (retT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Retirement Contributions</td><td style="text-align:right;padding:8px 12px">('+fmt(retT)+')</td></tr>':'')+
-    (eqT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Section 179 Equipment</td><td style="text-align:right;padding:8px 12px">('+fmt(eqT)+')</td></tr>':'')+'</table>'+
-    '<div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Expenses</span><span>('+fmt(totalExp)+')</span></div></div>'+
-    '<div style="padding:20px 24px;background:'+(netInc>=0?'#1F4E79':'#C00000')+';color:#fff;display:flex;justify-content:space-between;align-items:center">'+
-    '<span style="font-size:18px;font-weight:800">Net '+(netInc>=0?'Profit':'Loss')+'</span><span style="font-size:22px;font-weight:900">'+(netInc<0?'-':'')+fmt(netInc)+'</span></div>'+
-    '<div style="padding:12px 24px;background:var(--bg2);font-size:12px;color:var(--text2)">Personal spending of '+fmt(totalPer)+' excluded. TaxFlow is not tax advice.</div></div>';
-}
-function exportPL(){
-  var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
-  if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();return;}
-  exportAll();
-}
-function renderClients(){
-  // ── Roster ──────────────────────────────────────────────────────────────
-  var roster=document.getElementById('client-roster');
-  if(roster){
-    var clients=S.clients||[];
-    if(!clients.length){
-      roster.innerHTML='<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;color:var(--text2);font-size:13px">No clients yet — click &ldquo;+ Add Client&rdquo; to build your roster.</div>';
-    } else {
-      roster.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">'+
-        clients.map(function(c){
-          var txs=(U().tx||[]).filter(function(t){return t.clientId===c.id&&bucket(t.cat)==='income';});
-          var total=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
-          var invCount=(U().invoices||[]).filter(function(i){return i.clientId===c.id;}).length;
-          return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow)">'+
-            '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">'+
-            '<div><div style="font-weight:800;font-size:15px">'+esc(c.name)+'</div>'+
-            (c.contact?'<div style="font-size:12px;color:var(--text2)">'+esc(c.contact)+'</div>':'')+
-            '</div>'+
-            '<div style="display:flex;gap:6px">'+
-            '<button data-id="'+c.id+'" onclick="editClient(this.dataset.id)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--text2)">&#x270F;</button>'+
-            '<button data-id="'+c.id+'" onclick="deleteClient(this.dataset.id)" style="background:none;border:1px solid var(--red-mid);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--red)">&#x2715;</button>'+
-            '</div></div>'+
-            (c.email?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">&#x1F4E7; '+esc(c.email)+'</div>':'')+
-            (c.phone?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">&#x1F4DE; '+esc(c.phone)+'</div>':'')+
-            (c.rate?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">&#x1F4B0; '+esc(c.rate)+'</div>':'')+
-            '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px">'+
-            '<div><div style="font-size:18px;font-weight:800;color:var(--green)">$'+total.toLocaleString('en-US',{maximumFractionDigits:0})+'</div>'+
-            '<div style="font-size:10px;color:var(--text2)">'+txs.length+' payment'+(txs.length!==1?'s':'')+'</div></div>'+
-            (invCount?'<div><div style="font-size:18px;font-weight:800;color:var(--brand)">'+invCount+'</div><div style="font-size:10px;color:var(--text2)">invoice'+(invCount!==1?'s':'')+'</div></div>':'')+
-            '</div></div>';
-        }).join('')+
-        '</div>';
-    }
-  }
-
-  // ── Income breakdown ─────────────────────────────────────────────────────
-  var el=document.getElementById('clients-content');
-  if(!el) return;
-  var txs=(U().tx||[]).filter(function(t){return bucket(t.cat)==='income';});
-  if(!txs.length){
-    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:20px">No income transactions yet.</div>';
-    return;
-  }
-
-  var groups={};
-  var totalInc=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
-
-  txs.forEach(function(t){
-    var key,label,tagged=false;
-    if(t.clientId){
-      key=t.clientId;
-      label=getClientName(t.clientId)||'Unknown Client';
-      tagged=true;
-    } else {
-      // Untagged — group by description keyword
-      var src=t.desc;
-      if(/stripe/i.test(src))src='Stripe';
-      else if(/paypal/i.test(src))src='PayPal';
-      else if(/venmo/i.test(src))src='Venmo';
-      else if(/zelle/i.test(src))src='Zelle';
-      else if(/ach|deposit|transfer|direct dep/i.test(src))src='Bank Deposit';
-      else if(/check|ccd|ppd/i.test(src))src='Check / Wire';
-      else src=src.length>30?src.slice(0,28)+'...':src;
-      key='_untagged_'+src;
-      label=src+' — untagged';
-    }
-    if(!groups[key])groups[key]={label:label,total:0,count:0,tagged:tagged};
-    groups[key].total+=Math.abs(t.amount);
-    groups[key].count++;
-  });
-
-  var sorted=Object.entries(groups).sort(function(a,b){return b[1].total-a[1].total;});
-  function fmt(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-
-  el.innerHTML=sorted.map(function(e){
-    var data=e[1];
-    var barW=Math.round(data.total/totalInc*100);
-    var barColor=data.tagged?'var(--green)':'var(--border)';
-    var labelColor=data.tagged?'var(--text)':'var(--text2)';
-    return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px">'+
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-      '<div><div style="font-weight:700;font-size:15px;color:'+labelColor+'">'+esc(data.label)+'</div>'+
-      '<div style="font-size:12px;color:var(--text2)">'+barW+'% &middot; '+data.count+' transaction'+(data.count!==1?'s':'')+'</div></div>'+
-      '<div style="font-weight:800;font-size:16px;color:var(--green)">'+fmt(data.total)+'</div></div>'+
-      '<div style="background:var(--bg3);border-radius:99px;height:6px;overflow:hidden">'+
-      '<div style="background:'+barColor+';height:100%;width:'+barW+'%;border-radius:99px"></div></div></div>';
-  }).join('');
-}
 
 function renderYOY(){
   var el=document.getElementById('yoy-content');if(!el)return;
-  var years=getAvailableYears();
-  if(years.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px"><div style="font-size:48px;margin-bottom:12px">📅</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Only one year of data</div><div>Go to Settings to add a previous year.</div></div>';return;}
-  function calcY(ud){
-    if(!ud)return{inc:0,ded:0,per:0,net:0,txCount:0};
-    var inc=0,ded=0,per=0;
-    (ud.tx||[]).forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});
-    var mi=roundAmt((ud.mileage||[]).reduce(function(s,m){return s+m.miles;},0)*0.70);
-    var ret=roundAmt((ud.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
-    var eq=roundAmt((ud.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
-    var td=roundAmt(ded+mi+ret+eq);
-    return{inc:roundAmt(inc),ded:td,per:roundAmt(per),net:Math.max(0,roundAmt(inc-td)),txCount:(ud.tx||[]).length};
-  }
-  var data={};data[S.year]=calcY(S.users.herbert);
-  Object.entries(S.years||{}).forEach(function(e){data[e[0]]=calcY(e[1].herbert);});
-  function fmt(n){return '$'+Math.round(n).toLocaleString();}
-  function arrow(curr,prev){if(!prev&&prev!==0)return '';var pct=((curr-prev)/(prev||1)*100),up=pct>=0;return '<span style="font-size:11px;color:'+(up?'var(--green)':'var(--red)')+';margin-left:6px">'+(up?'▲':'▼')+Math.abs(pct).toFixed(1)+'%</span>';}
+  var years=getAvailableYears();if(years.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px"><div style="font-size:48px;margin-bottom:12px">📅</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Only one year of data</div><div>Go to Settings to add a previous year.</div></div>';return;}
+  function calcY(ud){if(!ud)return{inc:0,ded:0,per:0,net:0,txCount:0};var inc=0,ded=0,per=0;(ud.tx||[]).forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});var mi=roundAmt((ud.mileage||[]).reduce(function(s,m){return s+m.miles;},0)*0.70);var ret=roundAmt((ud.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eq=roundAmt((ud.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var td=roundAmt(ded+mi+ret+eq);return{inc:roundAmt(inc),ded:td,per:roundAmt(per),net:Math.max(0,roundAmt(inc-td)),txCount:(ud.tx||[]).length};}
+  var data={};data[S.year]=calcY(S.users.herbert);Object.entries(S.years||{}).forEach(function(e){data[e[0]]=calcY(e[1].herbert);});
+  function fmtY(n){return '$'+Math.round(n).toLocaleString();}function arrow(curr,prev){if(!prev&&prev!==0)return '';var pct=((curr-prev)/(prev||1)*100),up=pct>=0;return '<span style="font-size:11px;color:'+(up?'var(--green)':'var(--red)')+';margin-left:6px">'+(up?'▲':'▼')+Math.abs(pct).toFixed(1)+'%</span>';}
   var metrics=[{key:'inc',label:'Total Income',color:'var(--green)'},{key:'ded',label:'Total Deductions',color:'var(--brand)'},{key:'net',label:'Net Taxable',color:'#C00000'},{key:'per',label:'Personal Spending',color:'var(--text2)'}];
   var sy=years.sort(function(a,b){return b-a;});
-  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:400px">'+
-    '<thead><tr style="background:#1F4E79"><th style="padding:12px 16px;text-align:left;color:#fff;font-size:13px">Metric</th>'+
-    sy.map(function(y){return '<th style="padding:12px 16px;text-align:right;color:#fff;font-size:13px">'+y+(y===S.year?' (current)':'')+'</th>';}).join('')+'</tr></thead><tbody>'+
-    metrics.map(function(m,mi){
-      return '<tr style="background:'+(mi%2===0?'#fff':'var(--bg2)')+'"><td style="padding:14px 16px;font-weight:600;color:'+m.color+'">'+m.label+'</td>'+
-        sy.map(function(y,yi){var val=(data[y]&&data[y][m.key])||0,prevY=sy[yi+1],prev=prevY&&data[prevY]&&data[prevY][m.key];return '<td style="padding:14px 16px;text-align:right;font-weight:700;color:'+m.color+'">'+fmt(val)+(yi<sy.length-1?arrow(val,prev):'')+'</td>';}).join('')+'</tr>';
-    }).join('')+
-    '<tr style="background:var(--bg3);border-top:2px solid var(--border)"><td style="padding:14px 16px;font-weight:600;color:var(--text2)">Transactions</td>'+
-    sy.map(function(y){return '<td style="padding:14px 16px;text-align:right;color:var(--text2)">'+((data[y]&&data[y].txCount)||0).toLocaleString()+'</td>';}).join('')+'</tr></tbody></table></div>';
+  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:400px"><thead><tr style="background:#1F4E79"><th style="padding:12px 16px;text-align:left;color:#fff;font-size:13px">Metric</th>'+sy.map(function(y){return '<th style="padding:12px 16px;text-align:right;color:#fff;font-size:13px">'+y+(y===S.year?' (current)':'')+'</th>';}).join('')+'</tr></thead><tbody>'+metrics.map(function(m,mi){return '<tr style="background:'+(mi%2===0?'#fff':'var(--bg2)')+'"><td style="padding:14px 16px;font-weight:600;color:'+m.color+'">'+m.label+'</td>'+sy.map(function(y,yi){var val=(data[y]&&data[y][m.key])||0,prevY=sy[yi+1],prev=prevY&&data[prevY]&&data[prevY][m.key];return '<td style="padding:14px 16px;text-align:right;font-weight:700;color:'+m.color+'">'+fmtY(val)+(yi<sy.length-1?arrow(val,prev):'')+'</td>';}).join('')+'</tr>';}).join('')+'<tr style="background:var(--bg3);border-top:2px solid var(--border)"><td style="padding:14px 16px;font-weight:600;color:var(--text2)">Transactions</td>'+sy.map(function(y){return '<td style="padding:14px 16px;text-align:right;color:var(--text2)">'+((data[y]&&data[y].txCount)||0).toLocaleString()+'</td>';}).join('')+'</tr></tbody></table></div>';
 }
-function toggleReceipt(id){
-  var t=tx().find(function(x){return x.id===id;});if(!t)return;
-  t.receipt=!t.receipt;save();
-  var btn=document.getElementById('rcpt-'+id);
-  if(btn){btn.textContent=t.receipt?'🧾':'📎';btn.style.opacity=t.receipt?'1':'0.3';}
-  toast(t.receipt?'Receipt marked':'Receipt tag removed');
+
+function clearAllData(){
+  if(!confirm('This will delete ALL transactions AND all saved statements. Are you sure?'))return;
+  S.users.herbert.tx=[];(S.extraUsers||[]).forEach(function(u){u.tx=[];});S.savedStatements=[];statementsUploaded=0;
+  save();render();updateSummary();renderSavedStatements();toast('All data cleared');
 }
-function roundAmt(n){return Math.round((n||0)*100)/100;}
+
+function setSectionSort(k,val){if(!S._sort)S._sort={};S._sort[k]=val;render();}
+
+function toggleReceipt(id){var t=tx().find(function(x){return x.id===id;});if(!t)return;t.receipt=!t.receipt;save();var btn=document.getElementById('rcpt-'+id);if(btn){btn.textContent=t.receipt?'🧾':'📎';btn.style.opacity=t.receipt?'1':'0.3';}toast(t.receipt?'Receipt marked':'Receipt tag removed');}
 function exportCPAPackage(){
   var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
   if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();toast('CPA Export requires a paid plan.');return;}
-
   if(typeof window.jspdf==='undefined'||typeof window.jspdf.jsPDF==='undefined'){
     toast('PDF library not loaded — check your internet connection.');return;
   }
-
   var u=U(),txs=tx();
   var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
   var miVal=roundAmt(mi*0.70);
@@ -2967,468 +3016,146 @@ function exportCPAPackage(){
   var inc=0,ded=0,per=0;
   txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});
   inc=roundAmt(inc);ded=roundAmt(ded);per=roundAmt(per);
-  var totalDed=roundAmt(ded+miVal+ret+eq);
-  var netTax=roundAmt(Math.max(0,inc-totalDed));
+  var totalDed=roundAmt(ded+miVal+ret+eq);var netTax=roundAmt(Math.max(0,inc-totalDed));
   var receiptCount=txs.filter(function(t){return t.receipt;}).length;
-
-  function fmt(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-
-  // Group deductions by category
-  var dedByCat={};
-  txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){
-    var k=t.cat.split(' — ')[1]||t.cat;
-    dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);
-  });
+  var dedByCat={};txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){var k=t.cat.split(' — ')[1]||t.cat;dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);});
   var dedEntries=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];});
-
-  // Build PDF
+  function fmtC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
   var W=210,margin=18,y=0,lineH=7;
-  var brandBlue=[31,78,121],green=[22,163,74],red=[192,0,0],gray=[100,100,100],lightGray=[240,242,245],white=[255,255,255],darkText=[30,30,30];
-
-  function setFont(size,bold,color){
-    doc.setFontSize(size);
-    doc.setFont('helvetica',bold?'bold':'normal');
-    doc.setTextColor(color?color[0]:darkText[0],color?color[1]:darkText[1],color?color[2]:darkText[2]);
-  }
+  var brandBlue=[31,78,121],green=[22,163,74],red=[192,0,0],darkText=[30,30,30],lightGray=[240,242,245];
+  function setFont(size,bold,color){doc.setFontSize(size);doc.setFont('helvetica',bold?'bold':'normal');doc.setTextColor(color?color[0]:darkText[0],color?color[1]:darkText[1],color?color[2]:darkText[2]);}
   function fillRect(x,fy,w,h,color){doc.setFillColor(color[0],color[1],color[2]);doc.rect(x,fy,w,h,'F');}
-  function line(fy,color){doc.setDrawColor(color?color[0]:220,color?color[1]:220,color?color[2]:220);doc.line(margin,fy,W-margin,fy);}
-  function kv(label,value,bold,color){
-    setFont(10,bold||false,darkText);
-    doc.text(label,margin,y);
-    setFont(10,bold||false,color||darkText);
-    doc.text(value,W-margin,y,{align:'right'});
-    y+=lineH;
-  }
-  function sectionHeader(title,bgColor){
-    fillRect(margin,y-4,W-margin*2,8,bgColor||brandBlue);
-    doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
-    doc.text(title.toUpperCase(),margin+3,y+0.5);
-    y+=10;
-  }
-
-  // ── COVER HEADER ─────────────────────────────────────────────────────────
+  function kv(label,value,bold,color){setFont(10,bold||false,darkText);doc.text(label,margin,y);setFont(10,bold||false,color||darkText);doc.text(value,W-margin,y,{align:'right'});y+=lineH;}
+  function sectionHdr(title,bgColor){fillRect(margin,y-4,W-margin*2,8,bgColor||brandBlue);doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text(title.toUpperCase(),margin+3,y+0.5);y+=10;}
   fillRect(0,0,W,38,brandBlue);
-  doc.setFontSize(20);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
-  doc.text('Tax Preparation Package',margin,15);
-  doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(200,220,240);
-  doc.text((u.biz||u.name||'TaxFlow User')+' · Tax Year '+S.year+' · '+today,margin,23);
-  doc.text('Generated by TaxFlow · gettaxflow.com',margin,30);
-  y=46;
-
-  // ── OVERVIEW METRICS ─────────────────────────────────────────────────────
-  var boxW=(W-margin*2-6)/4,bx=margin;
-  var boxes=[
-    {label:'Transactions',value:txs.length.toLocaleString(),color:brandBlue},
-    {label:'Receipts on File',value:receiptCount+'/'+txs.length,color:[100,100,120]},
-    {label:'Outstanding Invoices',value:fmt(invOut),color:[217,119,6]},
-    {label:'Paid Invoices',value:fmt(invPaid),color:green},
-  ];
-  boxes.forEach(function(b,i){
-    fillRect(bx,y,boxW,18,lightGray);
-    doc.setDrawColor(200,200,200);doc.rect(bx,y,boxW,18,'S');
-    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
-    doc.text(b.label.toUpperCase(),bx+2,y+6);
-    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(b.color[0],b.color[1],b.color[2]);
-    doc.text(b.value,bx+2,y+14);
-    bx+=boxW+2;
-  });
-  y+=26;
-
-  // ── INCOME ────────────────────────────────────────────────────────────────
-  sectionHeader('Revenue / Income',[22,101,52]);
-  kv('Total Gross Income',fmt(inc),false,green);
-  line(y-2);
-  setFont(10,true,green);doc.text('TOTAL REVENUE',margin,y);doc.text(fmt(inc),W-margin,y,{align:'right'});y+=lineH+2;
-
-  // ── EXPENSES ──────────────────────────────────────────────────────────────
-  sectionHeader('Operating Expenses',brandBlue);
-  dedEntries.forEach(function(e){kv(e[0],fmt(e[1]));});
-  if(miVal>0) kv('Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70)',fmt(miVal));
-  if(ret>0)   kv('Retirement Contributions',fmt(ret));
-  if(eq>0)    kv('Section 179 Equipment',fmt(eq));
-  line(y-2);
-  setFont(10,true,brandBlue);doc.text('TOTAL EXPENSES',margin,y);doc.text(fmt(totalDed),W-margin,y,{align:'right'});y+=lineH+2;
-
-  // ── PERSONAL ──────────────────────────────────────────────────────────────
-  sectionHeader('Personal Spending (Non-Deductible)',[100,60,140]);
-  kv('Total Personal Expenses',fmt(per),false,red);
-  y+=2;
-
-  // ── NET TAXABLE ───────────────────────────────────────────────────────────
-  fillRect(margin,y,W-margin*2,14,red);
-  doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
-  doc.text('NET TAXABLE INCOME',margin+3,y+9);
-  doc.text(fmt(netTax),W-margin-3,y+9,{align:'right'});
-  y+=20;
-
-  // ── DISCLAIMER ────────────────────────────────────────────────────────────
-  fillRect(margin,y,W-margin*2,14,[255,251,235]);
-  doc.setDrawColor(253,211,77);doc.rect(margin,y,W-margin*2,14,'S');
-  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(146,64,14);
-  doc.text('DISCLAIMER: TaxFlow is a financial organization tool, not tax advice.',margin+3,y+5);
-  doc.text('Always review with a qualified CPA before filing. Figures based on self-reported data.',margin+3,y+10);
-  y+=18;
-
-  // ── FOOTER ────────────────────────────────────────────────────────────────
-  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);
-  doc.text('Generated by TaxFlow · gettaxflow.com · '+today,W/2,y,{align:'center'});
-
-  // ── SAVE ──────────────────────────────────────────────────────────────────
+  doc.setFontSize(20);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text('Tax Preparation Package',margin,15);
+  doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(200,220,240);doc.text((u.biz||u.name||'TaxFlow User')+' · Tax Year '+S.year+' · '+today,margin,23);doc.text('Generated by TaxFlow · gettaxflow.com',margin,30);y=46;
+  sectionHdr('Revenue / Income',[22,101,52]);kv('Total Gross Income',fmtC(inc),false,green);setFont(10,true,green);doc.text('TOTAL REVENUE',margin,y);doc.text(fmtC(inc),W-margin,y,{align:'right'});y+=lineH+2;
+  sectionHdr('Operating Expenses',brandBlue);dedEntries.forEach(function(e){kv(e[0],fmtC(e[1]));});if(miVal>0)kv('Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70)',fmtC(miVal));if(ret>0)kv('Retirement Contributions',fmtC(ret));if(eq>0)kv('Section 179 Equipment',fmtC(eq));setFont(10,true,brandBlue);doc.text('TOTAL EXPENSES',margin,y);doc.text(fmtC(totalDed),W-margin,y,{align:'right'});y+=lineH+2;
+  sectionHdr('Personal Spending (Non-Deductible)',[100,60,140]);kv('Total Personal Expenses',fmtC(per),false,red);y+=2;
+  fillRect(margin,y,W-margin*2,14,red);doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text('NET TAXABLE INCOME',margin+3,y+9);doc.text(fmtC(netTax),W-margin-3,y+9,{align:'right'});y+=20;
+  fillRect(margin,y,W-margin*2,14,[255,251,235]);doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(146,64,14);doc.text('DISCLAIMER: TaxFlow is a financial organization tool, not tax advice.',margin+3,y+5);doc.text('Always review with a qualified CPA before filing.',margin+3,y+10);y+=18;
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);doc.text('Generated by TaxFlow · gettaxflow.com · '+today,W/2,y,{align:'center'});
   var fname=((u.biz||u.name||'TaxFlow').replace(/[^a-zA-Z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''))+'_'+S.year+'_CPA_Package.pdf';
-
   if(window.electronAPI&&window.electronAPI.isElectron){
-    var arrBuf=doc.output('arraybuffer');
-    window.electronAPI.saveFile(fname,new Uint8Array(arrBuf),'pdf').then(function(r){
-      if(r&&r.success) toast('CPA Package saved: '+r.filePath.split('\\').pop().split('/').pop());
-      else if(r&&r.error) toast('Save failed: '+r.error);
-    });
-  } else {
-    doc.save(fname);
-    toast('CPA Package downloaded: '+fname);
-  }
+    var arrBuf=doc.output('arraybuffer');window.electronAPI.saveFile(fname,new Uint8Array(arrBuf),'pdf').then(function(r){if(r&&r.success)toast('CPA Package saved');else if(r&&r.error)toast('Save failed: '+r.error);});
+  } else {doc.save(fname);toast('CPA Package downloaded: '+fname);}
 }
 
-// ── AUTH SYSTEM (Supabase) ────────────────────────────────────────────────
+
+// ── AUTH SYSTEM (Supabase + Stripe) ─────────────────────────────────────────
+
 const SUPABASE_URL  = 'https://ltwyiitvakabtltwxxmz.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_jQdwf4ddqaWCP-Fzi1Fp0w_55qDHBjQ';
-const STRIPE_LINKS  = {
-  household_monthly:'https://buy.stripe.com/7sY6oz7jbfQc7Ep1y687K00',
-  household_yearly: 'https://buy.stripe.com/4gM6ozeLDeM88It6Sq87K01',
-  business_monthly: 'https://buy.stripe.com/8x228j6f7dI4gaV3Ge87K02',
-  business_yearly:  'https://buy.stripe.com/9B65kv1YReM87EpekS87K03',
+
+const STRIPE_LINKS = {
+  household_monthly: 'https://buy.stripe.com/7sY6oz7jbfQc7Ep1y687K00',
+  household_yearly:  'https://buy.stripe.com/4gM6ozeLDeM88It6Sq87K01',
+  business_monthly:  'https://buy.stripe.com/8x228j6f7dI4gaV3Ge87K02',
+  business_yearly:   'https://buy.stripe.com/9B65kv1YReM87EpekS87K03',
 };
+
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const TIERS = {
-  free:      { label:'Free',      maxUsers:1, maxStatements:3,        maxTransactions:50,       canExportExcel:false, canExportCsv:false, showUpgradeBanner:true,  optionalTabs:[] },
-  household: { label:'Household', maxUsers:2, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy'] },
-  business:  { label:'Business',  maxUsers:5, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
+  free: {
+    label: 'Free', maxUsers: 1,
+    optionalTabs: ['settings'],
+    maxStatements: 3,
+    maxTransactions: 50,
+    canExportExcel: false,
+    canExportCsv: false,
+    canImportPdf: true,
+    showUpgradeBanner: true,
+  },
+  household: {
+    label: 'Household', maxUsers: 2,
+    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
+    canExportExcel: true, canImportPdf: true, canExportCsv: true,
+    maxTransactions: Infinity, showUpgradeBanner: false,
+  },
+  business: {
+    label: 'Business', maxUsers: 5,
+    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
+    canExportExcel: true, canImportPdf: true, canExportCsv: true,
+    maxTransactions: Infinity, showUpgradeBanner: false,
+  },
 };
 
-var statementsUploaded = 0;
-var currentProfile = null;
-var selectedPlan = 'household';
+let currentProfile = null;
+let selectedPlan = 'household';
 
-function currentTier(){
-  if(!currentProfile) return TIERS.free;
-  var plan=currentProfile.plan||'household'; // logged-in users default to household
-  var status=currentProfile.plan_status||'active';
-  if(status==='canceled') return TIERS.free;
-  return TIERS[plan]||TIERS.household;
+function showAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = ''; s.style.opacity = '1'; s.style.display = 'flex';
 }
-
-function showAuthScreen(){ var s=document.getElementById('auth-screen');if(s){s.style.transition='';s.style.opacity='1';s.style.display='flex';} }
-function hideAuthScreen(){
-  var s=document.getElementById('auth-screen');if(!s)return;
-  s.style.transition='opacity 0.35s ease';s.style.opacity='0';
-  setTimeout(function(){s.style.display='none';s.style.opacity='1';s.style.transition='';},360);
-  updateHeaderUser();renderUserDropdown();
+function hideAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = 'opacity 0.35s ease'; s.style.opacity = '0';
+  setTimeout(() => { s.style.display='none'; s.style.opacity='1'; s.style.transition=''; }, 360);
+  updateHeaderUser(); updateDropdownNames();
 }
-function authTab(tab){
-  var fl=document.getElementById('form-login'),fr=document.getElementById('form-register');
-  var tl=document.getElementById('tab-login'),tr2=document.getElementById('tab-register');
-  if(fl)fl.style.display=tab==='login'?'block':'none';
-  if(fr)fr.style.display=tab==='register'?'block':'none';
-  if(tl)tl.classList.toggle('active',tab==='login');
-  if(tr2)tr2.classList.toggle('active',tab==='register');
+function authTab(tab) {
+  document.getElementById('form-login').style.display    = tab==='login'    ? 'block' : 'none';
+  document.getElementById('form-register').style.display = tab==='register' ? 'block' : 'none';
+  document.getElementById('tab-login').classList.toggle('active',    tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
   clearAuthMessages();
 }
-function showAuthError(msg){var e=document.getElementById('auth-error');if(e){e.textContent=msg;e.style.display='block';}var s=document.getElementById('auth-success');if(s)s.style.display='none';}
-function showAuthSuccess(msg){var e=document.getElementById('auth-success');if(e){e.textContent=msg;e.style.display='block';}var er=document.getElementById('auth-error');if(er)er.style.display='none';}
-function clearAuthMessages(){['auth-error','auth-success'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});}
-function selectPlan(plan){ selectedPlan=plan; ['free','household','business'].forEach(function(p){var el=document.getElementById('plan-'+p);if(el)el.classList.toggle('selected',p===plan);}); }
+function showAuthError(msg)   { const e=document.getElementById('auth-error');   e.textContent=msg; e.style.display='block'; document.getElementById('auth-success').style.display='none'; }
+function showAuthSuccess(msg) { const e=document.getElementById('auth-success'); e.textContent=msg; e.style.display='block'; document.getElementById('auth-error').style.display='none'; }
+function clearAuthMessages()  { document.getElementById('auth-error').style.display='none'; document.getElementById('auth-success').style.display='none'; }
 
-async function loadProfile(userId){
-  var r=await sb.from('profiles').select('*').eq('id',userId).single();
-  if(r.error){console.error('Profile error:',r.error);return null;}
-  return r.data;
-}
-function applyProfile(profile){
-  currentProfile=profile;
-  if(profile.full_name)     S.users.herbert.name=profile.full_name;
-  if(profile.business_name) S.users.herbert.biz=profile.business_name;
-  applyTierRestrictions();
-}
-async function checkAuth(){
-  try{
-    var r=await sb.auth.getSession();
-    if(r.data&&r.data.session&&r.data.session.user){
-      var profile=await loadProfile(r.data.session.user.id);
-      if(profile){applyProfile(profile);hideAuthScreen();return true;}
-    }
-  }catch(e){console.error('Auth error:',e.message);}
-  showAuthScreen();return false;
-}
-async function doLogin(){
-  clearAuthMessages();
-  var email=(document.getElementById('login-email').value||'').trim().toLowerCase();
-  var pass=document.getElementById('login-pass').value||'';
-  if(!email||!email.includes('@')){showAuthError('Please enter your email address.');return;}
-  if(!pass){showAuthError('Please enter your password.');return;}
-  var btn=document.querySelector('#form-login .auth-btn');
-  if(btn){btn.textContent='Signing in…';btn.disabled=true;}
-  try{
-    var r=await sb.auth.signInWithPassword({email:email,password:pass});
-    if(btn){btn.textContent='Sign in to TaxFlow';btn.disabled=false;}
-    if(r.error){
-      if(r.error.message.includes('Invalid login'))showAuthError('Incorrect email or password.');
-      else if(r.error.message.includes('fetch')||r.error.message.includes('network'))showAuthError('No internet connection. TaxFlow requires internet to sign in.');
-      else showAuthError(r.error.message);
-      return;
-    }
-    var profile=await loadProfile(r.data.user.id);
-    if(!profile){showAuthError('Account error — please contact support.');return;}
-    applyProfile(profile);hideAuthScreen();save();statementsUploaded=0;
-    showTab('upload');
-    toast('Welcome back, '+(profile.full_name||email.split('@')[0])+'!');
-  }catch(e){
-    if(btn){btn.textContent='Sign in to TaxFlow';btn.disabled=false;}
-    showAuthError('Connection failed. Please check your internet and try again.');
-  }
-}
-async function doRegister(){
-  clearAuthMessages();
-  var name=(document.getElementById('reg-name').value||'').trim();
-  var email=(document.getElementById('reg-email').value||'').trim().toLowerCase();
-  var pass=document.getElementById('reg-pass').value||'';
-  var pass2=document.getElementById('reg-pass2').value||'';
-  if(!name){showAuthError('Please enter your name.');return;}
-  if(!email||!email.includes('@')){showAuthError('Please enter a valid email.');return;}
-  if(!pass||pass.length<8){showAuthError('Password must be at least 8 characters.');return;}
-  if(pass!==pass2){showAuthError('Passwords do not match.');return;}
-  var btn=document.querySelector('#form-register .auth-btn');
-  if(btn){btn.textContent='Creating…';btn.disabled=true;}
-  try{
-    var r=await sb.auth.signUp({email:email,password:pass,options:{data:{full_name:name}}});
-    if(btn){btn.textContent='Create account & sign in';btn.disabled=false;}
-    if(r.error){showAuthError(r.error.message);return;}
-    if(r.data&&r.data.user){
-      await sb.from('profiles').update({full_name:name,plan:'free'}).eq('id',r.data.user.id);
-    }
-    if(selectedPlan!=='free'){
-      showAuthSuccess('Account created! Redirecting to payment…');
-      setTimeout(function(){var link=STRIPE_LINKS[selectedPlan+'_monthly'];if(link)window.open(link+'?prefilled_email='+encodeURIComponent(email),'_blank');},1500);
-      setTimeout(function(){showAuthSuccess('Payment opened! Sign in after paying.');authTab('login');},2500);
-      return;
-    }
-    showAuthSuccess('Account created! Check your email to confirm, then sign in.');
-    setTimeout(function(){authTab('login');},2000);
-  }catch(e){
-    if(btn){btn.textContent='Create account & sign in';btn.disabled=false;}
-    showAuthError('Connection failed. Please check your internet and try again.');
-  }
-}
-async function signOut(){
-  if(!confirm('Sign out of TaxFlow? Your data stays saved on this device.'))return;
-  try{await sb.auth.signOut();}catch(e){}
-  currentProfile=null;statementsUploaded=0;
-  var badge=document.getElementById('tier-badge');if(badge)badge.remove();
-  document.querySelectorAll('.upgrade-banner').forEach(function(b){b.remove();});
-  clearAuthMessages();authTab('login');
-  S.currentTab='upload';showTab('upload');
-  showAuthScreen();
+function selectPlan(plan) {
+  selectedPlan = plan;
+  ['free','household','business'].forEach(p => {
+    document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
+  });
 }
 
-function applyTierRestrictions(){
-  var tier=currentTier();
-  S.activeTabs=S.activeTabs.filter(function(t){return tier.optionalTabs.includes(t);});
-  if(!S.activeTabs.includes('settings'))S.activeTabs.push('settings');
-  showUpgradeBanners(tier);renderTabs();updateTierBadge(tier);renderUserDropdown();
-}
-function updateTierBadge(tier){
-  var badge=document.getElementById('tier-badge');
-  if(!badge){badge=document.createElement('span');badge.id='tier-badge';badge.style.cssText='font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff;letter-spacing:0.05em;margin-right:8px;cursor:pointer;';badge.onclick=function(){showUpgradeModal();};var hdr=document.querySelector('.header-right');if(hdr)hdr.insertBefore(badge,hdr.firstChild);}
-  badge.textContent=tier.label.toUpperCase();
-  badge.style.background=tier.label==='Free'?'rgba(255,100,100,0.4)':'rgba(255,255,255,0.25)';
-}
-function showUpgradeBanners(tier){
-  document.querySelectorAll('.upgrade-banner').forEach(function(b){b.remove();});
-  if(!tier.showUpgradeBanner)return;
-  var panel=document.getElementById('panel-statements');if(!panel)return;
-  var banner=document.createElement('div');banner.className='upgrade-banner';
-  banner.innerHTML='<div><strong>Free Plan</strong> — Upload up to '+TIERS.free.maxStatements+' statements, view first '+TIERS.free.maxTransactions+' transactions.</div>'+
-    '<button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px;flex-shrink:0" onclick="showUpgradeModal()">Upgrade Now</button>';
-  panel.insertBefore(banner,panel.firstChild);
-}
-function showUpgradeModal(){
-  var email=(currentProfile&&currentProfile.email)||'';
-  var link=STRIPE_LINKS.household_monthly+(email?'?prefilled_email='+encodeURIComponent(email):'');
-  window.open(link,'_blank');
-}
-function updateDropdownNames(){
-  var ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=S.users.herbert.name||'User 1';
-  var ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
+// ── Load profile from Supabase ────────────────────────────────────────────────
+async function loadProfile(userId) {
+  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+  if (error) { console.error('Profile load error:', error); return null; }
+  return data;
 }
 
-// ── EXCEL EXPORT ─────────────────────────────────────────────────────────
-function exportAll(){
-  var tier=currentTier();
-  if(!tier.canExportExcel){showUpgradeModal();toast('Export requires a paid plan.');return;}
-  _exportAllRun();
-}
-function exportCsv(){
-  var tier=currentTier();
-  if(!tier.canExportCsv){showUpgradeModal();toast('CSV export requires a paid plan.');return;}
-  var rows=['Date,Description,Amount,Category'];
-  tx().forEach(function(t){rows.push([t.date,'"'+t.desc+'"',t.amount,'"'+t.cat+'"'].join(','));});
-  var blob=new Blob([rows.join('\n')],{type:'text/csv'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');a.href=url;a.download='transactions_'+S.year+'.csv';a.click();URL.revokeObjectURL(url);
-  toast('CSV exported');
+function applyTierRestrictions() {
+  const tier = currentTier();
+  S.activeTabs = S.activeTabs.filter(t => tier.optionalTabs.includes(t));
+  // Settings tab is always visible regardless of tier
+  if(!S.activeTabs.includes('settings')) S.activeTabs.push('settings');
+  showUpgradeBanners(tier);
+  const ud2 = document.getElementById('ud-spouse');
+  if (ud2) {
+    ud2.style.opacity      = tier.maxUsers < 2 ? '0.4' : '';
+    ud2.style.pointerEvents = tier.maxUsers < 2 ? 'none' : '';
+    ud2.title = tier.maxUsers < 2 ? 'Upgrade to Household to add a second user' : '';
+  }
+  updateTierBadge(tier);
 }
 
-function _exportAllRun(){
-  var u=U(),txs=tx();
-  if(!txs.length){toast('No transactions to export');return;}
-  if(typeof ExcelJS==='undefined'){toast('Excel library not loaded — check your internet connection.');return;}
-  var wb=new ExcelJS.Workbook();wb.creator='TaxFlow';wb.created=new Date();
-  var C={BLUE_HDR:'2E74B5',GREEN_HDR:'375623',NAVY_HDR:'1F4E79',PURP_HDR:'7030A0',ORG_HDR:'ED7D31',TEAL_HDR:'00B0F0',RED_NET:'C00000',ROW_LTBL:'EBF5EB',ROW_LTGN:'F0FFF0',ROW_LTBL2:'D6E4F0',ROW_PEACH:'FCE4D6',ROW_WHITE:'FFFFFF',ROW_FAINT:'FAFAFA',TOT_INC:'D6E4F0',TOT_DED:'E2EFDA',TOT_PER:'FCE4D6'};
-  var FONT='Arial',AMT_FMT='"$"#,##0.00;"($"#,##0.00)';
-  function fill(hex){return{type:'pattern',pattern:'solid',fgColor:{argb:'FF'+hex}};}
-  function styleHdrRow(row,hc){row.height=22;row.eachCell(function(cell){cell.fill=fill(hc);cell.font={name:FONT,bold:true,size:11,color:{argb:'FFFFFFFF'}};cell.alignment={vertical:'middle',horizontal:'center'};cell.border={bottom:{style:'thin',color:{argb:'FF000000'}}};});}
-  function styleDataRow(row,bg,amtCols){row.height=16;row.eachCell({includeEmpty:false},function(cell,col){if(bg)cell.fill=fill(bg);cell.font={name:FONT,size:10};if(amtCols.includes(col)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else{cell.alignment={vertical:'middle',horizontal:col===1?'center':'left'};}});}
-  function styleTotalRow(row,bg,amtCols){row.height=18;row.eachCell({includeEmpty:false},function(cell,col){cell.fill=fill(bg);cell.font={name:FONT,bold:true,size:11};cell.border={top:{style:'thin'},bottom:{style:'double'}};if(amtCols.includes(col)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else{cell.alignment={vertical:'middle',horizontal:'left'};}});}
-  function addSheet(name,headers,rows,hc,alt1,alt2,colWidths,amtCols){
-    var ws=wb.addWorksheet(name);ws.columns=colWidths.map(function(w){return{width:w};});
-    styleHdrRow(ws.addRow(headers),hc);
-    rows.forEach(function(rowData,i){styleDataRow(ws.addRow(rowData),i%2===0?alt1:alt2,amtCols);});
-    return ws;
-  }
-  function getMonth(d){return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][((parseInt((d||'').split('/')[0])||1)-1)]||'';}
-  function getYear(d){var p=(d||'').split('/');if(!p[2])return S.year;return p[2].length===2?'20'+p[2]:p[2];}
-
-  var incTxs=txs.filter(function(t){return bucket(t.cat)==='income';}),dedTxs=txs.filter(function(t){return bucket(t.cat)==='deductible';}),perTxs=txs.filter(function(t){return bucket(t.cat)==='personal';});
-  var incTotal=roundAmt(incTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
-  var dedTotal=roundAmt(dedTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
-  var perTotal=roundAmt(perTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
-  var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
-  var miVal=roundAmt(mi*0.70);
-  var retTotal=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
-  var eqTotal=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
-  var gLoss=roundAmt((u.gambling||[]).reduce(function(s,v){return s+(v.loss||0);},0));
-  var netTax=roundAmt(Math.max(0,incTotal-dedTotal-miVal-retTotal-eqTotal));
-
-  // All Transactions
-  var wsAll=addSheet('All Transactions',['Date','Month','Year','Description','Amount ($)','Type','Category','Receipt'],
-    txs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',t.cat,t.receipt?'On file':''];}),
-    C.BLUE_HDR,C.ROW_LTBL,C.ROW_FAINT,[12,8,7,45,14,10,42,12],[5]);
-  // Income
-  var wsInc=addSheet('Income',['Date','Month','Year','Description','Amount ($)','Category'],
-    incTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),
-    C.GREEN_HDR,C.ROW_LTGN,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
-  styleTotalRow(wsInc.addRow(['','','','TOTAL INCOME',incTotal,'']),C.TOT_INC,[5]);
-  // Deductible
-  var wsDed=addSheet('Deductible Expenses',['Date','Month','Year','Description','Amount ($)','Category'],
-    dedTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),
-    C.NAVY_HDR,C.ROW_LTBL2,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
-  styleTotalRow(wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES',dedTotal,'']),C.TOT_DED,[5]);
-  // Personal
-  var wsPer=addSheet('Personal Expenses',['Date','Month','Year','Description','Amount ($)','Category'],
-    perTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),
-    C.PURP_HDR,C.ROW_PEACH,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
-  styleTotalRow(wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES',perTotal,'']),C.TOT_PER,[5]);
-
-  // Summary sheet
-  var wsSum=wb.addWorksheet('Summary');wsSum.columns=[{width:46},{width:18}];
-  function sumAddRow(vals,opts){
-    var row=wsSum.addRow(vals);row.height=opts.height||16;
-    var c1=row.getCell(1),c2=row.getCell(2);
-    c1.font={name:FONT,bold:opts.bold||false,size:opts.sz||11};c2.font={name:FONT,bold:opts.bold||false,size:opts.sz||11};
-    c1.alignment={horizontal:'left',vertical:'middle'};c2.alignment={horizontal:'right',vertical:'middle'};
-    if(opts.bg1)c1.fill=fill(opts.bg1);if(opts.bg2)c2.fill=fill(opts.bg2);
-    if(opts.numFmt&&vals[1]!==undefined){c2.numFmt=opts.numFmt;if(typeof vals[1]==='number')c2.value=roundAmt(vals[1]);}
-    if(opts.border){c1.border={top:{style:'thin'},bottom:{style:'double'}};c2.border={top:{style:'thin'},bottom:{style:'double'}};}
-    return row;
-  }
-  function sumHdr(label){var row=wsSum.addRow([label,'']);row.height=20;[1,2].forEach(function(c){var cell=row.getCell(c);cell.fill=fill(C.NAVY_HDR);cell.font={name:FONT,bold:true,size:11,color:{argb:'FFFFFFFF'}};cell.alignment={horizontal:'left',vertical:'middle'};});return row;}
-  sumAddRow([(u.biz||'TaxFlow')+' — '+S.year+' Tax Year Summary',''],{bold:true,sz:14,height:28});
-  sumAddRow(['Prepared for: '+(u.name||''),''],{sz:11});sumAddRow(['Tax Year: '+S.year,''],{sz:11});wsSum.addRow([]);
-  sumHdr('INCOME');sumAddRow(['Total Gross Income',incTotal],{numFmt:AMT_FMT});
-  sumAddRow(['TOTAL TAXABLE INCOME',incTotal],{bold:true,bg1:C.TOT_INC,bg2:C.TOT_INC,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
-  sumHdr('DEDUCTIBLE EXPENSES');
-  sumAddRow(['Total Business Deductions',dedTotal],{numFmt:AMT_FMT});
-  sumAddRow(['Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70/mi)',miVal],{numFmt:AMT_FMT});
-  if(retTotal>0)sumAddRow(['Retirement Contributions',retTotal],{numFmt:AMT_FMT});
-  if(eqTotal>0)sumAddRow(['Section 179 Equipment',eqTotal],{numFmt:AMT_FMT});
-  sumAddRow(['TOTAL DEDUCTIBLE EXPENSES',roundAmt(dedTotal+miVal+retTotal+eqTotal)],{bold:true,bg1:C.TOT_DED,bg2:C.TOT_DED,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
-  sumHdr('PERSONAL EXPENSES');sumAddRow(['Total Personal Spending',perTotal],{numFmt:AMT_FMT});
-  sumAddRow(['TOTAL PERSONAL EXPENSES',perTotal],{bold:true,bg1:C.TOT_PER,bg2:C.TOT_PER,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
-  if(retTotal>0||eqTotal>0){sumHdr('RETIREMENT & EQUIPMENT');if(retTotal>0)sumAddRow(['Retirement Contributions',retTotal],{numFmt:AMT_FMT});if(eqTotal>0)sumAddRow(['Section 179 Equipment',eqTotal],{numFmt:AMT_FMT});sumAddRow(['TOTAL ADDITIONAL DEDUCTIONS',roundAmt(retTotal+eqTotal)],{bold:true,bg1:C.TOT_DED,bg2:C.TOT_DED,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);}
-  var netRow=wsSum.addRow(['NET TAXABLE INCOME',netTax]);netRow.height=30;
-  [1,2].forEach(function(c){var cell=netRow.getCell(c);cell.fill=fill(C.RED_NET);cell.font={name:FONT,bold:true,size:14,color:{argb:'FFFFFFFF'}};cell.alignment={horizontal:c===1?'left':'right',vertical:'middle'};});
-  netRow.getCell(2).numFmt=AMT_FMT;netRow.getCell(2).value=roundAmt(netTax);wsSum.addRow([]);
-  sumHdr('TRANSACTION SUMMARY');
-  sumAddRow(['Total Transactions',txs.length],{});
-  sumAddRow(['Income Transactions',incTxs.length],{});
-  sumAddRow(['Deductible Transactions',dedTxs.length],{});
-  sumAddRow(['Personal Transactions',perTxs.length],{});wsSum.addRow([]);
-  var discRow=wsSum.addRow(['TaxFlow is a financial organization tool — NOT tax advice. Always consult a qualified CPA before filing.','']);
-  discRow.getCell(1).font={name:FONT,italic:true,size:9,color:{argb:'FF94A3B8'}};
-
-  // Invoice sheet
-  if(u.invoices&&u.invoices.length){
-    var invPaid2=roundAmt(u.invoices.filter(function(i){return i.status==='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
-    var invOut2=roundAmt(u.invoices.filter(function(i){return i.status!=='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
-    var invTotal2=roundAmt(u.invoices.reduce(function(s,i){return s+(i.amount||0);},0));
-    var invWs=addSheet('Invoice Tracker',['Invoice #','Client','Description','Date Sent','Due Date','Amount ($)','Status','Notes'],
-      u.invoices.map(function(inv){return[inv.num||'',inv.client||'',inv.desc||'',inv.sent||'',inv.due||'',roundAmt(inv.amount||0),inv.status||'',inv.notes||''];}),
-      C.NAVY_HDR,'EBF5EB','FFFFFF',[12,22,35,12,12,14,14,25],[6]);
-    styleTotalRow(invWs.addRow(['','','','','TOTAL BILLED',invTotal2,'','']),C.TOT_INC,[6]);
-    styleTotalRow(invWs.addRow(['','','','','TOTAL PAID',invPaid2,'','']),C.TOT_DED,[6]);
-    styleTotalRow(invWs.addRow(['','','','','TOTAL OUTSTANDING',invOut2,'','']),C.TOT_PER,[6]);
-  }
-  // Gambling sheet
-  if(u.gambling&&u.gambling.length){
-    var wsG=addSheet('Gambling W-L',['Venue / Casino','Account #','Net Loss','Total Wagered'],
-      u.gambling.map(function(v){return[v.name,v.acc||'',roundAmt(v.loss),roundAmt(v.wagered||0)];}),
-      C.ORG_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,14,16],[3,4]);
-    styleTotalRow(wsG.addRow(['TOTAL LOSSES','',gLoss,'']),C.TOT_DED,[3]);
-  }
-  // Mileage sheet
-  if(u.mileage&&u.mileage.length){
-    var wsM=addSheet('Mileage Log',['Date','From','To','Miles','Purpose','Value ($0.70/mi)'],
-      u.mileage.map(function(m){return[m.date,m.from,m.to,roundAmt(m.miles),m.purpose,roundAmt(m.miles*0.70)];}),
-      C.TEAL_HDR,C.ROW_LTBL2,'FFFFFF',[12,20,20,10,28,16],[4,6]);
-    styleTotalRow(wsM.addRow(['TOTAL','','',roundAmt(mi),'',roundAmt(miVal)]),C.TOT_DED,[4,6]);
-  }
-  // 1099 sheet
-  if(u.c1099&&u.c1099.length){
-    addSheet('1099 Tracker',['Client / Payer','Type','EIN / SSN','Amount'],
-      u.c1099.map(function(c){return[c.name,c.type,c.ein,roundAmt(c.amt)];}),
-      C.NAVY_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,16,14],[4]);
-  }
-  // Retirement sheet
-  if(u.retirement&&u.retirement.length){
-    var wsRet=addSheet('Retirement Contributions',['Account Type','Institution','Date','Amount ($)','Notes'],
-      u.retirement.map(function(r){return[r.type||'',r.institution||'',r.date||'',roundAmt(r.amt||0),r.notes||''];}),
-      C.NAVY_HDR,'EBF5EB','FFFFFF',[22,20,12,14,30],[4]);
-    styleTotalRow(wsRet.addRow(['','','','TOTAL CONTRIBUTIONS',roundAmt(retTotal)]),C.TOT_INC,[5]);
-  }
-  // Equipment sheet
-  if(u.equipment&&u.equipment.length){
-    var wsEq=addSheet('Equipment & Assets',['Asset Description','Purchase Date','Cost ($)','Business %','Deductible Amount ($)','Notes'],
-      u.equipment.map(function(e){return[e.desc||'',e.date||'',roundAmt(e.cost||0),(e.biz||100)+'%',roundAmt(e.deductible||0),e.notes||''];}),
-      C.GREEN_HDR,'F0FFF0','FFFFFF',[35,12,14,12,18,25],[3,5]);
-    styleTotalRow(wsEq.addRow(['','','','','TOTAL SEC. 179 DEDUCTION',roundAmt(eqTotal)]),C.TOT_DED,[6]);
-  }
-
-  // Download
-  var fname=((u.biz||u.name||'TaxFlow').replace(/[^a-zA-Z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''))+'_'+S.year+'_TaxFlow.xlsx';
-  wb.xlsx.writeBuffer().then(function(buffer){
-    if(window.electronAPI&&window.electronAPI.isElectron){
-      window.electronAPI.saveFile(fname,new Uint8Array(buffer),'xlsx').then(function(r){if(r&&r.success){var fp=r.filePath,fn=fp.indexOf('/')>=0?fp.split('/').pop():fp.split(String.fromCharCode(92)).pop();toast('Saved: '+fn);}else if(r&&r.error)toast('Save failed: '+r.error);});
-      return;
-    }
-    var blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-    var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=fname;a.click();URL.revokeObjectURL(url);
-    toast('Exported: '+fname);
-  }).catch(function(err){toast('Export error: '+err.message);console.error(err);});
+function showUpgradeModal() {
+  const email = currentProfile?.email || '';
+  const link  = STRIPE_LINKS.household_monthly + (email ? '?prefilled_email=' + encodeURIComponent(email) : '');
+  window.open(link, '_blank');
 }
 
-// ── STARTUP ───────────────────────────────────────────────────────────────
+function updateDropdownNames() {
+  const ud1=document.getElementById('ud-name1'); if(ud1) ud1.textContent=S.users.herbert.name||'User 1';
+  const ud2=document.getElementById('ud-name2'); if(ud2) ud2.textContent=S.users.spouse.name||'User 2';
+  const ub1=document.getElementById('ud-biz1');  if(ub1) ub1.textContent=S.users.herbert.biz||'Primary Account';
+}
+// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
+// Clears the session when the tab/window is closed or the app exits.
+// Transaction data remains saved — only the login session is cleared.
+
+function clearSession(){}
+
+// Fires when the tab/window is about to close
 window.addEventListener('DOMContentLoaded', async function(){
   if(typeof pdfjsLib !== 'undefined'){
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -3436,6 +3163,7 @@ window.addEventListener('DOMContentLoaded', async function(){
   load();
   await checkAuth();
 });
+
 </script>
 
 </body>
