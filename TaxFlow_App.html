@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.1.2</span>
+      <span class="logo-beta">v2.1.4</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -418,7 +418,9 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
           <div class="ud-item" onclick="showTab('settings');toggleUD()">⚙️ &nbsp;Settings</div>
         </div>
       </div>
+      <button class="btn btn-white" onclick="exportCsv()">⬇ Export CSV</button>
       <button class="btn btn-white" onclick="exportAll()">⬇ Export Excel</button>
+      <button class="btn btn-white" onclick="exportCPAPackage()">📦 CPA Package</button>
 
     </div>
   </div>
@@ -1404,17 +1406,24 @@ function normalizeDate(s){
 }
 
 function parseTD(lines,fname){
-  let added=0,inDep=false,inPmt=false;
+  let added=0,inDep=false,inPmt=false,inSvc=false,done=false;
+  const balanceLine=/^\d{2}\/\d{2}\s+[\d,]+\.\d{2}\s+\d{2}\/\d{2}\s+[\d,]+\.\d{2}/;
   const fullPat=/^(\d{2}\/\d{2}(?:\/\d{2})?)\s+(.+?)\s+([\d,]+\.\d{2})$/;
   const datePat=/^(\d{2}\/\d{2}(?:\/\d{2})?)$/;
   for(let i=0;i<lines.length;i++){
-    const l=lines[i];
-    if(/electronic deposits/i.test(l)){inDep=true;inPmt=false;continue;}
-    if(/electronic payments|other withdrawals|service charges/i.test(l)){inDep=false;inPmt=true;continue;}
-    if(/daily account activity|daily balance/i.test(l)) continue;
+    const l=lines[i].trim();
+    if(!l||done) continue;
+    if(/daily balance summary/i.test(l)){done=true;break;}
+    if(balanceLine.test(l)) continue;
+    if(/^electronic deposits/i.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
+    if(/^deposits$/i.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
+    if(/^(electronic payments|other withdrawals)/i.test(l)){inDep=false;inPmt=true;inSvc=false;continue;}
+    if(/^(service charges|checks paid)/i.test(l)){inDep=false;inPmt=false;inSvc=true;continue;}
+    if(/subtotal|posting date|description\s+amount|beginning balance|ending balance|average collected|interest earned|annual percentage|days in period|grace period|page:|statement period|cust ref|date\s+balance/i.test(l)) continue;
+    if(!inDep&&!inPmt&&!inSvc) continue;
     let m=l.match(fullPat);
     if(!m&&datePat.test(l.split(' ')[0])&&i+1<lines.length){
-      m=(l+' '+lines[i+1]).match(fullPat);
+      m=(l+' '+lines[i+1].trim()).match(fullPat);
       if(m) i++;
     }
     if(m){
@@ -1423,7 +1432,7 @@ function parseTD(lines,fname){
       if(isBoilerplate(desc)||isBoilerplate(l)) continue;
       const amt=parseFloat(rawAmt.replace(/,/g,''));
       if(isNaN(amt)||amt<=0||desc.length<2) continue;
-      const amount=inDep?amt:-amt;
+      const amount=(inPmt||inSvc)?-amt:amt;
       tx().push({id:uid(),date:normalizeDate(rawDate),desc,amount,cat:autoCat(desc),src:fname});
       added++;
     }
