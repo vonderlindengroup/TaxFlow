@@ -1126,16 +1126,24 @@ async function handleFiles(files){
   const list=[...files];
   if(!list.length) return;
   const wTier=currentTier();
-  const prog=document.getElementById('prog');
-  const progMsg=prog&&prog.querySelector('div');
-
-  // Helper: yield to browser so UI stays responsive between files
   function yieldUI(){ return new Promise(res=>setTimeout(res,0)); }
 
-  // Update the progress overlay with file-by-file status
-  function setProgMsg(msg){
-    if(progMsg) progMsg.textContent=msg;
-    else if(prog) prog.firstChild.textContent=msg;
+  function setProgMsg(msg, fileNum, fileTotal){
+    const m=document.getElementById('prog-msg');
+    const b=document.getElementById('prog-bar');
+    const c=document.getElementById('prog-count');
+    const s=document.getElementById('prog-sub');
+    if(m) m.textContent=msg;
+    if(fileNum&&fileTotal){
+      if(b) b.style.width=Math.round((fileNum-1)/fileTotal*100)+'%';
+      if(c) c.textContent='File '+fileNum+' of '+fileTotal;
+      if(s) s.textContent='Please wait — do not close this tab';
+    }
+  }
+  function setProgComplete(){
+    const b=document.getElementById('prog-bar');if(b)b.style.width='100%';
+    const c=document.getElementById('prog-count');if(c)c.textContent='Done!';
+    const s=document.getElementById('prog-sub');if(s)s.textContent='Finished!';
   }
 
   showProg();
@@ -1144,7 +1152,7 @@ async function handleFiles(files){
   for(const f of list){
     const ext=f.name.toLowerCase().split('.').pop();
     filesDone++;
-    setProgMsg('Reading '+f.name+' ('+filesDone+' of '+list.length+')...');
+    setProgMsg('Reading '+f.name, filesDone, list.length);
     await yieldUI(); // let the browser repaint before heavy work
 
     try{
@@ -1179,6 +1187,8 @@ async function handleFiles(files){
     await yieldUI(); // yield after each file too
   }
 
+  setProgComplete();
+  await new Promise(res=>setTimeout(res,500));
   hideProg();
   if(total>0){ save();render();updateSummary(); }
   toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions imported — check file format or try a different statement');
@@ -1226,6 +1236,12 @@ async function parsePDF(f){
     const pdf=await pdfjsLib.getDocument({data:buf}).promise;
     let fullText='';
     for(let p=1;p<=pdf.numPages;p++){
+      // Yield each page so UI stays responsive
+      await new Promise(res=>setTimeout(res,0));
+      const pm=document.getElementById('prog-msg');
+      const ps=document.getElementById('prog-sub');
+      if(pm) pm.textContent='Reading '+f.name+' — page '+p+' of '+pdf.numPages+'...';
+      if(ps) ps.textContent='Page '+p+' of '+pdf.numPages;
       const page=await pdf.getPage(p);
       const ct=await page.getTextContent();
       const lines={};
