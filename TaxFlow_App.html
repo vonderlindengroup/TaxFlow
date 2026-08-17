@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.1.9</span>
+      <span class="logo-beta">v2.2.0</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1335,16 +1335,25 @@ async function parsePDF(f){
 function parseBankStructured(pageRows,fname){
   // Detect bank from text content
   const allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
-  const isTD=/(td bank|td convenience|statement of account)/i.test(allText);
+  // TD Bank: must have BOTH "td" AND specific TD identifiers
+  const isTD=/(td bank|td convenience|td convenience checking|td savings)/i.test(allText);
   const isBluevine=/(bluevine|blue vine)/i.test(allText);
-  if(isTD) return parseTDStructured(pageRows,fname);
-  // For non-TD: fall back to line-based parsing
+  
+  // Always try coordinate-aware TD parser first for TD statements
+  if(isTD){
+    const n=parseTDStructured(pageRows,fname);
+    if(n>0) return n;
+    // Fallthrough to line-based if structured fails
+  }
+  
+  // Line-based fallback for all banks
   const lines=[];
   pageRows.forEach(function(r){
     var line=r.items.map(function(i){return i.text;}).join(' ').trim();
     if(line) lines.push(line);
   });
   if(isBluevine) return parseBluevine(lines,fname);
+  if(isTD) return parseTD(lines,fname);  // TD line-based fallback
   return parseGeneric(lines,fname);
 }
 
