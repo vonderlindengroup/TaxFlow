@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.0.2</span>
+      <span class="logo-beta">v2.0.3</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -419,7 +419,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         </div>
       </div>
       <button class="btn btn-white" onclick="exportAll()">⬇ Export Excel</button>
-      <button class="btn btn-white" onclick="exportCPAPackage()" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.4)">📦 CPA Package</button>
+
     </div>
   </div>
 </header>
@@ -699,8 +699,8 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     </div>
     <div class="settings-card">
       <div class="settings-title">👤 User profiles</div>
-      <div class="setting-row"><div><div class="setting-label">Primary user name</div><div class="setting-sub">Appears in header and exports</div></div><input type="text" id="s-n1" style="width:180px" value=""></div>
-      <div class="setting-row"><div><div class="setting-label">Business name</div><div class="setting-sub">Shown on all Excel exports</div></div><input type="text" id="s-biz" style="width:200px" value=""></div>
+      <div class="setting-row"><div><div class="setting-label">Primary user name</div><div class="setting-sub">Appears in header and exports</div></div><input type="text" id="s-n1" placeholder="e.g. Herbert VonderLinden" style="width:100%;max-width:260px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
+      <div class="setting-row"><div><div class="setting-label">Business name</div><div class="setting-sub">Shown on all Excel exports</div></div><input type="text" id="s-biz" placeholder="e.g. VonderLinden Group, LLC" style="width:100%;max-width:300px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
       <div style="margin-top:12px;margin-bottom:16px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
       <div class="settings-title" style="margin-top:8px">👥 Additional users</div>
       <div id="settings-extra-users" style="margin-bottom:12px"></div>
@@ -1272,10 +1272,17 @@ async function parsePDF(f){
     let fullText='';
 
     for(let p=1;p<=totalPages;p++){
-      // MessageChannel yield — guaranteed to release main thread
-      await trueYield();
-      setBar(Math.round((p-1)/totalPages*100));
-      setMsg('Reading '+f.name,'Page '+p+' of '+totalPages);
+      // Only update DOM every 3 pages — DOM writes cause reflows that freeze the UI
+      if(p===1 || p%3===0 || p===totalPages){
+        const bar=document.getElementById('prog-bar');
+        if(bar) bar.style.width=Math.round((p-1)/totalPages*100)+'%';
+        const pm=document.getElementById('prog-msg');
+        if(pm) pm.textContent='Reading '+f.name+' — page '+p+' of '+totalPages;
+        const ps=document.getElementById('prog-sub');
+        if(ps) ps.textContent='Page '+p+' of '+totalPages;
+        // Single yield after DOM update so browser can paint
+        await new Promise(res=>setTimeout(res,16));
+      }
 
       const page=await pdf.getPage(p);
       const ct=await page.getTextContent();
@@ -2323,10 +2330,11 @@ var currentProfile = null;
 var selectedPlan = 'household';
 
 function currentTier(){
-  var plan=(currentProfile&&currentProfile.plan)||'free';
-  var status=(currentProfile&&currentProfile.plan_status)||'active';
+  if(!currentProfile) return TIERS.free;
+  var plan=currentProfile.plan||'household'; // logged-in users default to household
+  var status=currentProfile.plan_status||'active';
   if(status==='canceled') return TIERS.free;
-  return TIERS[plan]||TIERS.free;
+  return TIERS[plan]||TIERS.household;
 }
 
 function showAuthScreen(){ var s=document.getElementById('auth-screen');if(s){s.style.transition='';s.style.opacity='1';s.style.display='flex';} }
