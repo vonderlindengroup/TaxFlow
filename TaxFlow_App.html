@@ -1126,7 +1126,7 @@ async function handleFiles(files){
   const list=[...files];
   if(!list.length) return;
   const wTier=currentTier();
-  function yieldUI(){ return new Promise(res=>setTimeout(res,0)); }
+  function yieldUI(){ return new Promise(res=>requestAnimationFrame(()=>setTimeout(res,0))); }
 
   function setProgMsg(msg, fileNum, fileTotal){
     const m=document.getElementById('prog-msg');
@@ -1224,24 +1224,31 @@ function parseXLSX(bin,fname){
 }
 
 async function parsePDF(f){
-  // Check pdfjs is loaded
   if(typeof pdfjsLib==='undefined'){
     toast('PDF reader not loaded — check your internet connection and reload the page.');
     return 0;
   }
+  function yieldFrame(){ return new Promise(res=>requestAnimationFrame(()=>setTimeout(res,0))); }
+  function setMsg(msg,sub){
+    const m=document.getElementById('prog-msg');if(m)m.textContent=msg;
+    const s=document.getElementById('prog-sub');if(s)s.textContent=sub||'';
+  }
   try{
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    setMsg('Loading '+f.name+'...','Reading file from disk');
+    await yieldFrame();
     const buf=await readBuf(f);
     if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
-    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    setMsg('Opening '+f.name+'...','Parsing PDF structure');
+    await new Promise(res=>setTimeout(res,50));
+    const pdf=await pdfjsLib.getDocument({data:buf,verbosity:0}).promise;
     let fullText='';
-    for(let p=1;p<=pdf.numPages;p++){
-      // Yield each page so UI stays responsive
-      await new Promise(res=>setTimeout(res,0));
-      const pm=document.getElementById('prog-msg');
-      const ps=document.getElementById('prog-sub');
-      if(pm) pm.textContent='Reading '+f.name+' — page '+p+' of '+pdf.numPages+'...';
-      if(ps) ps.textContent='Page '+p+' of '+pdf.numPages;
+    const totalPages=pdf.numPages;
+    for(let p=1;p<=totalPages;p++){
+      await yieldFrame();
+      const bar=document.getElementById('prog-bar');
+      if(bar) bar.style.width=Math.round((p-1)/totalPages*100)+'%';
+      setMsg('Reading '+f.name,'Page '+p+' of '+totalPages);
       const page=await pdf.getPage(p);
       const ct=await page.getTextContent();
       const lines={};
@@ -1253,15 +1260,16 @@ async function parsePDF(f){
       Object.keys(lines).sort((a,b)=>b-a).forEach(y=>{
         fullText+=lines[y].sort((a,b)=>a.x-b.x).map(i=>i.t).join(' ')+'\n';
       });
+      if(p%5===0) await new Promise(res=>setTimeout(res,16));
     }
+    setMsg('Processing transactions...','Categorizing '+f.name);
+    await yieldFrame();
     if(!fullText.trim()){
       toast('No text found in '+f.name+' — it may be a scanned image PDF.');
       return 0;
     }
     const count=parseBankText(fullText,f.name);
-    if(count===0){
-      toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
-    }
+    if(count===0) toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
     return count;
   }catch(e){
     console.error('parsePDF error:',e);
