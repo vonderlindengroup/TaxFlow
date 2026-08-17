@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.3.1</span>
+      <span class="logo-beta">v2.3.3</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -421,6 +421,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <button class="btn btn-white" onclick="exportCsv()">⬇ Export CSV</button>
       <button class="btn btn-white" onclick="exportAll()">⬇ Export Excel</button>
       <button class="btn btn-white" onclick="exportCPAPackage()">📦 CPA Package</button>
+      <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer;letter-spacing:0.02em" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">Sign Out</button>
 
     </div>
   </div>
@@ -472,6 +473,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
   <div cl<div class="tab-panel" id="panel-upload">
     <div class="panel-header">
       <h2 class="panel-title">📂 Upload Statements</h2>
+      <button onclick="clearAllData()" class="btn btn-outline" style="color:var(--red);border-color:var(--red-mid);font-size:12px">🗑 Clear All</button>
     </div>
 
     <div class="upload-zone" id="dropzone" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
@@ -516,7 +518,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" onclick="toggleAddForm()" style="font-size:12px">+ Manual</button>
         <button class="btn btn-outline" onclick="autoCategAll()" style="font-size:12px">✨ Re-categorize</button>
-        <button class="btn btn-outline" onclick="clearData()" style="font-size:12px;color:var(--red)">🗑 Clear</button>
+        <button class="btn btn-outline" onclick="clearAllData()" style="font-size:12px;color:var(--red);border-color:var(--red-mid)">🗑 Clear All</button>
       </div>
     </div>
 
@@ -1283,7 +1285,7 @@ function renderTabs(){
     '<button class="tab-btn'+sumAct+'" id="tab-btn-summary" onclick="showTab(\'summary\')">📊 Summary</button>',
     dynTabs,
     '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>',
-    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);border-radius:0;padding:0 14px;font-size:13px;gap:5px;display:flex;align-items:center">⚙️ Settings</button>'
+    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);padding:0 16px">⚙️ Settings</button>'
   ].join('');
 }
 
@@ -2304,7 +2306,19 @@ function autoCategAll(){
 
 function clearData(){
   if(!confirm('Delete all transactions for '+U().name+'?')) return;
-  S.users[S.cur].tx=[];save();render();updateSummary();toast('Data cleared');
+  S.users[S.cur].tx=[];save();render();updateSummary();toast('Transactions cleared');
+}
+
+function clearAllData(){
+  if(!confirm('This will delete ALL transactions AND all saved statements. Are you sure?')) return;
+  // Clear transactions for all users
+  S.users.herbert.tx=[];
+  (S.extraUsers||[]).forEach(function(u){u.tx=[];});
+  // Clear saved statements
+  S.savedStatements=[];
+  statementsUploaded=0;
+  save();render();updateSummary();renderSavedStatements();
+  toast('All data cleared');
 }
 
 function setYear(y){S.year=y;save();updateSummary();setEl('s-year', y);}
@@ -3020,7 +3034,7 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const TIERS = {
   free:      { label:'Free',      maxUsers:1, maxStatements:3,        maxTransactions:50,       canExportExcel:false, canExportCsv:false, showUpgradeBanner:true,  optionalTabs:[] },
-  household: { label:'Household', maxUsers:2, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
+  household: { label:'Household', maxUsers:2, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy'] },
   business:  { label:'Business',  maxUsers:5, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
 };
 
@@ -3098,6 +3112,7 @@ async function doLogin(){
     var profile=await loadProfile(r.data.user.id);
     if(!profile){showAuthError('Account error — please contact support.');return;}
     applyProfile(profile);hideAuthScreen();save();statementsUploaded=0;
+    showTab('upload');
     toast('Welcome back, '+(profile.full_name||email.split('@')[0])+'!');
   }catch(e){
     if(btn){btn.textContent='Sign in to TaxFlow';btn.disabled=false;}
@@ -3142,7 +3157,9 @@ async function signOut(){
   currentProfile=null;statementsUploaded=0;
   var badge=document.getElementById('tier-badge');if(badge)badge.remove();
   document.querySelectorAll('.upgrade-banner').forEach(function(b){b.remove();});
-  clearAuthMessages();authTab('login');showAuthScreen();
+  clearAuthMessages();authTab('login');
+  S.currentTab='upload';showTab('upload');
+  showAuthScreen();
 }
 
 function applyTierRestrictions(){
