@@ -397,7 +397,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.1.4</span>
+      <span class="logo-beta">v2.1.5</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -895,17 +895,17 @@ const TAB_LABELS={
 };
 
 const OPTIONAL_TABS=[
-  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
+  {id:'clients',     icon:'👥', name:'Client Tracker',      desc:'Manage clients and track income by client'},
+  {id:'invoices',    icon:'🧾', name:'Invoice Tracker',     desc:'Track client invoices — paid, outstanding, and overdue'},
+  {id:'pl',          icon:'📊', name:'Profit & Loss',       desc:'Auto-generated P&L statement from your transactions'},
+  {id:'yoy',         icon:'📈', name:'Year-over-Year',      desc:'Compare this year to previous years side by side'},
   {id:'mileage',     icon:'🚗', name:'Vehicle Mileage',     desc:'Log work trips and calculate your mileage deduction'},
+  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
+  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
   {id:'homeoffice',  icon:'🏠', name:'Home Office',         desc:'Calculate your home office deduction'},
   {id:'1099',        icon:'📄', name:'1099 Tracker',        desc:'Track 1099 income from each client or platform'},
   {id:'quarterly',   icon:'📅', name:'Quarterly Taxes',     desc:'Estimate your quarterly tax payments'},
-  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
-  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
-  {id:'invoices',    icon:'🧾', name:'Invoice Tracker',     desc:'Track client invoices — paid, outstanding, and overdue'},
-  {id:'pl',          icon:'📊', name:'Profit & Loss',       desc:'Auto-generated P&L statement from your transactions'},
-  {id:'clients',     icon:'👥', name:'Client Breakdown',    desc:'Income breakdown by client and payment source'},
-  {id:'yoy',         icon:'📈', name:'Year-over-Year',      desc:'Compare this year to previous years side by side'},
+  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
 ];
 
 // ── DEFAULT RULES ──────────────────────────────────────────────────────────
@@ -967,7 +967,7 @@ let S={
   rules:[...DEFAULT_RULES],
   year:new Date().getFullYear().toString(),
   years:{},
-  activeTabs:['settings'],
+  activeTabs:[],
   currentTab:'statements',
   profile:{filingStatus:'single',state:''}
 };
@@ -1089,7 +1089,8 @@ function renderTabs(){
     '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">📋 Statements</button>',
     '<button class="tab-btn'+sumAct+'" id="tab-btn-summary" onclick="showTab(\'summary\')">📊 Summary</button>',
     dynTabs,
-    '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>'
+    '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>',
+    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);border-radius:0;padding:0 16px">⚙️</button>'
   ].join('');
 }
 
@@ -1406,20 +1407,29 @@ function normalizeDate(s){
 }
 
 function parseTD(lines,fname){
-  let added=0,inDep=false,inPmt=false,inSvc=false,done=false;
+  let added=0,inDep=false,inPmt=false,inSvc=false,done=false,inActivity=false;
   const balanceLine=/^\d{2}\/\d{2}\s+[\d,]+\.\d{2}\s+\d{2}\/\d{2}\s+[\d,]+\.\d{2}/;
+  const hasMoney=/[\d,]+\.\d{2}/;
   const fullPat=/^(\d{2}\/\d{2}(?:\/\d{2})?)\s+(.+?)\s+([\d,]+\.\d{2})$/;
   const datePat=/^(\d{2}\/\d{2}(?:\/\d{2})?)$/;
   for(let i=0;i<lines.length;i++){
     const l=lines[i].trim();
     if(!l||done) continue;
+    // Stop at balance summary
     if(/daily balance summary/i.test(l)){done=true;break;}
+    // Only parse inside DAILY ACCOUNT ACTIVITY section
+    if(/daily account activity/i.test(l)){inActivity=true;continue;}
+    if(!inActivity) continue;
+    // Skip two-column balance lines
     if(balanceLine.test(l)) continue;
-    if(/^electronic deposits/i.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
-    if(/^deposits$/i.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
-    if(/^(electronic payments|other withdrawals)/i.test(l)){inDep=false;inPmt=true;inSvc=false;continue;}
-    if(/^(service charges|checks paid)/i.test(l)){inDep=false;inPmt=false;inSvc=true;continue;}
-    if(/subtotal|posting date|description\s+amount|beginning balance|ending balance|average collected|interest earned|annual percentage|days in period|grace period|page:|statement period|cust ref|date\s+balance/i.test(l)) continue;
+    // Section headers — only when there is NO amount on the same line
+    if(/^electronic deposits/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
+    if(/^deposits$/i.test(l)&&!hasMoney.test(l)){inDep=true;inPmt=false;inSvc=false;continue;}
+    if(/^(electronic payments|other withdrawals)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=true;inSvc=false;continue;}
+    if(/^(service charges|checks paid)/i.test(l)&&!hasMoney.test(l)){inDep=false;inPmt=false;inSvc=true;continue;}
+    // Skip boilerplate
+    if(/subtotal|posting date|description\s+amount|beginning balance|ending balance|average collected|interest earned|annual percentage|days in period|grace period|page:|cust ref|date\s+balance/i.test(l)) continue;
+    // Only parse inside a known section
     if(!inDep&&!inPmt&&!inSvc) continue;
     let m=l.match(fullPat);
     if(!m&&datePat.test(l.split(' ')[0])&&i+1<lines.length){
@@ -1496,6 +1506,20 @@ function render(){
     {k:'personal',  label:'Personal expenses',   dotClass:'dot-red',   totalClass:'red'},
     {k:'review',    label:'Needs review',         dotClass:'dot-amber', totalClass:'amber'},
   ];
+  // Apply per-section sort
+  if(!S._sort) S._sort={};
+  Object.keys(buckets).forEach(k=>{
+    const sort=S._sort[k]||'date-desc';
+    buckets[k].sort((a,b)=>{
+      if(sort==='date-asc')  return a.date.localeCompare(b.date);
+      if(sort==='date-desc') return b.date.localeCompare(a.date);
+      if(sort==='amt-desc')  return Math.abs(b.amount)-Math.abs(a.amount);
+      if(sort==='amt-asc')   return Math.abs(a.amount)-Math.abs(b.amount);
+      if(sort==='client')    return (getClientName(a.clientId)||'').localeCompare(getClientName(b.clientId)||'');
+      if(sort==='desc-asc')  return a.desc.localeCompare(b.desc);
+      return 0;
+    });
+  });
   const el=document.getElementById('tx-sections');
   el.innerHTML='';
   cfg.forEach(({k,label,dotClass,totalClass})=>{
@@ -1512,7 +1536,17 @@ function render(){
           <span class="sec-title">${label}</span>
           <span class="sec-meta">${txs.length} transactions</span>
         </div>
-        <span class="sec-total ${totalClass}">${fmt(total)}</span>
+        <div style="display:flex;align-items:center;gap:8px" onclick="event.stopPropagation()">
+          <select onchange="setSectionSort('${k}',this.value)" style="font-size:11px;padding:3px 7px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;background:rgba(255,255,255,0.1);color:inherit;cursor:pointer" title="Sort">
+            <option value="date-desc"${(S._sort&&S._sort[k])==='date-desc'?' selected':''}>📅 Newest</option>
+            <option value="date-asc"${(S._sort&&S._sort[k])==='date-asc'?' selected':''}>📅 Oldest</option>
+            <option value="amt-desc"${(S._sort&&S._sort[k])==='amt-desc'?' selected':''}>💰 Largest</option>
+            <option value="amt-asc"${(S._sort&&S._sort[k])==='amt-asc'?' selected':''}>💰 Smallest</option>
+            <option value="client"${(S._sort&&S._sort[k])==='client'?' selected':''}>👤 Client</option>
+            <option value="desc-asc"${(S._sort&&S._sort[k])==='desc-asc'?' selected':''}>🔤 A–Z</option>
+          </select>
+          <span class="sec-total ${totalClass}">${fmt(total)}</span>
+        </div>
       </div>
       <div id="sec-${k}" style="${isOpen?'':'display:none'}">
         ${txs.length===0?`<div class="empty-row"><div>📭</div><div>No transactions in this category yet</div></div>`:`
@@ -1541,6 +1575,11 @@ function render(){
   updateMetrics(filtered);
 }
 
+function setSectionSort(k,val){
+  if(!S._sort) S._sort={};
+  S._sort[k]=val;
+  render();
+}
 function toggleSec(id,head){
   const b=document.getElementById(id);
   const open=b.style.display!=='none';
@@ -2541,7 +2580,7 @@ const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const TIERS = {
-  free:      { label:'Free',      maxUsers:1, maxStatements:3,        maxTransactions:50,       canExportExcel:false, canExportCsv:false, showUpgradeBanner:true,  optionalTabs:['settings'] },
+  free:      { label:'Free',      maxUsers:1, maxStatements:3,        maxTransactions:50,       canExportExcel:false, canExportCsv:false, showUpgradeBanner:true,  optionalTabs:[] },
   household: { label:'Household', maxUsers:2, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
   business:  { label:'Business',  maxUsers:5, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
 };
