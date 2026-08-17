@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -521,6 +522,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" onclick="exportCsv()">Export CSV</button>
         <button class="btn btn-success" onclick="exportAll()">⬇ Download Excel Workbook</button>
+        <button class="btn btn-primary" onclick="exportCPAPackage()" style="display:flex;align-items:center;gap:6px">📦 CPA Export Package</button>
       </div>
     </div>
   </div>
@@ -2081,7 +2083,11 @@ function roundAmt(n){return Math.round((n||0)*100)/100;}
 function exportCPAPackage(){
   var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
   if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();toast('CPA Export requires a paid plan.');return;}
-  exportAll();
+
+  if(typeof window.jspdf==='undefined'||typeof window.jspdf.jsPDF==='undefined'){
+    toast('PDF library not loaded — check your internet connection.');return;
+  }
+
   var u=U(),txs=tx();
   var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
   var miVal=roundAmt(mi*0.70);
@@ -2095,177 +2101,125 @@ function exportCPAPackage(){
   var totalDed=roundAmt(ded+miVal+ret+eq);
   var netTax=roundAmt(Math.max(0,inc-totalDed));
   var receiptCount=txs.filter(function(t){return t.receipt;}).length;
+
   function fmt(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
   var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  // Group deductions by category
   var dedByCat={};
-  txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){var k=t.cat.split(' -- ')[1]||t.cat;dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);});
-  var dedRows=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:6px 0;color:#555">'+esc(e[0])+'</td><td style="text-align:right;padding:6px 0;font-weight:600">'+fmt(e[1])+'</td></tr>';}).join('');
-  var html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TaxFlow CPA Package</title>'+
-    '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;color:#222;background:#fff;padding:40px;max-width:800px;margin:0 auto}'+
-    '.hdr{background:#1F4E79;color:#fff;padding:32px 36px;border-radius:12px;margin-bottom:28px}.hdr h1{font-size:28px;font-weight:800;margin-bottom:4px}.hdr p{font-size:14px;opacity:0.8}'+
-    '.sec{margin-bottom:24px;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}.sh{background:#f8fafc;padding:12px 18px;font-size:13px;font-weight:800;color:#1F4E79;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0}.sb{padding:16px 18px}'+
-    '.kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f1f5f9;font-size:14px}.kv:last-child{border-bottom:none}.kv .l{color:#555}.kv .v{font-weight:700}'+
-    '.net{background:#C00000;color:#fff;padding:16px 18px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;margin-top:16px}'+
-    '.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mb{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 14px}.ml{font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px}.mv{font-size:18px;font-weight:800;color:#222;margin-top:4px}'+
-    '.disc{margin-top:28px;padding:14px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e}table{width:100%;border-collapse:collapse}</style></head><body>'+
-    '<div class="hdr"><h1>Tax Preparation Package</h1><p>'+esc(u.biz||u.name||'TaxFlow User')+' &middot; Tax Year '+S.year+' &middot; '+today+'</p></div>'+
-    '<div class="g2" style="margin-bottom:24px">'+
-    '<div class="mb"><div class="ml">Total Transactions</div><div class="mv">'+txs.length.toLocaleString()+'</div></div>'+
-    '<div class="mb"><div class="ml">Receipts on File</div><div class="mv">'+receiptCount+' / '+txs.length+'</div></div>'+
-    '<div class="mb"><div class="ml">Outstanding Invoices</div><div class="mv" style="color:#d97706">'+fmt(invOut)+'</div></div>'+
-    '<div class="mb"><div class="ml">Paid Invoices</div><div class="mv" style="color:#16a34a">'+fmt(invPaid)+'</div></div></div>'+
-    '<div class="sec"><div class="sh">Income</div><div class="sb"><div class="kv"><span class="l">Total Gross Income</span><span class="v" style="color:#16a34a">'+fmt(inc)+'</span></div></div></div>'+
-    '<div class="sec"><div class="sh">Deductions</div><div class="sb"><table>'+dedRows+'</table>'+
-    (mi>0?'<div class="kv" style="border-top:1px solid #f1f5f9;margin-top:8px;padding-top:8px"><span class="l">Vehicle Mileage</span><span class="v">'+fmt(miVal)+'</span></div>':'')+
-    (ret>0?'<div class="kv"><span class="l">Retirement</span><span class="v">'+fmt(ret)+'</span></div>':'')+
-    (eq>0?'<div class="kv"><span class="l">Section 179 Equipment</span><span class="v">'+fmt(eq)+'</span></div>':'')+
-    '<div class="kv" style="font-size:16px;font-weight:800;padding:12px 0"><span class="l" style="color:#1F4E79">Total Deductions</span><span class="v">'+fmt(totalDed)+'</span></div></div></div>'+
-    '<div class="sec"><div class="sh">Personal Spending</div><div class="sb"><div class="kv"><span class="l">Total Personal Expenses</span><span class="v" style="color:#dc2626">'+fmt(per)+'</span></div></div></div>'+
-    '<div class="net"><span style="font-size:18px;font-weight:800">NET TAXABLE INCOME</span><span style="font-size:22px;font-weight:900">'+fmt(netTax)+'</span></div>'+
-    '<div class="disc"><strong>Disclaimer:</strong> TaxFlow is a financial organization tool, not tax advice. Always review with a qualified CPA before filing.</div>'+
-    '<div style="margin-top:20px;text-align:center;font-size:12px;color:#94a3b8">Generated by TaxFlow &middot; gettaxflow.com &middot; '+today+'</div>'+
-    '</body></html>';
-  var w=window.open('','_blank','width=900,height=700');
-  if(w){w.document.write(html);w.document.close();setTimeout(function(){try{w.print();}catch(e){}},600);}
-  else toast('Please allow popups to generate the CPA package');
-}
+  txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){
+    var k=t.cat.split(' — ')[1]||t.cat;
+    dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);
+  });
+  var dedEntries=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];});
 
+  // Build PDF
+  var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
+  var W=210,margin=18,y=0,lineH=7;
+  var brandBlue=[31,78,121],green=[22,163,74],red=[192,0,0],gray=[100,100,100],lightGray=[240,242,245],white=[255,255,255],darkText=[30,30,30];
 
+  function setFont(size,bold,color){
+    doc.setFontSize(size);
+    doc.setFont('helvetica',bold?'bold':'normal');
+    doc.setTextColor(color?color[0]:darkText[0],color?color[1]:darkText[1],color?color[2]:darkText[2]);
+  }
+  function fillRect(x,fy,w,h,color){doc.setFillColor(color[0],color[1],color[2]);doc.rect(x,fy,w,h,'F');}
+  function line(fy,color){doc.setDrawColor(color?color[0]:220,color?color[1]:220,color?color[2]:220);doc.line(margin,fy,W-margin,fy);}
+  function kv(label,value,bold,color){
+    setFont(10,bold||false,darkText);
+    doc.text(label,margin,y);
+    setFont(10,bold||false,color||darkText);
+    doc.text(value,W-margin,y,{align:'right'});
+    y+=lineH;
+  }
+  function sectionHeader(title,bgColor){
+    fillRect(margin,y-4,W-margin*2,8,bgColor||brandBlue);
+    doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
+    doc.text(title.toUpperCase(),margin+3,y+0.5);
+    y+=10;
+  }
 
+  // ── COVER HEADER ─────────────────────────────────────────────────────────
+  fillRect(0,0,W,38,brandBlue);
+  doc.setFontSize(20);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
+  doc.text('Tax Preparation Package',margin,15);
+  doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(200,220,240);
+  doc.text((u.biz||u.name||'TaxFlow User')+' · Tax Year '+S.year+' · '+today,margin,23);
+  doc.text('Generated by TaxFlow · gettaxflow.com',margin,30);
+  y=46;
 
-// ── RETIREMENT CONTRIBUTIONS ─────────────────────────────────────────────
-function renderRetirement(){
-  var rows=U().retirement||[];
-  var total=rows.reduce(function(s,r){return s+(r.amt||0);},0);
-  var tbody=document.getElementById('retirement-body');if(!tbody)return;
-  tbody.innerHTML=rows.map(function(r,i){
-    return '<tr><td>'+esc(r.type||'')+'</td><td>'+esc(r.institution||'')+'</td><td>'+esc(r.date||'')+'</td>'+
-      '<td style="text-align:right">$'+(r.amt||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
-      '<td>'+esc(r.notes||'')+'</td>'+
-      '<td><button class="del-btn" onclick="delRetirement('+i+')">&#x2715;</button></td></tr>';
-  }).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:20px">No contributions yet</td></tr>';
-  var tot=document.getElementById('retirement-total');
-  if(tot)tot.textContent=rows.length?'Total Contributions: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
-}
-function addRetirement(){
-  var types=['SEP-IRA','Solo 401(k) Employee','Solo 401(k) Employer','Traditional IRA','Roth IRA','SIMPLE IRA'];
-  var modal=document.createElement('div');modal.id='ret-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
-    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Retirement Contribution</h3>'+
-    '<div><label class="field-label">Account Type</label>'+
-    '<select id="ret-type" class="field-input" style="margin-bottom:12px">'+types.map(function(t){return '<option>'+t+'</option>';}).join('')+'</select>'+
-    '<label class="field-label">Institution</label><input id="ret-inst" type="text" placeholder="e.g. Fidelity, Vanguard" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Date</label><input id="ret-date" type="date" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Amount ($)</label><input id="ret-amt" type="number" placeholder="0.00" min="0" step="0.01" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Notes (optional)</label><input id="ret-notes" type="text" placeholder="Optional notes" class="field-input"></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
-    '<button onclick="closeModal(&quot;ret-modal&quot;)" class="btn btn-outline">Cancel</button>'+
-    '<button onclick="submitRetirement()" class="btn btn-primary">Add</button></div></div>';
-  document.body.appendChild(modal);
-}
-function submitRetirement(){
-  var type=document.getElementById('ret-type').value;
-  var inst=(document.getElementById('ret-inst').value||'').trim();
-  var date=document.getElementById('ret-date').value;
-  var amt=parseFloat(document.getElementById('ret-amt').value)||0;
-  var notes=(document.getElementById('ret-notes').value||'').trim();
-  if(!amt||amt<=0){toast('Please enter a valid amount');return;}
-  if(!U().retirement)U().retirement=[];
-  U().retirement.push({type:type,institution:inst,date:date,amt:Math.round(amt*100)/100,notes:notes});
-  var m=document.getElementById('ret-modal');if(m)m.remove();
-  save();renderRetirement();toast('Contribution added');
-}
-function addRetirement(){ addRetirement(); } // alias
-function delRetirement(i){U().retirement.splice(i,1);save();renderRetirement();}
+  // ── OVERVIEW METRICS ─────────────────────────────────────────────────────
+  var boxW=(W-margin*2-6)/4,bx=margin;
+  var boxes=[
+    {label:'Transactions',value:txs.length.toLocaleString(),color:brandBlue},
+    {label:'Receipts on File',value:receiptCount+'/'+txs.length,color:[100,100,120]},
+    {label:'Outstanding Invoices',value:fmt(invOut),color:[217,119,6]},
+    {label:'Paid Invoices',value:fmt(invPaid),color:green},
+  ];
+  boxes.forEach(function(b,i){
+    fillRect(bx,y,boxW,18,lightGray);
+    doc.setDrawColor(200,200,200);doc.rect(bx,y,boxW,18,'S');
+    doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+    doc.text(b.label.toUpperCase(),bx+2,y+6);
+    doc.setFontSize(11);doc.setFont('helvetica','bold');doc.setTextColor(b.color[0],b.color[1],b.color[2]);
+    doc.text(b.value,bx+2,y+14);
+    bx+=boxW+2;
+  });
+  y+=26;
 
-// ── EQUIPMENT & ASSETS ────────────────────────────────────────────────────
-function renderEquipment(){
-  var rows=U().equipment||[];
-  var total=rows.reduce(function(s,e){return s+(e.deductible||0);},0);
-  var tbody=document.getElementById('equipment-body');if(!tbody)return;
-  tbody.innerHTML=rows.map(function(e,i){
-    return '<tr><td>'+esc(e.desc||'')+'</td><td>'+esc(e.date||'')+'</td>'+
-      '<td style="text-align:right">$'+(e.cost||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
-      '<td style="text-align:center">'+(e.biz||100)+'%</td>'+
-      '<td style="text-align:right;color:var(--green);font-weight:700">$'+(e.deductible||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+
-      '<td>'+esc(e.notes||'')+'</td>'+
-      '<td><button class="del-btn" onclick="delEquipment('+i+')">&#x2715;</button></td></tr>';
-  }).join('')||'<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:20px">No assets yet</td></tr>';
-  var tot=document.getElementById('equipment-total');
-  if(tot)tot.textContent=rows.length?'Total Section 179 Deduction: $'+total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'';
-}
-function addEquipment(){
-  var modal=document.createElement('div');modal.id='eq-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
-    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Equipment / Asset</h3>'+
-    '<div><label class="field-label">Asset Description</label><input id="eq-desc" type="text" placeholder="e.g. MacBook Pro, iPhone 15" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Purchase Date</label><input id="eq-date" type="date" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Total Cost ($)</label><input id="eq-cost" type="number" placeholder="0.00" min="0" step="0.01" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Business Use % (0-100)</label><input id="eq-biz" type="number" value="100" min="0" max="100" class="field-input" style="margin-bottom:12px">'+
-    '<label class="field-label">Notes (optional)</label><input id="eq-notes" type="text" placeholder="e.g. Section 179" class="field-input"></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'+
-    '<button onclick="closeModal(&quot;eq-modal&quot;)" class="btn btn-outline">Cancel</button>'+
-    '<button onclick="submitEquipment()" class="btn btn-primary">Add</button></div></div>';
-  document.body.appendChild(modal);
-}
-function submitEquipment(){
-  var desc=(document.getElementById('eq-desc').value||'').trim();
-  var date=document.getElementById('eq-date').value;
-  var cost=parseFloat(document.getElementById('eq-cost').value)||0;
-  var biz=parseFloat(document.getElementById('eq-biz').value)||100;
-  var notes=(document.getElementById('eq-notes').value||'').trim();
-  if(!desc){toast('Please enter a description');return;}
-  if(!cost||cost<=0){toast('Please enter a valid cost');return;}
-  var deductible=Math.round(cost*(biz/100)*100)/100;
-  if(!U().equipment)U().equipment=[];
-  U().equipment.push({desc:desc,date:date,cost:Math.round(cost*100)/100,biz:biz,deductible:deductible,notes:notes});
-  var m=document.getElementById('eq-modal');if(m)m.remove();
-  save();renderEquipment();toast('Asset added — deductible: $'+deductible.toLocaleString());
-}
-function delEquipment(i){U().equipment.splice(i,1);save();renderEquipment();}
+  // ── INCOME ────────────────────────────────────────────────────────────────
+  sectionHeader('Revenue / Income',[22,101,52]);
+  kv('Total Gross Income',fmt(inc),false,green);
+  line(y-2);
+  setFont(10,true,green);doc.text('TOTAL REVENUE',margin,y);doc.text(fmt(inc),W-margin,y,{align:'right'});y+=lineH+2;
 
-// ── AUTO-CATEGORIZATION RULES ─────────────────────────────────────────────
-function addRule(){
-  var modal=document.createElement('div');modal.id='rule-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML='<div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">'+
-    '<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Categorization Rule</h3>'+
-    '<div style="margin-bottom:16px"><label class="field-label">Keyword or phrase to match</label>'+
-    '<input id="rule-kw-input" type="text" placeholder="e.g. Amazon, Uber, Stripe..." class="field-input">'+
-    '<div style="font-size:11px;color:var(--text2);margin-top:4px">Case-insensitive, matches any transaction containing this text</div></div>'+
-    '<div style="margin-bottom:24px"><label class="field-label">Assign to category</label>'+
-    '<select id="rule-cat-input" class="field-input">'+
-    '<option value="">— Select a category —</option>'+
-    CATS.map(function(c){return '<option value="'+c+'">'+c+'</option>';}).join('')+
-    '</select></div>'+
-    '<div style="display:flex;gap:10px;justify-content:flex-end">'+
-    '<button onclick="closeModal(&quot;rule-modal&quot;)" class="btn btn-outline">Cancel</button>'+
-    '<button onclick="submitRule()" class="btn btn-primary">Add Rule</button></div></div>';
-  document.body.appendChild(modal);
-  var ki=document.getElementById('rule-kw-input');if(ki){ki.focus();ki.addEventListener('keydown',function(e){if(e.key==='Enter'){var ci=document.getElementById('rule-cat-input');if(ci)ci.focus();}});}
-  var ci=document.getElementById('rule-cat-input');if(ci)ci.addEventListener('keydown',function(e){if(e.key==='Enter')submitRule();});
-}
-function submitRule(){
-  var kw=(document.getElementById('rule-kw-input').value||'').trim();
-  var cat=document.getElementById('rule-cat-input').value;
-  if(!kw){toast('Please enter a keyword');return;}
-  if(!cat){toast('Please select a category');return;}
-  var m=document.getElementById('rule-modal');if(m)m.remove();
-  S.rules.unshift({kw:kw.toLowerCase(),cat:cat});
-  save();renderRules();toast('Rule added: "'+kw+'"');
-}
-function delRule(i){S.rules.splice(i,1);save();renderRules();}
-function renderRules(){
-  var el=document.getElementById('rule-list');if(!el)return;
-  if(!S.rules||!S.rules.length){el.innerHTML='<div style="font-size:13px;color:var(--text2)">No custom rules yet.</div>';return;}
-  el.innerHTML=S.rules.map(function(r,i){
-    return '<div class="rule-item"><span class="rule-kw">'+esc(r.kw)+'</span><span class="rule-arrow">→</span><span class="rule-cat">'+esc(r.cat)+'</span><button class="del-btn" onclick="delRule('+i+')">&#x2715;</button></div>';
-  }).join('');
-}
+  // ── EXPENSES ──────────────────────────────────────────────────────────────
+  sectionHeader('Operating Expenses',brandBlue);
+  dedEntries.forEach(function(e){kv(e[0],fmt(e[1]));});
+  if(miVal>0) kv('Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70)',fmt(miVal));
+  if(ret>0)   kv('Retirement Contributions',fmt(ret));
+  if(eq>0)    kv('Section 179 Equipment',fmt(eq));
+  line(y-2);
+  setFont(10,true,brandBlue);doc.text('TOTAL EXPENSES',margin,y);doc.text(fmt(totalDed),W-margin,y,{align:'right'});y+=lineH+2;
 
-function closeModal(id){var m=document.getElementById(id);if(m)m.remove();}
+  // ── PERSONAL ──────────────────────────────────────────────────────────────
+  sectionHeader('Personal Spending (Non-Deductible)',[100,60,140]);
+  kv('Total Personal Expenses',fmt(per),false,red);
+  y+=2;
+
+  // ── NET TAXABLE ───────────────────────────────────────────────────────────
+  fillRect(margin,y,W-margin*2,14,red);
+  doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);
+  doc.text('NET TAXABLE INCOME',margin+3,y+9);
+  doc.text(fmt(netTax),W-margin-3,y+9,{align:'right'});
+  y+=20;
+
+  // ── DISCLAIMER ────────────────────────────────────────────────────────────
+  fillRect(margin,y,W-margin*2,14,[255,251,235]);
+  doc.setDrawColor(253,211,77);doc.rect(margin,y,W-margin*2,14,'S');
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(146,64,14);
+  doc.text('DISCLAIMER: TaxFlow is a financial organization tool, not tax advice.',margin+3,y+5);
+  doc.text('Always review with a qualified CPA before filing. Figures based on self-reported data.',margin+3,y+10);
+  y+=18;
+
+  // ── FOOTER ────────────────────────────────────────────────────────────────
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);
+  doc.text('Generated by TaxFlow · gettaxflow.com · '+today,W/2,y,{align:'center'});
+
+  // ── SAVE ──────────────────────────────────────────────────────────────────
+  var fname=((u.biz||u.name||'TaxFlow').replace(/[^a-zA-Z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''))+'_'+S.year+'_CPA_Package.pdf';
+
+  if(window.electronAPI&&window.electronAPI.isElectron){
+    var arrBuf=doc.output('arraybuffer');
+    window.electronAPI.saveFile(fname,new Uint8Array(arrBuf),'pdf').then(function(r){
+      if(r&&r.success) toast('CPA Package saved: '+r.filePath.split('\\').pop().split('/').pop());
+      else if(r&&r.error) toast('Save failed: '+r.error);
+    });
+  } else {
+    doc.save(fname);
+    toast('CPA Package downloaded: '+fname);
+  }
+}
 
 // ── AUTH SYSTEM (Supabase) ────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://ltwyiitvakabtltwxxmz.supabase.co';
@@ -2280,9 +2234,9 @@ const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 const TIERS = {
-  free:      { label:'Free',      maxUsers:1, maxStatements:3,        maxTransactions:50,       canExportExcel:false, canExportCsv:false, canImportPdf:true, showUpgradeBanner:true,  optionalTabs:['settings'] },
-  household: { label:'Household', maxUsers:2, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  canImportPdf:true, showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
-  business:  { label:'Business',  maxUsers:5, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  canImportPdf:true, showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
+  free:      { label:'Free',      maxUsers:1, maxStatements:3,        maxTransactions:50,       canExportExcel:false, canExportCsv:false, showUpgradeBanner:true,  optionalTabs:['settings'] },
+  household: { label:'Household', maxUsers:2, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
+  business:  { label:'Business',  maxUsers:5, maxStatements:Infinity, maxTransactions:Infinity, canExportExcel:true,  canExportCsv:true,  showUpgradeBanner:false, optionalTabs:['gambling','mileage','homeoffice','1099','quarterly','retirement','equipment','invoices','pl','clients','yoy','settings'] },
 };
 
 var statementsUploaded = 0;
@@ -2305,11 +2259,11 @@ function hideAuthScreen(){
 }
 function authTab(tab){
   var fl=document.getElementById('form-login'),fr=document.getElementById('form-register');
-  var tl=document.getElementById('tab-login'),tr=document.getElementById('tab-register');
+  var tl=document.getElementById('tab-login'),tr2=document.getElementById('tab-register');
   if(fl)fl.style.display=tab==='login'?'block':'none';
   if(fr)fr.style.display=tab==='register'?'block':'none';
   if(tl)tl.classList.toggle('active',tab==='login');
-  if(tr)tr.classList.toggle('active',tab==='register');
+  if(tr2)tr2.classList.toggle('active',tab==='register');
   clearAuthMessages();
 }
 function showAuthError(msg){var e=document.getElementById('auth-error');if(e){e.textContent=msg;e.style.display='block';}var s=document.getElementById('auth-success');if(s)s.style.display='none';}
@@ -2324,8 +2278,8 @@ async function loadProfile(userId){
 }
 function applyProfile(profile){
   currentProfile=profile;
-  if(profile.full_name)    S.users.herbert.name=profile.full_name;
-  if(profile.business_name)S.users.herbert.biz=profile.business_name;
+  if(profile.full_name)     S.users.herbert.name=profile.full_name;
+  if(profile.business_name) S.users.herbert.biz=profile.business_name;
   applyTierRestrictions();
 }
 async function checkAuth(){
@@ -2340,8 +2294,8 @@ async function checkAuth(){
 }
 async function doLogin(){
   clearAuthMessages();
-  var email=document.getElementById('login-email').value.trim().toLowerCase();
-  var pass=document.getElementById('login-pass').value;
+  var email=(document.getElementById('login-email').value||'').trim().toLowerCase();
+  var pass=document.getElementById('login-pass').value||'';
   if(!email||!email.includes('@')){showAuthError('Please enter your email address.');return;}
   if(!pass){showAuthError('Please enter your password.');return;}
   var btn=document.querySelector('#form-login .auth-btn');
@@ -2366,11 +2320,10 @@ async function doLogin(){
 }
 async function doRegister(){
   clearAuthMessages();
-  var name=document.getElementById('reg-name').value.trim();
-  var email=document.getElementById('reg-email').value.trim().toLowerCase();
-  var pass=document.getElementById('reg-pass').value;
-  var pass2=document.getElementById('reg-pass2').value;
-  var name2=(document.getElementById('reg-name2').value||'').trim();
+  var name=(document.getElementById('reg-name').value||'').trim();
+  var email=(document.getElementById('reg-email').value||'').trim().toLowerCase();
+  var pass=document.getElementById('reg-pass').value||'';
+  var pass2=document.getElementById('reg-pass2').value||'';
   if(!name){showAuthError('Please enter your name.');return;}
   if(!email||!email.includes('@')){showAuthError('Please enter a valid email.');return;}
   if(!pass||pass.length<8){showAuthError('Password must be at least 8 characters.');return;}
@@ -2382,7 +2335,7 @@ async function doRegister(){
     if(btn){btn.textContent='Create account & sign in';btn.disabled=false;}
     if(r.error){showAuthError(r.error.message);return;}
     if(r.data&&r.data.user){
-      await sb.from('profiles').update({full_name:name,user2_name:name2||null,plan:'free'}).eq('id',r.data.user.id);
+      await sb.from('profiles').update({full_name:name,plan:'free'}).eq('id',r.data.user.id);
     }
     if(selectedPlan!=='free'){
       showAuthSuccess('Account created! Redirecting to payment…');
@@ -2410,10 +2363,7 @@ function applyTierRestrictions(){
   var tier=currentTier();
   S.activeTabs=S.activeTabs.filter(function(t){return tier.optionalTabs.includes(t);});
   if(!S.activeTabs.includes('settings'))S.activeTabs.push('settings');
-  showUpgradeBanners(tier);
-  renderTabs();
-  updateTierBadge(tier);
-  renderUserDropdown();
+  showUpgradeBanners(tier);renderTabs();updateTierBadge(tier);renderUserDropdown();
 }
 function updateTierBadge(tier){
   var badge=document.getElementById('tier-badge');
@@ -2426,7 +2376,7 @@ function showUpgradeBanners(tier){
   if(!tier.showUpgradeBanner)return;
   var panel=document.getElementById('panel-statements');if(!panel)return;
   var banner=document.createElement('div');banner.className='upgrade-banner';
-  banner.innerHTML='<div><strong>Free Plan</strong> — Upload up to '+TIERS.free.maxStatements+' statements, view first '+TIERS.free.maxTransactions+' transactions. <strong>Upgrade to export your data.</strong></div>'+
+  banner.innerHTML='<div><strong>Free Plan</strong> — Upload up to '+TIERS.free.maxStatements+' statements, view first '+TIERS.free.maxTransactions+' transactions.</div>'+
     '<button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px;flex-shrink:0" onclick="showUpgradeModal()">Upgrade Now</button>';
   panel.insertBefore(banner,panel.firstChild);
 }
@@ -2440,7 +2390,7 @@ function updateDropdownNames(){
   var ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
 }
 
-// ── EXCEL EXPORT ──────────────────────────────────────────────────────────
+// ── EXCEL EXPORT ─────────────────────────────────────────────────────────
 function exportAll(){
   var tier=currentTier();
   if(!tier.canExportExcel){showUpgradeModal();toast('Export requires a paid plan.');return;}
@@ -2460,21 +2410,22 @@ function exportCsv(){
 function _exportAllRun(){
   var u=U(),txs=tx();
   if(!txs.length){toast('No transactions to export');return;}
+  if(typeof ExcelJS==='undefined'){toast('Excel library not loaded — check your internet connection.');return;}
   var wb=new ExcelJS.Workbook();wb.creator='TaxFlow';wb.created=new Date();
   var C={BLUE_HDR:'2E74B5',GREEN_HDR:'375623',NAVY_HDR:'1F4E79',PURP_HDR:'7030A0',ORG_HDR:'ED7D31',TEAL_HDR:'00B0F0',RED_NET:'C00000',ROW_LTBL:'EBF5EB',ROW_LTGN:'F0FFF0',ROW_LTBL2:'D6E4F0',ROW_PEACH:'FCE4D6',ROW_WHITE:'FFFFFF',ROW_FAINT:'FAFAFA',TOT_INC:'D6E4F0',TOT_DED:'E2EFDA',TOT_PER:'FCE4D6'};
   var FONT='Arial',AMT_FMT='"$"#,##0.00;"($"#,##0.00)';
   function fill(hex){return{type:'pattern',pattern:'solid',fgColor:{argb:'FF'+hex}};}
-  function styleHdrRow(row,hdrColor){row.height=22;row.eachCell(function(cell){cell.fill=fill(hdrColor);cell.font={name:FONT,bold:true,size:11,color:{argb:'FFFFFFFF'}};cell.alignment={vertical:'middle',horizontal:'center',wrapText:false};cell.border={bottom:{style:'thin',color:{argb:'FF000000'}}};});}
-  function styleDataRow(row,bg,amtCols){row.height=16;row.eachCell({includeEmpty:false},function(cell,colNum){if(bg)cell.fill=fill(bg);cell.font={name:FONT,size:10,color:{argb:'FF000000'}};if(amtCols.includes(colNum)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else if(colNum===1){cell.alignment={vertical:'middle',horizontal:'center'};}else{cell.alignment={vertical:'middle',horizontal:'left'};}});}
-  function styleTotalRow(row,bg,amtCols){row.height=18;row.eachCell({includeEmpty:false},function(cell,colNum){cell.fill=fill(bg);cell.font={name:FONT,bold:true,size:11,color:{argb:'FF000000'}};cell.border={top:{style:'thin',color:{argb:'FF000000'}},bottom:{style:'double',color:{argb:'FF000000'}}};if(amtCols.includes(colNum)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else{cell.alignment={vertical:'middle',horizontal:'left'};}});}
-  function addSheet(name,headers,rows,hdrColor,alt1,alt2,colWidths,amtCols){
-    var ws=wb.addWorksheet(name);ws.columns=colWidths.map(function(w,i){return{key:'c'+i,width:w};});
-    var hdrRow=ws.addRow(headers);styleHdrRow(hdrRow,hdrColor);
-    rows.forEach(function(rowData,i){var row=ws.addRow(rowData);styleDataRow(row,i%2===0?alt1:alt2,amtCols);});
+  function styleHdrRow(row,hc){row.height=22;row.eachCell(function(cell){cell.fill=fill(hc);cell.font={name:FONT,bold:true,size:11,color:{argb:'FFFFFFFF'}};cell.alignment={vertical:'middle',horizontal:'center'};cell.border={bottom:{style:'thin',color:{argb:'FF000000'}}};});}
+  function styleDataRow(row,bg,amtCols){row.height=16;row.eachCell({includeEmpty:false},function(cell,col){if(bg)cell.fill=fill(bg);cell.font={name:FONT,size:10};if(amtCols.includes(col)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else{cell.alignment={vertical:'middle',horizontal:col===1?'center':'left'};}});}
+  function styleTotalRow(row,bg,amtCols){row.height=18;row.eachCell({includeEmpty:false},function(cell,col){cell.fill=fill(bg);cell.font={name:FONT,bold:true,size:11};cell.border={top:{style:'thin'},bottom:{style:'double'}};if(amtCols.includes(col)){cell.alignment={vertical:'middle',horizontal:'right'};cell.numFmt=AMT_FMT;if(typeof cell.value==='number')cell.value=Math.round(cell.value*100)/100;}else{cell.alignment={vertical:'middle',horizontal:'left'};}});}
+  function addSheet(name,headers,rows,hc,alt1,alt2,colWidths,amtCols){
+    var ws=wb.addWorksheet(name);ws.columns=colWidths.map(function(w){return{width:w};});
+    styleHdrRow(ws.addRow(headers),hc);
+    rows.forEach(function(rowData,i){styleDataRow(ws.addRow(rowData),i%2===0?alt1:alt2,amtCols);});
     return ws;
   }
-  function getMonth(date){var m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return m[(parseInt((date||'').split('/')[0])||1)-1]||'';}
-  function getYear(date){var p=(date||'').split('/');if(!p[2])return S.year;return p[2].length===2?'20'+p[2]:p[2];}
+  function getMonth(d){return['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][((parseInt((d||'').split('/')[0])||1)-1)]||'';}
+  function getYear(d){var p=(d||'').split('/');if(!p[2])return S.year;return p[2].length===2?'20'+p[2]:p[2];}
 
   var incTxs=txs.filter(function(t){return bucket(t.cat)==='income';}),dedTxs=txs.filter(function(t){return bucket(t.cat)==='deductible';}),perTxs=txs.filter(function(t){return bucket(t.cat)==='personal';});
   var incTotal=roundAmt(incTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
@@ -2482,24 +2433,37 @@ function _exportAllRun(){
   var perTotal=roundAmt(perTxs.reduce(function(s,t){return s+Math.abs(t.amount);},0));
   var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
   var miVal=roundAmt(mi*0.70);
+  var retTotal=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
+  var eqTotal=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
   var gLoss=roundAmt((u.gambling||[]).reduce(function(s,v){return s+(v.loss||0);},0));
-  var netTax=roundAmt(Math.max(0,incTotal-dedTotal-miVal));
+  var netTax=roundAmt(Math.max(0,incTotal-dedTotal-miVal-retTotal-eqTotal));
 
-  addSheet('All Transactions',['Date','Month','Year','Description','Amount ($)','Type','Category','Receipt'],txs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',t.cat,t.receipt?'On file':''];}),C.BLUE_HDR,C.ROW_LTBL,C.ROW_FAINT,[12,8,7,45,14,10,42,12],[5]);
-  var wsInc=addSheet('Income',['Date','Month','Year','Description','Amount ($)','Category'],incTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),C.GREEN_HDR,C.ROW_LTGN,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
-  var incTR=wsInc.addRow(['','','','TOTAL INCOME',incTotal,'']);styleTotalRow(incTR,C.TOT_INC,[5]);
-  var wsDed=addSheet('Deductible Expenses',['Date','Month','Year','Description','Amount ($)','Category'],dedTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),C.NAVY_HDR,C.ROW_LTBL2,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
-  var dedTR=wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES',dedTotal,'']);styleTotalRow(dedTR,C.TOT_DED,[5]);
-  var wsPer=addSheet('Personal Expenses',['Date','Month','Year','Description','Amount ($)','Category'],perTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),C.PURP_HDR,C.ROW_PEACH,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
-  var perTR=wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES',perTotal,'']);styleTotalRow(perTR,C.TOT_PER,[5]);
+  // All Transactions
+  var wsAll=addSheet('All Transactions',['Date','Month','Year','Description','Amount ($)','Type','Category','Receipt'],
+    txs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),bucket(t.cat)==='income'?'Income':bucket(t.cat)==='deductible'?'Expense':'Personal',t.cat,t.receipt?'On file':''];}),
+    C.BLUE_HDR,C.ROW_LTBL,C.ROW_FAINT,[12,8,7,45,14,10,42,12],[5]);
+  // Income
+  var wsInc=addSheet('Income',['Date','Month','Year','Description','Amount ($)','Category'],
+    incTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),
+    C.GREEN_HDR,C.ROW_LTGN,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
+  styleTotalRow(wsInc.addRow(['','','','TOTAL INCOME',incTotal,'']),C.TOT_INC,[5]);
+  // Deductible
+  var wsDed=addSheet('Deductible Expenses',['Date','Month','Year','Description','Amount ($)','Category'],
+    dedTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),
+    C.NAVY_HDR,C.ROW_LTBL2,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
+  styleTotalRow(wsDed.addRow(['','','','TOTAL DEDUCTIBLE EXPENSES',dedTotal,'']),C.TOT_DED,[5]);
+  // Personal
+  var wsPer=addSheet('Personal Expenses',['Date','Month','Year','Description','Amount ($)','Category'],
+    perTxs.map(function(t){return[t.date,getMonth(t.date),getYear(t.date),t.desc,roundAmt(Math.abs(t.amount)),t.cat];}),
+    C.PURP_HDR,C.ROW_PEACH,C.ROW_WHITE,[12,8,7,45,14,42],[5]);
+  styleTotalRow(wsPer.addRow(['','','','TOTAL PERSONAL EXPENSES',perTotal,'']),C.TOT_PER,[5]);
 
   // Summary sheet
   var wsSum=wb.addWorksheet('Summary');wsSum.columns=[{width:46},{width:18}];
   function sumAddRow(vals,opts){
     var row=wsSum.addRow(vals);row.height=opts.height||16;
     var c1=row.getCell(1),c2=row.getCell(2);
-    c1.font={name:FONT,bold:opts.bold||false,size:opts.sz||11,color:{argb:'FF'+(opts.c1color||'000000')}};
-    c2.font={name:FONT,bold:opts.bold||false,size:opts.sz||11,color:{argb:'FF'+(opts.c2color||'000000')}};
+    c1.font={name:FONT,bold:opts.bold||false,size:opts.sz||11};c2.font={name:FONT,bold:opts.bold||false,size:opts.sz||11};
     c1.alignment={horizontal:'left',vertical:'middle'};c2.alignment={horizontal:'right',vertical:'middle'};
     if(opts.bg1)c1.fill=fill(opts.bg1);if(opts.bg2)c2.fill=fill(opts.bg2);
     if(opts.numFmt&&vals[1]!==undefined){c2.numFmt=opts.numFmt;if(typeof vals[1]==='number')c2.value=roundAmt(vals[1]);}
@@ -2511,74 +2475,78 @@ function _exportAllRun(){
   sumAddRow(['Prepared for: '+(u.name||''),''],{sz:11});sumAddRow(['Tax Year: '+S.year,''],{sz:11});wsSum.addRow([]);
   sumHdr('INCOME');sumAddRow(['Total Gross Income',incTotal],{numFmt:AMT_FMT});
   sumAddRow(['TOTAL TAXABLE INCOME',incTotal],{bold:true,bg1:C.TOT_INC,bg2:C.TOT_INC,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
-  sumHdr('DEDUCTIBLE EXPENSES');sumAddRow(['Total Business Deductions',dedTotal],{numFmt:AMT_FMT});
+  sumHdr('DEDUCTIBLE EXPENSES');
+  sumAddRow(['Total Business Deductions',dedTotal],{numFmt:AMT_FMT});
   sumAddRow(['Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70/mi)',miVal],{numFmt:AMT_FMT});
-  var retTotal=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
-  var eqTotal=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
   if(retTotal>0)sumAddRow(['Retirement Contributions',retTotal],{numFmt:AMT_FMT});
   if(eqTotal>0)sumAddRow(['Section 179 Equipment',eqTotal],{numFmt:AMT_FMT});
   sumAddRow(['TOTAL DEDUCTIBLE EXPENSES',roundAmt(dedTotal+miVal+retTotal+eqTotal)],{bold:true,bg1:C.TOT_DED,bg2:C.TOT_DED,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
   sumHdr('PERSONAL EXPENSES');sumAddRow(['Total Personal Spending',perTotal],{numFmt:AMT_FMT});
   sumAddRow(['TOTAL PERSONAL EXPENSES',perTotal],{bold:true,bg1:C.TOT_PER,bg2:C.TOT_PER,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);
-  sumHdr('GAMBLING');sumAddRow(['Total Gambling Losses',gLoss],{numFmt:AMT_FMT});sumAddRow(['Net Taxable Gambling',Math.max(0,gLoss)],{numFmt:AMT_FMT});wsSum.addRow([]);
-  if(retTotal>0||eqTotal>0){sumHdr('RETIREMENT & EQUIPMENT');if(retTotal>0)sumAddRow(['Retirement Contributions',retTotal],{numFmt:AMT_FMT});if(eqTotal>0)sumAddRow(['Section 179 Equipment Deductions',eqTotal],{numFmt:AMT_FMT});sumAddRow(['TOTAL ADDITIONAL DEDUCTIONS',roundAmt(retTotal+eqTotal)],{bold:true,bg1:C.TOT_DED,bg2:C.TOT_DED,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);}
+  if(retTotal>0||eqTotal>0){sumHdr('RETIREMENT & EQUIPMENT');if(retTotal>0)sumAddRow(['Retirement Contributions',retTotal],{numFmt:AMT_FMT});if(eqTotal>0)sumAddRow(['Section 179 Equipment',eqTotal],{numFmt:AMT_FMT});sumAddRow(['TOTAL ADDITIONAL DEDUCTIONS',roundAmt(retTotal+eqTotal)],{bold:true,bg1:C.TOT_DED,bg2:C.TOT_DED,numFmt:AMT_FMT,border:true,height:18});wsSum.addRow([]);}
   var netRow=wsSum.addRow(['NET TAXABLE INCOME',netTax]);netRow.height=30;
   [1,2].forEach(function(c){var cell=netRow.getCell(c);cell.fill=fill(C.RED_NET);cell.font={name:FONT,bold:true,size:14,color:{argb:'FFFFFFFF'}};cell.alignment={horizontal:c===1?'left':'right',vertical:'middle'};});
   netRow.getCell(2).numFmt=AMT_FMT;netRow.getCell(2).value=roundAmt(netTax);wsSum.addRow([]);
-  sumHdr('TRANSACTION SUMMARY');sumAddRow(['Total Transactions',txs.length],{});
-  sumAddRow(['Income Transactions',incTxs.length],{c1color:'375623',c2color:'375623'});
-  sumAddRow(['Deductible Transactions',dedTxs.length],{c1color:'1F4E79',c2color:'1F4E79'});
-  sumAddRow(['Personal Transactions',perTxs.length],{c1color:'7030A0',c2color:'7030A0'});wsSum.addRow([]);
+  sumHdr('TRANSACTION SUMMARY');
+  sumAddRow(['Total Transactions',txs.length],{});
+  sumAddRow(['Income Transactions',incTxs.length],{});
+  sumAddRow(['Deductible Transactions',dedTxs.length],{});
+  sumAddRow(['Personal Transactions',perTxs.length],{});wsSum.addRow([]);
   var discRow=wsSum.addRow(['TaxFlow is a financial organization tool — NOT tax advice. Always consult a qualified CPA before filing.','']);
   discRow.getCell(1).font={name:FONT,italic:true,size:9,color:{argb:'FF94A3B8'}};
 
   // Invoice sheet
   if(u.invoices&&u.invoices.length){
-    var invTotal2=roundAmt(u.invoices.reduce(function(s,i){return s+(i.amount||0);},0));
     var invPaid2=roundAmt(u.invoices.filter(function(i){return i.status==='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
     var invOut2=roundAmt(u.invoices.filter(function(i){return i.status!=='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
+    var invTotal2=roundAmt(u.invoices.reduce(function(s,i){return s+(i.amount||0);},0));
     var invWs=addSheet('Invoice Tracker',['Invoice #','Client','Description','Date Sent','Due Date','Amount ($)','Status','Notes'],
       u.invoices.map(function(inv){return[inv.num||'',inv.client||'',inv.desc||'',inv.sent||'',inv.due||'',roundAmt(inv.amount||0),inv.status||'',inv.notes||''];}),
       C.NAVY_HDR,'EBF5EB','FFFFFF',[12,22,35,12,12,14,14,25],[6]);
-    var invSumRow=invWs.addRow(['','','','','TOTAL BILLED',invTotal2,'','']);styleTotalRow(invSumRow,C.TOT_INC,[6]);
-    var invPaidRow=invWs.addRow(['','','','','TOTAL PAID',invPaid2,'','']);styleTotalRow(invPaidRow,C.TOT_DED,[6]);
-    var invOutRow=invWs.addRow(['','','','','TOTAL OUTSTANDING',invOut2,'','']);styleTotalRow(invOutRow,C.TOT_PER,[6]);
+    styleTotalRow(invWs.addRow(['','','','','TOTAL BILLED',invTotal2,'','']),C.TOT_INC,[6]);
+    styleTotalRow(invWs.addRow(['','','','','TOTAL PAID',invPaid2,'','']),C.TOT_DED,[6]);
+    styleTotalRow(invWs.addRow(['','','','','TOTAL OUTSTANDING',invOut2,'','']),C.TOT_PER,[6]);
   }
-
   // Gambling sheet
   if(u.gambling&&u.gambling.length){
-    var wsG=addSheet('Gambling W-L',['Venue / Casino','Account #','Net Loss','Total Wagered'],u.gambling.map(function(v){return[v.name,v.acc||'',roundAmt(v.loss),roundAmt(v.wagered||0)];}),C.ORG_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,14,16],[3,4]);
-    var gTR=wsG.addRow(['TOTAL LOSSES','',gLoss,'']);styleTotalRow(gTR,C.TOT_DED,[3]);
+    var wsG=addSheet('Gambling W-L',['Venue / Casino','Account #','Net Loss','Total Wagered'],
+      u.gambling.map(function(v){return[v.name,v.acc||'',roundAmt(v.loss),roundAmt(v.wagered||0)];}),
+      C.ORG_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,14,16],[3,4]);
+    styleTotalRow(wsG.addRow(['TOTAL LOSSES','',gLoss,'']),C.TOT_DED,[3]);
   }
-
   // Mileage sheet
   if(u.mileage&&u.mileage.length){
-    var wsM=addSheet('Mileage Log',['Date','From','To','Miles','Purpose','Value ($0.70/mi)'],u.mileage.map(function(m){return[m.date,m.from,m.to,roundAmt(m.miles),m.purpose,roundAmt(m.miles*0.70)];}),C.TEAL_HDR,C.ROW_LTBL2,'FFFFFF',[12,20,20,10,28,16],[4,6]);
-    var mTR=wsM.addRow(['TOTAL','','',roundAmt(mi),'',roundAmt(miVal)]);styleTotalRow(mTR,C.TOT_DED,[4,6]);
+    var wsM=addSheet('Mileage Log',['Date','From','To','Miles','Purpose','Value ($0.70/mi)'],
+      u.mileage.map(function(m){return[m.date,m.from,m.to,roundAmt(m.miles),m.purpose,roundAmt(m.miles*0.70)];}),
+      C.TEAL_HDR,C.ROW_LTBL2,'FFFFFF',[12,20,20,10,28,16],[4,6]);
+    styleTotalRow(wsM.addRow(['TOTAL','','',roundAmt(mi),'',roundAmt(miVal)]),C.TOT_DED,[4,6]);
   }
-
   // 1099 sheet
   if(u.c1099&&u.c1099.length){
-    addSheet('1099 Tracker',['Client / Payer','Type','EIN / SSN','Amount'],u.c1099.map(function(c){return[c.name,c.type,c.ein,roundAmt(c.amt)];}),C.NAVY_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,16,14],[4]);
+    addSheet('1099 Tracker',['Client / Payer','Type','EIN / SSN','Amount'],
+      u.c1099.map(function(c){return[c.name,c.type,c.ein,roundAmt(c.amt)];}),
+      C.NAVY_HDR,C.ROW_LTBL2,'FFFFFF',[32,16,16,14],[4]);
   }
-
   // Retirement sheet
   if(u.retirement&&u.retirement.length){
-    var wsRet=addSheet('Retirement Contributions',['Account Type','Institution','Date','Amount ($)','Notes'],u.retirement.map(function(r){return[r.type||'',r.institution||'',r.date||'',roundAmt(r.amt||0),r.notes||''];}),C.NAVY_HDR,'EBF5EB','FFFFFF',[22,20,12,14,30],[4]);
-    var retTR=wsRet.addRow(['','','','TOTAL CONTRIBUTIONS',roundAmt(retTotal)]);styleTotalRow(retTR,C.TOT_INC,[5]);
+    var wsRet=addSheet('Retirement Contributions',['Account Type','Institution','Date','Amount ($)','Notes'],
+      u.retirement.map(function(r){return[r.type||'',r.institution||'',r.date||'',roundAmt(r.amt||0),r.notes||''];}),
+      C.NAVY_HDR,'EBF5EB','FFFFFF',[22,20,12,14,30],[4]);
+    styleTotalRow(wsRet.addRow(['','','','TOTAL CONTRIBUTIONS',roundAmt(retTotal)]),C.TOT_INC,[5]);
   }
-
   // Equipment sheet
   if(u.equipment&&u.equipment.length){
-    var wsEq=addSheet('Equipment & Assets',['Asset Description','Purchase Date','Cost ($)','Business %','Deductible Amount ($)','Notes'],u.equipment.map(function(e){return[e.desc||'',e.date||'',roundAmt(e.cost||0),(e.biz||100)+'%',roundAmt(e.deductible||0),e.notes||''];}),C.GREEN_HDR,'F0FFF0','FFFFFF',[35,12,14,12,18,25],[3,5]);
-    var eqTR=wsEq.addRow(['','','','','TOTAL SEC. 179 DEDUCTION',roundAmt(eqTotal)]);styleTotalRow(eqTR,C.TOT_DED,[6]);
+    var wsEq=addSheet('Equipment & Assets',['Asset Description','Purchase Date','Cost ($)','Business %','Deductible Amount ($)','Notes'],
+      u.equipment.map(function(e){return[e.desc||'',e.date||'',roundAmt(e.cost||0),(e.biz||100)+'%',roundAmt(e.deductible||0),e.notes||''];}),
+      C.GREEN_HDR,'F0FFF0','FFFFFF',[35,12,14,12,18,25],[3,5]);
+    styleTotalRow(wsEq.addRow(['','','','','TOTAL SEC. 179 DEDUCTION',roundAmt(eqTotal)]),C.TOT_DED,[6]);
   }
 
-  // Generate file
-  var fname=((u.biz||u.name||'TaxFlow').replace(/\s+/g,'_'))+'_'+S.year+'_TaxFlow.xlsx';
+  // Download
+  var fname=((u.biz||u.name||'TaxFlow').replace(/[^a-zA-Z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''))+'_'+S.year+'_TaxFlow.xlsx';
   wb.xlsx.writeBuffer().then(function(buffer){
     if(window.electronAPI&&window.electronAPI.isElectron){
-      window.electronAPI.saveFile(fname,new Uint8Array(buffer),'xlsx').then(function(r){if(r&&r.success)toast('Saved: '+r.filePath.split(/[\/\\]/).pop());else if(r&&r.error)toast('Save failed: '+r.error);});
+      window.electronAPI.saveFile(fname,new Uint8Array(buffer),'xlsx').then(function(r){if(r&&r.success){var fp=r.filePath,fn=fp.indexOf('/')>=0?fp.split('/').pop():fp.split(String.fromCharCode(92)).pop();toast('Saved: '+fn);}else if(r&&r.error)toast('Save failed: '+r.error);});
       return;
     }
     var blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
