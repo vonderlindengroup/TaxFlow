@@ -309,7 +309,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.1</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.2</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -394,7 +394,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.5.1</span>
+      <span class="logo-beta">v2.5.2</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -786,6 +786,18 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         <button class="btn btn-primary" onclick="addEquipment()">+ Add Asset</button>
       </div>
 
+
+      <div class="info-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1d4ed8">
+        <strong>Section 179 Deduction:</strong> You can deduct the full cost of qualifying business equipment in the year purchased (up to $1,220,000 for 2024). Computers, phones, cameras, tools, and vehicles all qualify if used for business.
+      </div>
+      <table class="tx-table" id="equipment-table">
+        <thead><tr><th>Asset Description</th><th>Purchase Date</th><th>Cost</th><th>Business %</th><th>Deductible Amount</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="equipment-body"></tbody>
+      </table>
+      <div class="summary-row" id="equipment-total" style="margin-top:12px;font-weight:700;font-size:15px;color:var(--brand)"></div>
+    </div>
+
+
   <!-- ── CLIENTS ───────────────────────────────────────────────────────── -->
   <div class="tab-panel" id="panel-clients">
     <div class="panel-header">
@@ -849,17 +861,6 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     </div>
     <div id="yoy-content"></div>
   </div>
-
-
-      <div class="info-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1d4ed8">
-        <strong>Section 179 Deduction:</strong> You can deduct the full cost of qualifying business equipment in the year purchased (up to $1,220,000 for 2024). Computers, phones, cameras, tools, and vehicles all qualify if used for business.
-      </div>
-      <table class="tx-table" id="equipment-table">
-        <thead><tr><th>Asset Description</th><th>Purchase Date</th><th>Cost</th><th>Business %</th><th>Deductible Amount</th><th>Notes</th><th></th></tr></thead>
-        <tbody id="equipment-body"></tbody>
-      </table>
-      <div class="summary-row" id="equipment-total" style="margin-top:12px;font-weight:700;font-size:15px;color:var(--brand)"></div>
-    </div>
     </div><!-- end .main -->
 <div id="prog" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:8888;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#2563eb">Reading statements...</div>
 <div class="toast" id="toast"></div>
@@ -1605,7 +1606,7 @@ function render(){
             +'<button id="rcpt-'+t.id+'" data-tid="'+t.id+'" onclick="toggleReceipt(this.dataset.tid)" '
             +'title="'+(t.receipt?'Receipt on file':'Click to mark receipt')+'" '
             +'style="background:none;border:none;cursor:pointer;font-size:16px;opacity:'+(t.receipt?'1':'0.3')+';padding:2px 4px">'
-            +(t.receipt?'R':'p')+'</button>'
+            +(t.receipt?'[R]':'[ ]')+'</button>'
           +'</td>'
           +'<td><button class="del-btn" data-tid="'+t.id+'" onclick="delTx(this.dataset.tid)">x</button></td>';
         tbody.appendChild(tr);
@@ -2390,189 +2391,10 @@ function toast(msg){
 }
 
 
-// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
-// Clears the login session when the window closes or tab is hidden.
-// Transaction data stays saved — only the session token is cleared.
-
-function currentTier() {
-  const plan   = currentProfile?.plan   ?? 'free';
-  const status = currentProfile?.plan_status ?? 'active';
-  if (status === 'canceled') return TIERS.free;
-  return TIERS[plan] ?? TIERS.free;
-}
-
-// ── Auth screen helpers ───────────────────────────────────────────────────────
-function showAuthScreen() {
-  const s = document.getElementById('auth-screen');
-  s.style.transition = ''; s.style.opacity = '1'; s.style.display = 'flex';
-}
-function hideAuthScreen() {
-  const s = document.getElementById('auth-screen');
-  s.style.transition = 'opacity 0.35s ease'; s.style.opacity = '0';
-  setTimeout(() => { s.style.display='none'; s.style.opacity='1'; s.style.transition=''; }, 360);
-  updateHeaderUser(); updateDropdownNames();
-}
-function authTab(tab) {
-  document.getElementById('form-login').style.display    = tab==='login'    ? 'block' : 'none';
-  document.getElementById('form-register').style.display = tab==='register' ? 'block' : 'none';
-  document.getElementById('tab-login').classList.toggle('active',    tab==='login');
-  document.getElementById('tab-register').classList.toggle('active', tab==='register');
-  clearAuthMessages();
-}
-function showAuthError(msg)   { const e=document.getElementById('auth-error');   e.textContent=msg; e.style.display='block'; document.getElementById('auth-success').style.display='none'; }
-function showAuthSuccess(msg) { const e=document.getElementById('auth-success'); e.textContent=msg; e.style.display='block'; document.getElementById('auth-error').style.display='none'; }
-function clearAuthMessages()  { document.getElementById('auth-error').style.display='none'; document.getElementById('auth-success').style.display='none'; }
-
-function selectPlan(plan) {
-  selectedPlan = plan;
-  ['free','household','business'].forEach(p => {
-    document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
-  });
-}
-
-// ── Load profile from Supabase ────────────────────────────────────────────────
-async function loadProfile(userId) {
-  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
-  if (error) { console.error('Profile load error:', error); return null; }
-  return data;
-}
-
-function applyProfile(profile) {
-  currentProfile = profile;
-  if (profile.full_name)     S.users.herbert.name = profile.full_name;
-  if (profile.business_name) S.users.herbert.biz  = profile.business_name;
-  if (profile.user2_name)    S.users.spouse.name  = profile.user2_name;
-  applyTierRestrictions();
-}
-
-// ── Check session on load ─────────────────────────────────────────────────────
-async function checkAuth() {
-  const { data: { session } } = await sb.auth.getSession();
-  if (session?.user) {
-    const profile = await loadProfile(session.user.id);
-    if (profile) { applyProfile(profile); hideAuthScreen(); return true; }
-  }
-  showAuthScreen();
-  return false;
-}
-
-// ── Login ─────────────────────────────────────────────────────────────────────
-async function doLogin() {
-  clearAuthMessages();
-  const email = document.getElementById('login-email').value.trim().toLowerCase();
-  const pass  = document.getElementById('login-pass').value;
-  if (!email || !email.includes('@')) { showAuthError('Please enter your email address.'); return; }
-  if (!pass) { showAuthError('Please enter your password.'); return; }
-
-  const btn = document.querySelector('#form-login .auth-btn');
-  btn.textContent = 'Signing in…'; btn.disabled = true;
-
-  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
-  btn.textContent = 'Sign in to TaxFlow'; btn.disabled = false;
-
-  if (error) {
-    if (error.message.includes('Invalid login')) showAuthError('Incorrect email or password.');
-    else if (error.message.includes('Email not confirmed')) showAuthError('Please confirm your email first.');
-    else showAuthError(error.message);
-    return;
-  }
-
-  const profile = await loadProfile(data.user.id);
-  if (!profile) { showAuthError('Account error — please contact support.'); return; }
-  applyProfile(profile);
-  hideAuthScreen(); save();
-  toast('✅ Welcome back, ' + (profile.full_name || email.split('@')[0]) + '!');
-}
-
-// ── Register ──────────────────────────────────────────────────────────────────
-async function doRegister() {
-  clearAuthMessages();
-  const name  = document.getElementById('reg-name').value.trim();
-  const email = document.getElementById('reg-email').value.trim().toLowerCase();
-  const pass  = document.getElementById('reg-pass').value;
-  const pass2 = document.getElementById('reg-pass2').value;
-  const name2 = document.getElementById('reg-name2').value.trim();
-
-  if (!name)  { showAuthError('Please enter your name.'); return; }
-  if (!email || !email.includes('@')) { showAuthError('Please enter a valid email.'); return; }
-  if (!pass || pass.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
-  if (pass !== pass2) { showAuthError('Passwords do not match.'); return; }
-
-  const btn = document.querySelector('#form-register .auth-btn');
-  btn.textContent = 'Creating account…'; btn.disabled = true;
-
-  const { data, error } = await sb.auth.signUp({
-    email, password: pass,
-    options: { data: { full_name: name } }
-  });
-  btn.textContent = 'Create account & sign in'; btn.disabled = false;
-
-  if (error) { showAuthError(error.message); return; }
-
-  if (data.user) {
-    await sb.from('profiles').update({
-      full_name: name, user2_name: name2 || null, plan: 'free',
-    }).eq('id', data.user.id);
-  }
-
-  // If paid plan selected, redirect to Stripe after account creation
-  if (selectedPlan !== 'free') {
-    showAuthSuccess('Account created! Redirecting to payment…');
-    setTimeout(() => {
-      const link = STRIPE_LINKS[selectedPlan + '_monthly'];
-      if (link) window.open(link + '?prefilled_email=' + encodeURIComponent(email), '_blank');
-    }, 1500);
-    setTimeout(() => { showAuthSuccess('Payment opened! Sign in after completing payment.'); authTab('login'); }, 2500);
-    return;
-  }
-
-  showAuthSuccess('Account created! Check your email to confirm, then sign in.');
-  setTimeout(() => authTab('login'), 2000);
-}
-
-// ── Sign out ──────────────────────────────────────────────────────────────────
-function updateTierBadge(tier) {
-  let badge = document.getElementById('tier-badge');
-  if (!badge) {
-    badge = document.createElement('span');
-    badge.id = 'tier-badge';
-    badge.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff;letter-spacing:0.05em;cursor:pointer;margin-right:8px;';
-    badge.onclick = () => showUpgradeModal();
-    const hdr = document.querySelector('.header-right');
-    if (hdr) hdr.insertBefore(badge, hdr.firstChild);
-  }
-  badge.textContent = tier.label.toUpperCase();
-  badge.style.background = tier.label === 'Free' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)';
-}
-
-function showUpgradeBanners(tier) {
-  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
-  if (!tier.showUpgradeBanner) return;
-  const panel = document.getElementById('panel-statements');
-  if (!panel) return;
-  const banner = document.createElement('div');
-  banner.className = 'upgrade-banner';
-  banner.innerHTML = '<div><strong>You are on the Free plan</strong> — limited to ' + TIERS.free.maxTransactions + ' transactions and core features.</div><button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px" onclick="showUpgradeModal()">Upgrade ⭐</button>';
-  panel.insertBefore(banner, panel.firstChild);
-}
-
-function showUpgradeModal() {
-  const email = currentProfile?.email || '';
-  const link  = STRIPE_LINKS.household_monthly + (email ? '?prefilled_email=' + encodeURIComponent(email) : '');
-  window.open(link, '_blank');
-}
-
-function updateDropdownNames() {
-  const ud1=document.getElementById('ud-name1'); if(ud1) ud1.textContent=S.users.herbert.name||'User 1';
-  const ud2=document.getElementById('ud-name2'); if(ud2) ud2.textContent=S.users.spouse.name||'User 2';
-  const ub1=document.getElementById('ud-biz1');  if(ub1) ub1.textContent=S.users.herbert.biz||'Primary Account';
-}
-// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
-// Clears the session when the tab/window is closed or the app exits.
-// Transaction data remains saved — only the login session is cleared.
 
 
-// ── SAVED STATEMENTS ──────────────────────────────────────────────────────
+// ── NEW FUNCTIONS ────────────────────────────────────────────────────────
+
 function renderSavedStatements(){
   var grid=document.getElementById('saved-statements-grid');
   if(!grid) return;
@@ -2790,9 +2612,6 @@ function clearAllData(){
 }
 function setSectionSort(k,val){if(!S._sort)S._sort={};S._sort[k]=val;render();}
 function toggleReceipt(id){var t=tx().find(function(x){return x.id===id;});if(!t)return;t.receipt=!t.receipt;save();var btn=document.getElementById('rcpt-'+id);if(btn){btn.textContent=t.receipt?'R':'p';btn.style.opacity=t.receipt?'1':'0.3';}toast(t.receipt?'Receipt marked':'Receipt removed');}
-function roundAmt(n){return Math.round((n||0)*100)/100;}
-
-// ── PDF PARSING ───────────────────────────────────────────────────────────
 async function parsePDF(f){
   if(window.electronAPI&&window.electronAPI.isElectron){
     const buf=await readBuf(f);if(!buf||buf.byteLength===0){toast('Empty file: '+f.name);return 0;}
