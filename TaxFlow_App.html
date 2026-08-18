@@ -728,18 +728,39 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div style="margin-top:12px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
     </div>
     <div class="settings-card">
-      <div class="settings-title">🤖 Auto-categorization rules</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">These keywords are matched against transaction descriptions to assign categories automatically.</div>
-      <div id="rule-list"></div>
-      <button class="btn btn-outline" style="margin-top:10px" onclick="addRule()">+ Add rule</button>
-    </div>
-    <div class="settings-card">
       <div class="settings-title">📂 Data management</div>
       <div class="setting-row"><div><div class="setting-label">Export all data</div><div class="setting-sub">Download full Excel workbook</div></div><button class="btn btn-success" onclick="exportAll()">Export Excel</button></div>
       <div class="setting-row"><div><div class="setting-label">Export CSV</div><div class="setting-sub">Raw transaction list</div></div><button class="btn btn-outline" onclick="exportCsv()">Export CSV</button></div>
       <div class="setting-row"><div><div class="setting-label">Clear all transactions</div><div class="setting-sub">Permanently removes all data for current user</div></div><button class="btn btn-danger" onclick="clearData()">Clear data</button></div>
       <div class="setting-row"><div><div class="setting-label">Sign out</div><div class="setting-sub">Return to the login screen</div></div><button class="btn btn-outline" onclick="signOut()">Sign out</button></div>
     </div>
+
+    <!-- Tax Year -->
+    <div class="settings-card">
+      <div class="settings-title">Tax Year</div>
+      <div id="year-btns" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="number" id="new-year-input" placeholder="e.g. 2023" min="2018" max="2030"
+          style="width:130px;border:1.5px solid var(--border);border-radius:8px;padding:7px 10px;font-size:13px">
+        <button class="btn btn-outline" onclick="addYear()">+ Add Year</button>
+      </div>
+    </div>
+
+    <!-- Additional Users -->
+    <div class="settings-card">
+      <div class="settings-title">Additional Users</div>
+      <div id="settings-extra-users"></div>
+      <div id="settings-add-user-area" style="margin-top:8px"></div>
+    </div>
+
+    <!-- Auto-categorization Rules -->
+    <div class="settings-card">
+      <div class="settings-title">Auto-categorization Rules</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">These keywords are matched against transaction descriptions to auto-assign categories.</div>
+      <div id="rule-list"></div>
+      <button class="btn btn-outline" style="margin-top:10px" onclick="addRule()">+ Add rule</button>
+    </div>
+
   </div>
 
 
@@ -850,6 +871,75 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 
 // Safe DOM helper — silently skips if element doesn't exist
 var statementsUploaded = 0; // tracks uploads for free tier limit
+
+
+function getAvailableYears(){
+  var ys=new Set([S.year]);
+  Object.keys(S.years||{}).forEach(function(y){ys.add(y);});
+  return Array.from(ys).sort(function(a,b){return b-a;});
+}
+function renderYearBtns(){
+  var el=document.getElementById('year-btns');if(!el)return;
+  var years=getAvailableYears();
+  el.innerHTML='';
+  years.forEach(function(y){
+    var b=document.createElement('button');
+    b.className='btn '+(y===S.year?'btn-primary':'btn-outline');
+    b.style.minWidth='70px';
+    b.textContent=y;
+    b.onclick=function(){switchYear(y);};
+    el.appendChild(b);
+  });
+}
+function addYear(){
+  var input=document.getElementById('new-year-input');
+  var y=(input?input.value:'').trim();
+  if(!y||isNaN(y)||+y<2018||+y>2030){toast('Enter a valid year (2018-2030)');return;}
+  if(getAvailableYears().includes(y)){switchYear(y);if(input)input.value='';return;}
+  if(!S.years)S.years={};
+  S.years[y]={herbert:{name:S.users.herbert.name,biz:S.users.herbert.biz,avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]},extraUsers:[]};
+  save();switchYear(y);if(input)input.value='';toast('Tax year '+y+' created');
+}
+function switchYear(y){
+  if(!S.years)S.years={};
+  S.years[S.year]={herbert:JSON.parse(JSON.stringify(S.users.herbert)),extraUsers:JSON.parse(JSON.stringify(S.extraUsers||[]))};
+  if(S.years[y]){
+    S.users.herbert=S.years[y].herbert;
+    S.extraUsers=S.years[y].extraUsers||[];
+  } else {
+    var n=S.users.herbert.name,b=S.users.herbert.biz;
+    S.users.herbert={name:n,biz:b,avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]};
+    S.extraUsers=[];
+  }
+  S.year=y;save();render();updateSummary();renderTabs();renderYearBtns();
+  renderUserDropdown();toast('Switched to '+y);
+}
+function renderSettingsUsers(){
+  var el=document.getElementById('settings-extra-users');
+  var addArea=document.getElementById('settings-add-user-area');
+  var maxU=maxUsers();
+  var totalUsers=1+(S.extraUsers||[]).length;
+  if(el){
+    if(!(S.extraUsers||[]).length){
+      el.innerHTML='<div style="font-size:13px;color:var(--text2);padding:8px 0">No additional users yet.</div>';
+    } else {
+      el.innerHTML=(S.extraUsers||[]).map(function(eu,i){
+        return '<div class="setting-row" style="align-items:center;gap:12px">'+
+          '<div style="flex:1"><div class="setting-label">'+(eu.name||'User '+(i+2))+'</div>'+
+          '<div class="setting-sub">'+(eu.biz||'Secondary Account')+'</div></div>'+
+          '<button data-uid="'+eu.id+'" onclick="removeUser(this.dataset.uid)" class="btn btn-outline" style="font-size:12px;color:var(--red)">Remove</button>'+
+          '</div>';
+      }).join('');
+    }
+  }
+  if(addArea){
+    if(totalUsers<maxU){
+      addArea.innerHTML='<button class="btn btn-outline" onclick="addUser()" style="margin-top:4px">+ Add User ('+totalUsers+'/'+maxU+')</button>';
+    } else {
+      addArea.innerHTML='<div style="font-size:13px;color:var(--text2);margin-top:4px">Maximum '+maxU+' users reached for your plan.</div>';
+    }
+  }
+}
 
 function renderTabs(){
   var inner=document.getElementById('tabs-inner');
@@ -1031,6 +1121,12 @@ function load(){
       if(!S.extraUsers) S.extraUsers=[];
       if(!S.clients) S.clients=[];
       if(!S.savedStatements) S.savedStatements=[];
+      // Ensure users object is intact
+      if(!S.users) S.users={};
+      if(!S.users.herbert) S.users.herbert={name:'',biz:'',avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]};
+      ['tx','gambling','mileage','c1099','retirement','equipment','invoices'].forEach(function(f){
+        if(!S.users.herbert[f]) S.users.herbert[f]=[];
+      });
       if(!S.profile) S.profile={filingStatus:'single',state:''};
       if(!S._sort) S._sort={};
       S.activeTabs=(S.activeTabs||[]).filter(function(t){return t!=='settings';});
@@ -1646,9 +1742,15 @@ function setYear(y){S.year=y;save();updateSummary();setEl('s-year', y);}
 
 // ── SETTINGS ───────────────────────────────────────────────────────────────
 function loadSettings(){
-  document.getElementById('s-n1').value=S.users.herbert.name;
-  document.getElementById('s-biz').value=S.users.herbert.biz;
-  document.getElementById('s-n2').value=S.users.spouse.name;
+  var n1=document.getElementById('s-n1');
+  var bz=document.getElementById('s-biz');
+  if(n1) n1.value=S.users.herbert.name||'';
+  if(bz) bz.value=S.users.herbert.biz||'';
+  var n2=document.getElementById('s-n2');
+  if(n2) n2.value=(S.users.spouse&&S.users.spouse.name)||
+    (S.extraUsers&&S.extraUsers[0]&&S.extraUsers[0].name)||'';
+  renderYearBtns();
+  renderSettingsUsers();
 }
 
 function saveSettings(){
