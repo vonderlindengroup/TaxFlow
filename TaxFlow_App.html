@@ -764,6 +764,72 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         <h2 class="panel-title">💻 Equipment & Assets</h2>
         <button class="btn btn-primary" onclick="addEquipment()">+ Add Asset</button>
       </div>
+
+  <!-- ── CLIENTS ───────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="panel-clients">
+    <div class="panel-header">
+      <h2 class="panel-title">Client Tracker</h2>
+      <button class="btn btn-primary" onclick="addClient()">+ Add Client</button>
+    </div>
+    <div id="client-roster" style="margin-bottom:24px"></div>
+    <div style="font-size:15px;font-weight:800;margin-bottom:12px">Income by Client</div>
+    <div id="clients-content"></div>
+  </div>
+
+  <!-- ── INVOICES ──────────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="panel-invoices">
+    <div class="panel-header">
+      <h2 class="panel-title">Invoice Tracker</h2>
+      <button class="btn btn-primary" onclick="addInvoice()">+ Add Invoice</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px">
+      <div class="summary-card" style="border-top:3px solid var(--green)">
+        <div class="sum-label">Paid</div>
+        <div class="sum-val green" id="inv-paid-total">$0.00</div>
+        <div class="sum-sub" id="inv-paid-count">0 invoices</div>
+      </div>
+      <div class="summary-card" style="border-top:3px solid var(--amber)">
+        <div class="sum-label">Outstanding</div>
+        <div class="sum-val" style="color:var(--amber)" id="inv-out-total">$0.00</div>
+        <div class="sum-sub" id="inv-out-count">0 invoices</div>
+      </div>
+      <div class="summary-card" style="border-top:3px solid var(--red)">
+        <div class="sum-label">Overdue</div>
+        <div class="sum-val red" id="inv-over-total">$0.00</div>
+        <div class="sum-sub" id="inv-over-count">0 invoices</div>
+      </div>
+      <div class="summary-card" style="border-top:3px solid var(--brand)">
+        <div class="sum-label">Total Billed</div>
+        <div class="sum-val" id="inv-total-total">$0.00</div>
+        <div class="sum-sub" id="inv-total-count">0 invoices</div>
+      </div>
+    </div>
+    <div class="tx-wrap" style="overflow-x:auto">
+      <table class="tx-table">
+        <thead><tr><th>Invoice #</th><th>Client</th><th>Description</th><th>Sent</th><th>Due</th><th style="text-align:right">Amount</th><th>Status</th><th>Notes</th><th></th></tr></thead>
+        <tbody id="invoice-body"><tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">No invoices yet</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── PROFIT & LOSS ─────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="panel-pl">
+    <div class="panel-header">
+      <h2 class="panel-title">Profit &amp; Loss</h2>
+      <button class="btn btn-outline" onclick="renderPL()">Refresh</button>
+    </div>
+    <div id="pl-content"></div>
+  </div>
+
+  <!-- ── YEAR-OVER-YEAR ────────────────────────────────────────────────── -->
+  <div class="tab-panel" id="panel-yoy">
+    <div class="panel-header">
+      <h2 class="panel-title">Year-over-Year</h2>
+    </div>
+    <div id="yoy-content"></div>
+  </div>
+
+
       <div class="info-box" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#1d4ed8">
         <strong>Section 179 Deduction:</strong> You can deduct the full cost of qualifying business equipment in the year purchased (up to $1,220,000 for 2024). Computers, phones, cameras, tools, and vehicles all qualify if used for business.
       </div>
@@ -956,19 +1022,41 @@ let S={
 };
 
 function load(){
-  try{const d=localStorage.getItem('tf_v2');if(d){S=JSON.parse(d);if(!S.activeTabs)S.activeTabs=['settings'];}}catch(e){}
+  try{
+    var d=localStorage.getItem('tf_v3');
+    if(d){
+      var parsed=JSON.parse(d);
+      S=Object.assign(S,parsed);
+      if(!S.years) S.years={};
+      if(!S.extraUsers) S.extraUsers=[];
+      if(!S.clients) S.clients=[];
+      if(!S.savedStatements) S.savedStatements=[];
+      if(!S.profile) S.profile={filingStatus:'single',state:''};
+      if(!S._sort) S._sort={};
+      S.activeTabs=(S.activeTabs||[]).filter(function(t){return t!=='settings';});
+      if(!S.users.herbert.invoices) S.users.herbert.invoices=[];
+      (S.extraUsers||[]).forEach(function(u){if(!u.invoices)u.invoices=[];});
+      var hasTx=(S.users.herbert.tx||[]).length>0||
+        (S.extraUsers||[]).some(function(u){return(u.tx||[]).length>0;});
+      if(!hasTx) S.savedStatements=[];
+    }
+  }catch(e){console.error('Load error:',e);}
+  if(!S.rules||!S.rules.length) S.rules=[...DEFAULT_RULES];
   populateCatSelects();
   loadSettings();
   renderTabs();
   renderRules();
-  renderGambling();
-  renderMileage();
-  render1099();
   render();
   updateSummary();
+  renderUserDropdown();
+  showTab(S.currentTab||'upload');
 }
-function save(){try{localStorage.setItem('tf_v2',JSON.stringify(S));}catch(e){}}
-function U(){return S.users[S.cur]}
+function save(){try{localStorage.setItem('tf_v3',JSON.stringify(S));}catch(e){}}
+function U(){
+  if(S.cur==='herbert') return S.users.herbert;
+  var eu=(S.extraUsers||[]).find(function(u){return u.id===S.cur;});
+  return eu||S.users.herbert;
+}
 function tx(){return U().tx}
 function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
 function fmt(n){return'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
