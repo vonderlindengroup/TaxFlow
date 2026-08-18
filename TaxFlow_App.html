@@ -313,7 +313,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px;letter-spacing:0.05em">v2.3.9</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px;letter-spacing:0.05em">v2.4.0</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -398,7 +398,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.3.9</span>
+      <span class="logo-beta">v2.4.0</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1274,45 +1274,48 @@ async function saveStatementToLibrary(file, pageRows){
 }
 
 function renderTabs(){
-  const inner=document.getElementById('tabs-inner');
+  var inner=document.getElementById('tabs-inner');
   if(!inner) return;
-  const dynTabs=S.activeTabs.map(function(id){
-    const active=S.currentTab===id?' active':'';
-    const label=TAB_LABELS[id]||id;
-    // Settings tab has no close button — it's always permanent
-    const closeBtn = id==='settings' ? '' : ' <span class="tab-close" onclick="removeTab(\'' +id+ '\',event)">×</span>';
-    return [
-      '<button class="tab-btn'+active+'" id="tab-btn-'+id+'"',
-      ' onclick="showTab(\'' +id+ '\')">' + label,
-      closeBtn,
-      '</button>'
-    ].join('');
+  var dynTabs=S.activeTabs.map(function(id){
+    var active=S.currentTab===id?' active':'';
+    var label=TAB_LABELS[id]||id;
+    var closeBtn=id==='settings'?'':' <span class="tab-close" onclick="removeTab(\'' +id+ '\',event)">\u00d7</span>';
+    return '<button class="tab-btn'+active+'" id="tab-btn-'+id+'" onclick="showTab(\'' +id+ '\')">'+label+closeBtn+'</button>';
   }).join('');
-  const sAct=S.currentTab==='statements'?' active':'';
-  const sumAct=S.currentTab==='summary'?' active':'';
+  var upAct=S.currentTab==='upload'?' active':'';
+  var sAct=S.currentTab==='statements'?' active':'';
+  var sumAct=S.currentTab==='summary'?' active':'';
   inner.innerHTML=[
-    '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">📋 Statements</button>',
-    '<button class="tab-btn'+sumAct+'" id="tab-btn-summary" onclick="showTab(\'summary\')">📊 Summary</button>',
+    '<button class="tab-btn'+upAct+'" id="tab-btn-upload" onclick="showTab(\'upload\')">\ud83d\udcc2 Upload</button>',
+    '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">\ud83d\udccb Transactions</button>',
+    '<button class="tab-btn'+sumAct+'" id="tab-btn-summary" onclick="showTab(\'summary\')">\ud83d\udcca Summary</button>',
     dynTabs,
-    '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>'
+    '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>',
+    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);padding:0 16px">\u2699\ufe0f Settings</button>'
   ].join('');
 }
 
 function showTab(id){
   S.currentTab=id;
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  const panel=document.getElementById('panel-'+id);
+  document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
+  var panel=document.getElementById('panel-'+id);
   if(panel) panel.classList.add('active');
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  const btn=document.getElementById('tab-btn-'+id);
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+  var btn=document.getElementById('tab-btn-'+id);
   if(btn) btn.classList.add('active');
+  if(id==='upload'){renderSavedStatements();}
   if(id==='summary'){updateSummary();}
   if(id==='gambling'){renderGambling();}
   if(id==='settings'){renderRules();loadSettings();}
   if(id==='retirement'){renderRetirement();}
   if(id==='equipment'){renderEquipment();}
+  if(id==='invoices'){renderInvoices();}
+  if(id==='pl'){renderPL();}
+  if(id==='clients'){renderClients();}
+  if(id==='yoy'){renderYOY();}
   save();
 }
+
 
 function removeTab(id,e){
   e.stopPropagation();
