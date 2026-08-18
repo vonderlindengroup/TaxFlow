@@ -309,7 +309,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.3</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.4</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -394,7 +394,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.5.3</span>
+      <span class="logo-beta">v2.5.4</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2530,7 +2530,7 @@ function submitClient(){
   if(!S.clients)S.clients=[];
   S.clients.push({id:'cl_'+uid(),name:name,email:(document.getElementById('cl-email').value||'').trim(),phone:(document.getElementById('cl-phone').value||'').trim(),rate:(document.getElementById('cl-rate').value||'').trim(),notes:(document.getElementById('cl-notes').value||'').trim(),added:new Date().toISOString().split('T')[0]});
   var m=document.querySelector('#cl-cancel')?.closest('[style*="fixed"]');if(m)m.remove();
-  save();renderClients();toast('Client added: '+name);
+  save();renderClients();render();toast('Client added: '+name);
 }
 function deleteClient(id){if(!confirm('Remove this client?'))return;S.clients=(S.clients||[]).filter(function(c){return c.id!==id;});(U().tx||[]).forEach(function(t){if(t.clientId===id){t.clientId=null;t.invoiceId=null;}});save();renderClients();render();}
 function editClient(id){
