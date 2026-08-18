@@ -84,6 +84,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .tab-btn{padding:12px 18px;font-size:13px;font-weight:600;color:var(--text3);border:none;background:transparent;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:all 0.15s}
 .tab-btn:hover{color:var(--text);background:var(--bg2)}
 .tab-btn.active{color:var(--brand);border-bottom-color:var(--brand)}
+.tab-settings-fixed{margin-left:auto!important;border-left:1px solid var(--border)!important;align-self:stretch}
 .tab-btn .tab-close{font-size:12px;color:var(--text3);margin-left:2px;padding:1px 4px;border-radius:4px;line-height:1}
 .tab-btn .tab-close:hover{background:var(--red-bg);color:var(--red)}
 .tab-add{padding:10px 14px;font-size:13px;font-weight:600;color:var(--brand);border:1.5px dashed var(--brand-mid);background:var(--brand-light);cursor:pointer;border-radius:var(--radius);margin:6px 0 6px 8px;white-space:nowrap;display:flex;align-items:center;gap:5px;transition:all 0.15s}
@@ -308,7 +309,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.4.2</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.4.9</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +394,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v1.53</span>
+      <span class="logo-beta">v2.4.9</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -402,26 +403,25 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="user-pill" onclick="toggleUD()" id="user-pill">
         <div class="user-avatar" id="hdr-avatar">U1</div>
         <span id="hdr-name">User 1</span>
-        <span style="opacity:0.6;font-size:10px">▾</span>
+        <span style="opacity:0.6;font-size:10px">&#9662;</span>
         <div class="user-dropdown" id="user-dd">
           <div class="ud-item active" onclick="switchUser('herbert',event)" id="ud-herbert">
             <div class="ud-avatar" style="background:rgba(37,99,235,0.15);color:var(--brand)">U1</div>
             <div><div style="font-weight:700" id="ud-name1">User 1</div><div style="font-size:11px;color:var(--text3)" id="ud-biz1">Primary Account</div></div>
           </div>
-          <div class="ud-item" onclick="switchUser('spouse',event)" id="ud-spouse">
-            <div class="ud-avatar" style="background:rgba(22,163,74,0.15);color:var(--green)">U2</div>
-            <div><div style="font-weight:700" id="ud-name2">User 2</div><div style="font-size:11px;color:var(--text3)" id="ud-biz2">Secondary Account</div></div>
-          </div>
+          <div class="ud-item" id="ud-extra-users"></div>
+          <div id="ud-add-user-btn"></div>
           <div class="ud-divider"></div>
-          <div class="ud-item" onclick="showTab('settings');toggleUD()">⚙️ &nbsp;Settings</div>
+          <div class="ud-item" onclick="showTab('settings');toggleUD()">Settings</div>
         </div>
-      
+      </div>
+      <button class="btn btn-white" onclick="exportAll()">Export Excel</button>
       <button class="btn btn-white" onclick="exportCPAPackage()">CPA Package</button>
-      <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer">Sign Out</button></div>
-      <button class="btn btn-white" onclick="exportAll()">⬇ Export Excel</button>
+      <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer">Sign Out</button>
     </div>
   </div>
 </header>
+
 
 <!-- METRICS -->
 <div class="metrics-wrap">
@@ -897,9 +897,11 @@ const OPTIONAL_TABS=[
 ];
 
 const TAB_LABELS={
-  gambling:'🎰 Gambling W/L', mileage:'🚗 Mileage', homeoffice:'🏠 Home Office',
-  retirement:'🏦 Retirement', equipment:'💻 Equipment',
-  '1099':'📄 1099s', quarterly:'📅 Quarterly', settings:'⚙️ Settings'
+  gambling:'Gambling W/L', mileage:'Vehicle Mileage', homeoffice:'Home Office',
+  retirement:'Retirement', equipment:'Equipment',
+  '1099':'1099 Tracker', quarterly:'Quarterly Taxes', settings:'Settings',
+  clients:'Client Tracker', invoices:'Invoice Tracker',
+  pl:'Profit & Loss', yoy:'Year-over-Year'
 };
 
 const DEFAULT_RULES=[
@@ -1026,6 +1028,11 @@ function updateHeaderUser(){
     const el=document.getElementById('ud-'+id);
     if(el) el.classList.toggle('active',id===S.cur);
   });
+  renderTabs();
+  render();
+  updateSummary();
+  renderUserDropdown();
+  showTab(S.currentTab||'upload');
 }
 
 // ── AUTO-CATEGORIZE ────────────────────────────────────────────────────────
@@ -2589,25 +2596,24 @@ const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
 const TIERS = {
   free: {
     label: 'Free', maxUsers: 1,
-    optionalTabs: ['settings'],
-    maxStatements: 3,
-    maxTransactions: 50,
-    canExportExcel: false,
-    canExportCsv: false,
-    canImportPdf: true,
+    optionalTabs: [],
+    maxStatements: 3, maxTransactions: 50,
+    canExportExcel: false, canExportCsv: false, canImportPdf: true,
     showUpgradeBanner: true,
   },
   household: {
     label: 'Household', maxUsers: 2,
-    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: true,
-    maxTransactions: Infinity, showUpgradeBanner: false,
+    optionalTabs: ['clients','invoices','pl','yoy','mileage','equipment','retirement','homeoffice','1099','quarterly','gambling'],
+    maxStatements: Infinity, maxTransactions: Infinity,
+    canExportExcel: true, canExportCsv: true, canImportPdf: true,
+    showUpgradeBanner: false,
   },
   business: {
     label: 'Business', maxUsers: 5,
-    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: true,
-    maxTransactions: Infinity, showUpgradeBanner: false,
+    optionalTabs: ['clients','invoices','pl','yoy','mileage','equipment','retirement','homeoffice','1099','quarterly','gambling'],
+    maxStatements: Infinity, maxTransactions: Infinity,
+    canExportExcel: true, canExportCsv: true, canImportPdf: true,
+    showUpgradeBanner: false,
   },
 };
 
