@@ -801,6 +801,7 @@ function renderTabs(){
   inner.appendChild(makeBtn('statements','Transactions'));
   inner.appendChild(makeBtn('summary','Summary'));
   S.activeTabs.forEach(function(id){
+    if(id==='settings') return; // settings has its own fixed button
     var b=makeBtn(id,TAB_LABELS[id]||id);
     var x=document.createElement('span');
     x.className='tab-close';x.textContent='x';
@@ -842,9 +843,12 @@ function showTab(id){
 
 function applyTierRestrictions(){
   var tier=currentTier();
-  S.activeTabs=S.activeTabs.filter(function(t){return tier.optionalTabs.includes(t);});
+  S.activeTabs=S.activeTabs.filter(function(t){
+    return t!=='settings'&&tier.optionalTabs.includes(t);
+  });
   showUpgradeBanners(tier);
   updateTierBadge(tier);
+  renderTabs();
   renderUserDropdown();
 }
 
@@ -887,13 +891,17 @@ const CATS=[
 ];
 
 const OPTIONAL_TABS=[
-  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
-  {id:'mileage',     icon:'🚗', name:'Vehicle Mileage',     desc:'Log work trips and calculate your mileage deduction'},
-  {id:'homeoffice',  icon:'🏠', name:'Home Office',         desc:'Calculate your home office deduction'},
-  {id:'1099',        icon:'📄', name:'1099 Tracker',        desc:'Track 1099 income from each client or platform'},
-  {id:'quarterly',   icon:'📅', name:'Quarterly Taxes',     desc:'Estimate your quarterly tax payments'},
-  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
-  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
+  {id:'clients',   name:'Client Tracker',    desc:'Manage clients and track income by client'},
+  {id:'invoices',  name:'Invoice Tracker',   desc:'Track client invoices — paid, outstanding, and overdue'},
+  {id:'pl',        name:'Profit & Loss',     desc:'Auto-generated P&L statement from your transactions'},
+  {id:'yoy',       name:'Year-over-Year',    desc:'Compare this year to previous years side by side'},
+  {id:'mileage',   name:'Vehicle Mileage',   desc:'Log work trips and calculate your mileage deduction'},
+  {id:'equipment', name:'Equipment & Assets',desc:'Track business equipment and Section 179 deductions'},
+  {id:'retirement',name:'Retirement',        desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
+  {id:'homeoffice',name:'Home Office',       desc:'Calculate your home office deduction'},
+  {id:'1099',      name:'1099 Tracker',      desc:'Track 1099 income from each client or platform'},
+  {id:'quarterly', name:'Quarterly Taxes',   desc:'Estimate your quarterly tax payments'},
+  {id:'gambling',  name:'Gambling W/L',      desc:'Track casino and sportsbook win/loss statements'},
 ];
 
 const TAB_LABELS={
@@ -931,14 +939,20 @@ const DEFAULT_RULES=[
 // ── STATE ──────────────────────────────────────────────────────────────────
 let S={
   users:{
-    herbert:{name:'',biz:'',avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[]},
-    spouse:  {name:'',biz:'',avatar:'U2',color:'green',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[]}
+    herbert:{name:'',biz:'',avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]},
+    spouse:  {name:'',biz:'',avatar:'U2',color:'green',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]}
   },
   cur:'herbert',
+  extraUsers:[],
+  clients:[],
+  savedStatements:[],
   rules:[...DEFAULT_RULES],
   year:'2025',
-  activeTabs:['settings'],  // settings always visible
-  currentTab:'statements'
+  years:{},
+  activeTabs:[],
+  currentTab:'upload',
+  profile:{filingStatus:'single',state:''},
+  _sort:{}
 };
 
 function load(){
@@ -977,12 +991,17 @@ function openOptModal(){
   pendingTabs=[...S.activeTabs];
   const grid=document.getElementById('opt-grid');
   if(!grid) return;
-  grid.innerHTML=OPTIONAL_TABS.map(t=>`
-    <div class="opt-card${S.activeTabs.includes(t.id)?' enabled':''}" id="oc-${t.id}" onclick="toggleOptCard('${t.id}')">
-      <div class="opt-icon">${t.icon}</div>
-      <div class="opt-name">${t.name}</div>
-      <div class="opt-desc">${t.desc}</div>
-    </div>`).join('');
+  grid.innerHTML='';
+  OPTIONAL_TABS.forEach(function(t){
+    var enabled=S.activeTabs.includes(t.id);
+    var card=document.createElement('div');
+    card.className='opt-card'+(enabled?' enabled':'');
+    card.id='oc-'+t.id;
+    card.onclick=function(){toggleOptCard(t.id);};
+    card.innerHTML='<div class="opt-name">'+t.name+'</div>'+
+      '<div class="opt-desc">'+t.desc+'</div>';
+    grid.appendChild(card);
+  });
   document.getElementById('opt-modal').classList.add('open');
 }
 
