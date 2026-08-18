@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TaxFlow — Smart Tax Organizer</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -307,7 +307,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.5</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.6</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -392,7 +392,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.5.5</span>
+      <span class="logo-beta">v2.5.6</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2730,7 +2730,7 @@ function handleFiles(files){
       } else if(ext==='csv'){
         readText(f).then(function(text){total+=parseCSV(text,f.name);next();}).catch(function(){toast('Error reading '+f.name);next();});
       } else if(ext==='xlsx'||ext==='xls'){
-        readBuf(f).then(function(buf){total+=parseXLSX(buf,f.name);next();}).catch(function(){toast('Error reading '+f.name);next();});
+        loadXLSX().then(function(){readBuf(f).then(function(buf){total+=parseXLSX(buf,f.name);next();}).catch(function(){toast('Error reading '+f.name);next();});}).catch(function(){toast('Could not load Excel reader');next();});
       } else {toast('Unsupported: '+f.name);next();}
     },50);
   }
@@ -2745,6 +2745,15 @@ function parseCSV(text,fname){
   var dp=/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/;
   lines.forEach(function(line){var parts=line.split(',');if(parts.length<3)return;var date=parts[0].replace(/"/g,'').trim();if(!dp.test(date))return;var desc=parts[1].replace(/"/g,'').trim();var amtStr=parts[parts.length-1].replace(/"/g,'').replace(/[\$,]/g,'').trim();var amt=parseFloat(amtStr);if(isNaN(amt)||!desc)return;tx().push({id:uid(),date:normalizeDate(date),desc:desc,amount:amt,cat:autoCat(desc),src:fname});added++;});
   return added;
+}
+
+async function loadXLSX(){
+  if(typeof XLSX!=='undefined') return;
+  await new Promise(function(res,rej){
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=res;s.onerror=rej;document.head.appendChild(s);
+  });
 }
 
 function parseXLSX(buf,fname){
