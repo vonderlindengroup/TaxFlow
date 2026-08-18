@@ -309,7 +309,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.0</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.5.1</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -394,7 +394,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.5.0</span>
+      <span class="logo-beta">v2.5.1</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -941,6 +941,91 @@ function renderSettingsUsers(){
   }
 }
 
+
+function maxUsers(){
+  var tier=currentTier();
+  return tier.maxUsers||1;
+}
+
+function allUsers(){
+  var all=[S.users.herbert];
+  (S.extraUsers||[]).forEach(function(u){all.push(u);});
+  return all;
+}
+
+function addUser(){
+  var maxU=maxUsers();
+  var totalUsers=1+(S.extraUsers||[]).length;
+  if(totalUsers>=maxU){toast('Maximum '+maxU+' users reached for your plan');return;}
+  var name=prompt('New user name:');
+  if(!name||!name.trim()) return;
+  if(!S.extraUsers) S.extraUsers=[];
+  var newUser={
+    id:'user'+(S.extraUsers.length+2),
+    name:name.trim(),biz:'',
+    avatar:'U'+(S.extraUsers.length+2),color:'green',
+    tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]
+  };
+  S.extraUsers.push(newUser);
+  save();renderUserDropdown();renderSettingsUsers();toast('User added: '+name);
+}
+
+function removeUser(id,event){
+  if(event){event.stopPropagation();event.preventDefault();}
+  if(!S.extraUsers) return;
+  var u=S.extraUsers.find(function(u){return u.id===id;});
+  if(!u) return;
+  if(!confirm('Remove '+(u.name||id)+'? Their data will be deleted.')) return;
+  S.extraUsers=S.extraUsers.filter(function(u){return u.id!==id;});
+  if(S.cur===id) S.cur='herbert';
+  save();render();updateSummary();renderUserDropdown();toast('User removed');
+}
+
+function switchUserDyn(id,event){
+  if(event) event.stopPropagation();
+  S.cur=id;save();render();updateSummary();renderUserDropdown();
+  var el=document.getElementById('user-dd');if(el)el.classList.remove('open');
+}
+
+function updateHeaderUser(){
+  var u=U();
+  var avatar=document.getElementById('hdr-avatar');
+  var name=document.getElementById('hdr-name');
+  if(avatar) avatar.textContent=u.avatar||'U1';
+  if(name) name.textContent=(u.name||'My Account').split(' ')[0];
+}
+
+function renderUserDropdown(){
+  var maxU=maxUsers();
+  var totalUsers=1+(S.extraUsers||[]).length;
+  var extraEl=document.getElementById('ud-extra-users');
+  if(extraEl){
+    extraEl.innerHTML='';
+    (S.extraUsers||[]).forEach(function(eu){
+      var isCur=S.cur===eu.id;
+      var d=document.createElement('div');
+      d.className='ud-item'+(isCur?' active':'');
+      d.setAttribute('data-uid',eu.id);
+      d.onclick=function(e){switchUserDyn(this.getAttribute('data-uid'),e);};
+      d.innerHTML='<div class="ud-avatar" style="background:rgba(22,163,74,0.15);color:var(--green)">'+(eu.avatar||'U')+'</div>'+
+        '<div><div style="font-weight:700">'+(eu.name||'User')+'</div>'+
+        '<div style="font-size:11px;color:var(--text3)">'+(eu.biz||'Secondary')+'</div></div>';
+      extraEl.appendChild(d);
+    });
+  }
+  var addBtn=document.getElementById('ud-add-user-btn');
+  if(addBtn){
+    if(totalUsers<maxU){
+      addBtn.innerHTML='<div class="ud-item" onclick="addUser()" style="color:var(--brand);font-weight:600">+ Add User</div>';
+    } else {
+      addBtn.innerHTML='';
+    }
+  }
+  var ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=S.users.herbert.name||'User 1';
+  var ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
+  updateHeaderUser();
+}
+
 function renderTabs(){
   var inner=document.getElementById('tabs-inner');
   if(!inner) return;
@@ -1400,51 +1485,138 @@ function getFiltered(){
 
 function render(){
   if(!document.getElementById('tx-sections')) return;
-  const filtered=getFiltered();
-  const buckets={income:[],deductible:[],personal:[],review:[]};
-  filtered.forEach(t=>buckets[bucket(t.cat)].push(t));
-  const cfg=[
-    {k:'income',    label:'Income',             dotClass:'dot-green', totalClass:'green'},
-    {k:'deductible',label:'Deductible expenses', dotClass:'dot-blue',  totalClass:'blue'},
-    {k:'personal',  label:'Personal expenses',   dotClass:'dot-red',   totalClass:'red'},
-    {k:'review',    label:'Needs review',         dotClass:'dot-amber', totalClass:'amber'},
+  var filtered=getFiltered();
+  var buckets={income:[],deductible:[],personal:[],review:[]};
+  filtered.forEach(function(t){buckets[bucket(t.cat)].push(t);});
+
+  // Sort each section
+  if(!S._sort) S._sort={};
+  Object.keys(buckets).forEach(function(k){
+    var sort=S._sort[k]||'date-desc';
+    buckets[k].sort(function(a,b){
+      if(sort==='date-asc')  return a.date.localeCompare(b.date);
+      if(sort==='date-desc') return b.date.localeCompare(a.date);
+      if(sort==='amt-desc')  return Math.abs(b.amount)-Math.abs(a.amount);
+      if(sort==='amt-asc')   return Math.abs(a.amount)-Math.abs(b.amount);
+      if(sort==='client'){
+        var an=getClientName(a.clientId)||'';
+        var bn=getClientName(b.clientId)||'';
+        return an.localeCompare(bn);
+      }
+      if(sort==='desc-asc')  return a.desc.localeCompare(b.desc);
+      return 0;
+    });
+  });
+
+  var cfg=[
+    {k:'income',    label:'Income',              dotClass:'dot-green', totalClass:'green'},
+    {k:'deductible',label:'Deductible Expenses',  dotClass:'dot-blue',  totalClass:'blue'},
+    {k:'personal',  label:'Personal Expenses',    dotClass:'dot-red',   totalClass:'red'},
+    {k:'review',    label:'Needs Review',          dotClass:'dot-amber', totalClass:'amber'},
   ];
-  const el=document.getElementById('tx-sections');
+
+  var el=document.getElementById('tx-sections');
   el.innerHTML='';
-  cfg.forEach(({k,label,dotClass,totalClass})=>{
-    const txs=buckets[k];
-    const total=txs.reduce((s,t)=>s+Math.abs(t.amount),0);
-    const d=document.createElement('div');
+
+  cfg.forEach(function(c){
+    var txs=buckets[c.k];
+    var total=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
+    var isOpen=txs.length>0;
+    var sort=S._sort[c.k]||'date-desc';
+
+    var d=document.createElement('div');
     d.className='section-card';
-    const isOpen=txs.length>0;
-    d.innerHTML=`
-      <div class="section-head${isOpen?'':' collapsed'}" onclick="toggleSec('sec-${k}',this)">
-        <div class="section-head-left">
-          <span class="chevron">▾</span>
-          <span class="sec-dot ${dotClass}"></span>
-          <span class="sec-title">${label}</span>
-          <span class="sec-meta">${txs.length} transactions</span>
-        </div>
-        <span class="sec-total ${totalClass}">${fmt(total)}</span>
-      </div>
-      <div id="sec-${k}" style="${isOpen?'':'display:none'}">
-        ${txs.length===0?`<div class="empty-row"><div>📭</div><div>No transactions in this category yet</div></div>`:`
-        <div class="tx-wrap">
-          <table class="tx-table">
-            <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Amount</th><th>Category</th><th></th></tr></thead>
-            <tbody>
-              ${txs.map(t=>`
-                <tr>
-                  <td class="tx-date">${esc(t.date)}</td>
-                  <td><div class="tx-desc" title="${esc(t.desc)}">${esc(t.desc)}</div></td>
-                  <td style="text-align:right;white-space:nowrap" class="${t.amount>0?'amt-pos':'amt-neg'}">${t.amount>0?'+':''}${fmt(Math.abs(t.amount))}</td>
-                  <td><select class="cat-select" onchange="setCat('${t.id}',this.value)">${CATS.map(c=>`<option${c===t.cat?' selected':''}>${c}</option>`).join('')}</select></td>
-                  <td><button class="del-btn" onclick="delTx('${t.id}')">✕</button></td>
-                </tr>`).join('')}
-            </tbody>
-          </table>
-        </div>`}
-      </div>`;
+
+    // Section header
+    var hdr=document.createElement('div');
+    hdr.className='section-head'+(isOpen?'':' collapsed');
+    hdr.onclick=function(){toggleSec('sec-'+c.k,hdr);};
+
+    var left=document.createElement('div');
+    left.className='section-head-left';
+    left.innerHTML='<span class="chevron">&#9662;</span>'
+      +'<span class="sec-dot '+c.dotClass+'"></span>'
+      +'<span class="sec-title">'+c.label+'</span>'
+      +'<span class="sec-meta">'+txs.length+' transactions</span>';
+
+    var right=document.createElement('div');
+    right.style.cssText='display:flex;align-items:center;gap:8px';
+    right.onclick=function(e){e.stopPropagation();};
+
+    var sortSel=document.createElement('select');
+    sortSel.style.cssText='font-size:11px;padding:3px 7px;border:1px solid rgba(0,0,0,0.15);border-radius:6px;background:#fff;cursor:pointer';
+    [['date-desc','Newest'],['date-asc','Oldest'],['amt-desc','Largest'],
+     ['amt-asc','Smallest'],['client','Client'],['desc-asc','A-Z']
+    ].forEach(function(opt){
+      var o=document.createElement('option');
+      o.value=opt[0];o.textContent=opt[1];
+      if(opt[0]===sort)o.selected=true;
+      sortSel.appendChild(o);
+    });
+    sortSel.onchange=function(){setSectionSort(c.k,this.value);};
+
+    var totalSpan=document.createElement('span');
+    totalSpan.className='sec-total '+c.totalClass;
+    totalSpan.textContent=fmt(total);
+
+    right.appendChild(sortSel);
+    right.appendChild(totalSpan);
+    hdr.appendChild(left);
+    hdr.appendChild(right);
+
+    // Section body
+    var body=document.createElement('div');
+    body.id='sec-'+c.k;
+    body.style.display=isOpen?'':'none';
+
+    if(!txs.length){
+      body.innerHTML='<div class="empty-row"><div>No transactions in this category yet</div></div>';
+    } else {
+      var wrap=document.createElement('div');
+      wrap.className='tx-wrap';
+      var table=document.createElement('table');
+      table.className='tx-table';
+
+      // Header row
+      var thead=document.createElement('thead');
+      thead.innerHTML='<tr><th>Date</th><th>Description</th>'
+        +'<th style="text-align:right">Amount</th><th>Category</th>'
+        +'<th>Client</th><th style="text-align:center">Receipt</th><th></th></tr>';
+      table.appendChild(thead);
+
+      var tbody=document.createElement('tbody');
+      txs.forEach(function(t){
+        var tr=document.createElement('tr');
+        var isIncome=bucket(t.cat)==='income';
+
+        // Client cell - only for income
+        var clientHtml=isIncome?renderClientCell(t):'';
+
+        tr.innerHTML=
+          '<td class="tx-date">'+esc(t.date)+'</td>'
+          +'<td><div class="tx-desc" title="'+esc(t.desc)+'">'+esc(t.desc)+'</div></td>'
+          +'<td style="text-align:right;white-space:nowrap" class="'+(t.amount>0?'amt-pos':'amt-neg')+'">'
+            +(t.amount>0?'+':'')+fmt(Math.abs(t.amount))+'</td>'
+          +'<td><select class="cat-select" data-tid="'+t.id+'" onchange="setCat(this.dataset.tid,this.value)">'
+            +CATS.map(function(c2){return '<option'+(c2===t.cat?' selected':'')+'>'+c2+'</option>';}).join('')
+            +'</select></td>'
+          +'<td style="white-space:nowrap;min-width:140px">'+clientHtml+'</td>'
+          +'<td style="text-align:center;white-space:nowrap">'
+            +'<button id="rcpt-'+t.id+'" data-tid="'+t.id+'" onclick="toggleReceipt(this.dataset.tid)" '
+            +'title="'+(t.receipt?'Receipt on file':'Click to mark receipt')+'" '
+            +'style="background:none;border:none;cursor:pointer;font-size:16px;opacity:'+(t.receipt?'1':'0.3')+';padding:2px 4px">'
+            +(t.receipt?'R':'p')+'</button>'
+          +'</td>'
+          +'<td><button class="del-btn" data-tid="'+t.id+'" onclick="delTx(this.dataset.tid)">x</button></td>';
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      body.appendChild(wrap);
+    }
+
+    d.appendChild(hdr);
+    d.appendChild(body);
     el.appendChild(d);
   });
   updateMetrics(filtered);
