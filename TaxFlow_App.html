@@ -10,7 +10,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -229,10 +228,6 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 .rule-arrow{color:var(--text3);font-size:12px}
 .rule-cat{font-size:12px;color:var(--text2);flex:1}
 
-.field-label{display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;margin-top:10px}
-.field-input{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box;outline:none}
-.field-input:focus{border-color:var(--brand)}
-
 /* ── EXPORT BAR ── */
 .export-bar{background:linear-gradient(135deg,var(--brand-light),#fff);border:1px solid var(--border);border-radius:var(--radius-xl);padding:14px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow);margin-top:16px;flex-wrap:wrap;gap:10px}
 .export-info{font-size:13px;color:var(--text2);display:flex;align-items:center;gap:6px}
@@ -313,7 +308,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px;letter-spacing:0.05em">v2.4.1</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.4.2</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -398,7 +393,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.4.1</span>
+      <span class="logo-beta">v1.53</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -413,17 +408,17 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
             <div class="ud-avatar" style="background:rgba(37,99,235,0.15);color:var(--brand)">U1</div>
             <div><div style="font-weight:700" id="ud-name1">User 1</div><div style="font-size:11px;color:var(--text3)" id="ud-biz1">Primary Account</div></div>
           </div>
-          <div id="ud-extra-users"></div>
+          <div class="ud-item" onclick="switchUser('spouse',event)" id="ud-spouse">
+            <div class="ud-avatar" style="background:rgba(22,163,74,0.15);color:var(--green)">U2</div>
+            <div><div style="font-weight:700" id="ud-name2">User 2</div><div style="font-size:11px;color:var(--text3)" id="ud-biz2">Secondary Account</div></div>
+          </div>
           <div class="ud-divider"></div>
-          <div id="ud-add-user-btn"></div>
           <div class="ud-item" onclick="showTab('settings');toggleUD()">⚙️ &nbsp;Settings</div>
         </div>
-      </div>
-      <button class="btn btn-white" onclick="exportCsv()">⬇ Export CSV</button>
+      
+      <button class="btn btn-white" onclick="exportCPAPackage()">CPA Package</button>
+      <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer">Sign Out</button></div>
       <button class="btn btn-white" onclick="exportAll()">⬇ Export Excel</button>
-      <button class="btn btn-white" onclick="exportCPAPackage()">📦 CPA Package</button>
-      <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer;letter-spacing:0.02em" onmouseover="this.style.background='rgba(255,255,255,0.25)'" onmouseout="this.style.background='rgba(255,255,255,0.15)'">Sign Out</button>
-
     </div>
   </div>
 </header>
@@ -442,13 +437,14 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 <!-- TABS BAR -->
 <div class="tabs-bar">
   <div class="tabs-inner" id="tabs-inner">
-    <button class="tab-btn active" id="tab-btn-statements" onclick="showTab('statements')">📋 Statements</button>
-    <button class="tab-btn" id="tab-btn-summary" onclick="showTab('summary')">📊 Summary</button>
+    <button class="tab-btn active" id="tab-btn-upload" onclick="showTab('upload')">Upload</button>
+    <button class="tab-btn" id="tab-btn-statements" onclick="showTab('statements')">Transactions</button>
+    <button class="tab-btn" id="tab-btn-summary" onclick="showTab('summary')">Summary</button>
     <button class="tab-add" onclick="openOptModal()">+ Add tab</button>
   </div>
 </div>
 
-<!-- OPTIONAL TABS MODAL -->
+<!-- OPTIONAL<!-- OPTIONAL TABS MODAL -->
 <div class="modal-overlay" id="opt-modal">
   <div class="modal">
     <div class="modal-header">
@@ -471,10 +467,10 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 <div class="main">
 
   <!-- STATEMENTS -->
-  <div cl<div class="tab-panel active" id="panel-upload">
+  <div class="tab-panel active" id="panel-upload">
     <div class="panel-header">
-      <h2 class="panel-title">📂 Upload Statements</h2>
-      <button onclick="clearAllData()" class="btn btn-outline" style="color:var(--red);border-color:var(--red-mid);font-size:12px">🗑 Clear All</button>
+      <h2 class="panel-title">Upload Statements</h2>
+      <button onclick="clearAllData()" class="btn btn-outline" style="color:var(--red);border-color:var(--red-mid);font-size:12px">Clear All</button>
     </div>
 
     <div class="upload-zone" id="dropzone" onclick="document.getElementById('fi').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave()" ondrop="onDrop(event)">
@@ -504,31 +500,31 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       </div>
     </div>
 
-
-    <!-- Saved statements viewer -->
+    
+    <div id="import-banner" style="display:none;background:var(--brand-light);border-radius:10px;padding:12px 16px;margin-top:12px;font-size:13px;color:var(--brand)">
+      <span id="import-banner-msg">Reading...</span>
+    </div>
     <div style="margin-top:24px">
-      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px">📁 Saved Statements</div>
+      <div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:12px">Saved Statements</div>
       <div id="saved-statements-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
     </div>
-
   </div>
 
-  <div class="tab-panel" id="panel-statements">
+<div class="tab-panel" id="panel-statements">
     <div class="panel-header" style="margin-bottom:0">
-      <h2 class="panel-title">📋 Transactions</h2>
+      <h2 class="panel-title">Transactions</h2>
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" onclick="toggleAddForm()" style="font-size:12px">+ Manual</button>
-        <button class="btn btn-outline" onclick="autoCategAll()" style="font-size:12px">✨ Re-categorize</button>
-        <button class="btn btn-outline" onclick="clearAllData()" style="font-size:12px;color:var(--red);border-color:var(--red-mid)">🗑 Clear All</button>
+        <button class="btn btn-outline" onclick="autoCategAll()" style="font-size:12px">Re-categorize</button>
+        <button class="btn btn-outline" onclick="clearAllData()" style="font-size:12px;color:var(--red)">Clear All</button>
       </div>
     </div>
-
     <div class="manual-form" id="add-form" style="display:none">
-      <div class="form-title">➕ Add transaction manually</div>
+      <div class="form-title">Add transaction manually</div>
       <div class="form-grid">
         <div class="form-group"><label>Date</label><input type="date" id="af-date"></div>
-        <div class="form-group"><label>Description</label><input type="text" id="af-desc" placeholder="e.g. Hardware store, gas station..."></div>
-        <div class="form-group"><label>Amount (use − for expense)</label><input type="number" id="af-amt" placeholder="e.g. -48.76 or 500.00"></div>
+        <div class="form-group"><label>Description</label><input type="text" id="af-desc"></div>
+        <div class="form-group"><label>Amount</label><input type="number" id="af-amt"></div>
         <div class="form-group"><label>Category</label><select id="af-cat"></select></div>
       </div>
       <div style="display:flex;gap:8px">
@@ -536,8 +532,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         <button class="btn btn-outline" onclick="toggleAddForm()">Cancel</button>
       </div>
     </div>
-
-    <div class="toolbar">
+<div class="toolbar">
       <div class="search-wrap"><span class="search-icon">🔍</span><input type="text" id="search" placeholder="Search transactions…" oninput="render()"></div>
       <select id="f-bucket" onchange="render()">
         <option value="">All categories</option>
@@ -564,17 +559,12 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div style="display:flex;gap:8px">
         <button class="btn btn-outline" onclick="exportCsv()">Export CSV</button>
         <button class="btn btn-success" onclick="exportAll()">⬇ Download Excel Workbook</button>
-        <button class="btn btn-primary" onclick="exportCPAPackage()" style="display:flex;align-items:center;gap:6px">📦 CPA Export Package</button>
       </div>
     </div>
   </div>
 
   <!-- SUMMARY -->
   <div class="tab-panel" id="panel-summary">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px">
-      <h2 style="font-size:18px;font-weight:800;color:var(--text)">📊 Tax Summary</h2>
-      <button class="btn btn-success" onclick="exportCPAPackage()" style="display:flex;align-items:center;gap:6px">📦 CPA Export Package</button>
-    </div>
     <div class="net-hero">
       <div>
         <div class="net-label">Estimated net taxable income</div>
@@ -731,22 +721,11 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
   <!-- SETTINGS -->
   <div class="tab-panel" id="panel-settings">
     <div class="settings-card">
-      <div class="settings-title">📅 Tax Year</div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Switch between tax years. Each year has its own transactions and data. Your settings and rules apply to all years.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px" id="year-btns"></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="number" id="new-year-input" placeholder="e.g. 2023" min="2018" max="2030" style="width:110px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px">
-        <button class="btn btn-outline" onclick="addYear()">+ Add Year</button>
-      </div>
-    </div>
-    <div class="settings-card">
       <div class="settings-title">👤 User profiles</div>
-      <div class="setting-row"><div><div class="setting-label">Primary user name</div><div class="setting-sub">Appears in header and exports</div></div><input type="text" id="s-n1" placeholder="e.g. John Doe" style="width:100%;max-width:260px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
-      <div class="setting-row"><div><div class="setting-label">Business name</div><div class="setting-sub">Shown on all Excel exports</div></div><input type="text" id="s-biz" placeholder="e.g. Business Name LLC" style="width:100%;max-width:300px;border:1.5px solid var(--border);border-radius:8px;padding:9px 12px;font-size:14px;color:var(--text);background:#fff;box-sizing:border-box" value=""></div>
-      <div style="margin-top:12px;margin-bottom:16px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
-      <div class="settings-title" style="margin-top:8px">👥 Additional users</div>
-      <div id="settings-extra-users" style="margin-bottom:12px"></div>
-      <div id="settings-add-user-area"></div>
+      <div class="setting-row"><div><div class="setting-label">Primary user name</div><div class="setting-sub">Appears in header and exports</div></div><input type="text" id="s-n1" style="width:180px" value=""></div>
+      <div class="setting-row"><div><div class="setting-label">Business name</div><div class="setting-sub">Shown on all Excel exports</div></div><input type="text" id="s-biz" style="width:200px" value=""></div>
+      <div class="setting-row"><div><div class="setting-label">Second user name</div><div class="setting-sub">For spouse or business partner</div></div><input type="text" id="s-n2" style="width:180px" value=""></div>
+      <div style="margin-top:12px"><button class="btn btn-primary" onclick="saveSettings()">Save settings</button></div>
     </div>
     <div class="settings-card">
       <div class="settings-title">🤖 Auto-categorization rules</div>
@@ -794,505 +773,50 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       </table>
       <div class="summary-row" id="equipment-total" style="margin-top:12px;font-weight:700;font-size:15px;color:var(--brand)"></div>
     </div>
-    
-    <!-- ── INVOICE TRACKER PANEL ─────────────────────────────────────────── -->
-    <div class="tab-panel" id="panel-invoices">
-      <div class="panel-header">
-        <h2 class="panel-title">🧾 Invoice Tracker</h2>
-        <button class="btn btn-primary" onclick="addInvoice()">+ Add Invoice</button>
-      </div>
-      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
-        <div class="metric-card" style="flex:1;min-width:140px;background:var(--green-bg);border:1px solid var(--green-mid);border-radius:12px;padding:14px">
-          <div style="font-size:11px;font-weight:700;color:var(--green);text-transform:uppercase;letter-spacing:0.5px">Paid</div>
-          <div id="inv-paid-total" style="font-size:20px;font-weight:800;color:var(--green);margin-top:4px">$0.00</div>
-          <div id="inv-paid-count" style="font-size:11px;color:var(--text2)">0 invoices</div>
-        </div>
-        <div class="metric-card" style="flex:1;min-width:140px;background:var(--amber-bg);border:1px solid var(--amber-mid);border-radius:12px;padding:14px">
-          <div style="font-size:11px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:0.5px">Outstanding</div>
-          <div id="inv-out-total" style="font-size:20px;font-weight:800;color:var(--amber);margin-top:4px">$0.00</div>
-          <div id="inv-out-count" style="font-size:11px;color:var(--text2)">0 invoices</div>
-        </div>
-        <div class="metric-card" style="flex:1;min-width:140px;background:var(--red-bg);border:1px solid var(--red-mid);border-radius:12px;padding:14px">
-          <div style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:0.5px">Overdue</div>
-          <div id="inv-over-total" style="font-size:20px;font-weight:800;color:var(--red);margin-top:4px">$0.00</div>
-          <div id="inv-over-count" style="font-size:11px;color:var(--text2)">0 invoices</div>
-        </div>
-        <div class="metric-card" style="flex:1;min-width:140px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:14px">
-          <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px">Total Billed</div>
-          <div id="inv-total-total" style="font-size:20px;font-weight:800;color:var(--text);margin-top:4px">$0.00</div>
-          <div id="inv-total-count" style="font-size:11px;color:var(--text2)">0 invoices</div>
-        </div>
-      </div>
-      <table class="tx-table">
-        <thead><tr><th>Invoice #</th><th>Client</th><th>Description</th><th>Date Sent</th><th>Due Date</th><th>Amount</th><th>Status</th><th>Notes</th><th></th></tr></thead>
-        <tbody id="invoice-body"></tbody>
-      </table>
-    </div>
-
-    <!-- ── PROFIT & LOSS PANEL ────────────────────────────────────────────── -->
-    <div class="tab-panel" id="panel-pl">
-      <div class="panel-header">
-        <h2 class="panel-title">📊 Profit & Loss Statement</h2>
-        <button class="btn btn-success" onclick="exportPL()">⬇ Export P&L</button>
-      </div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Auto-generated from your categorized transactions. Formatted the way banks and accountants expect to see it.</div>
-      <div id="pl-content" style="max-width:680px"></div>
-    </div>
-
-    <!-- ── CLIENT BREAKDOWN PANEL ─────────────────────────────────────────── -->
-    <div class="tab-panel" id="panel-clients">
-      <div class="panel-header">
-        <h2 class="panel-title">👥 Client Tracker</h2>
-        <button class="btn btn-primary" onclick="addClient()">+ Add Client</button>
-      </div>
-      <div id="client-roster" style="margin-bottom:20px"></div>
-      <div style="border-top:2px solid var(--border);padding-top:20px">
-        <h3 style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">📊 Income by Client</h3>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Tag income transactions with client names to see a breakdown here.</div>
-        <div id="clients-content"></div>
-      </div>
-    </div>
-
-    <!-- ── YEAR-OVER-YEAR PANEL ───────────────────────────────────────────── -->
-    <div class="tab-panel" id="panel-yoy">
-      <div class="panel-header">
-        <h2 class="panel-title">📈 Year-over-Year Comparison</h2>
-      </div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Compare your income, deductions, and net taxable income across all years. Add previous year data in Settings → Tax Year.</div>
-      <div id="yoy-content"></div>
-    </div>
     </div><!-- end .main -->
-
+<div id="prog" style="display:none;position:fixed;inset:0;background:rgba(255,255,255,0.8);z-index:8888;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:#2563eb">Reading statements...</div>
 <div class="toast" id="toast"></div>
-<div id="import-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:7777;background:linear-gradient(90deg,#1e3a5f,#2563eb);color:#fff;font-size:13px;font-weight:600;padding:10px 20px;text-align:center;letter-spacing:0.02em;box-shadow:0 2px 8px rgba(0,0,0,0.2)">
-  <span id="import-banner-msg">Reading statements...</span>
-</div>
+
+
+
 
 <script>
+
 // Safe DOM helper — silently skips if element doesn't exist
 var statementsUploaded = 0; // tracks uploads for free tier limit
-function setEl(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
-}
-function setStyle(id, prop, val) {
-  const el = document.getElementById(id);
-  if (el) el.style[prop] = val;
-}
-function toast(msg, dur){
-  const el=document.getElementById('toast');
-  if(!el) return;
-  el.textContent=msg;
-  el.classList.add('show');
-  clearTimeout(toast._t);
-  toast._t=setTimeout(function(){el.classList.remove('show');},dur||3000);
-}
-function save(){try{localStorage.setItem('tf_v3',JSON.stringify(S));}catch(e){}}
-function U(){
-  if(S.cur==='herbert') return S.users.herbert;
-  const eu=S.extraUsers.find(u=>u.id===S.cur);
-  return eu || S.users.herbert;
-}
-function allUsers(){
-  return [S.users.herbert, ...S.extraUsers];
-}
-function maxUsers(){
-  const tier=currentTier();
-  return tier.maxUsers||1;
-}
-function tx(){return U().tx}
-function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
-function fmt(n){return'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
-function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
-
-
-// ── CATEGORIES ─────────────────────────────────────────────────────────────
-const CATS=[
-  'Income — Client Payment','Income — Direct Deposit','Income — Other',
-  'Deductible — Advertising & Marketing','Deductible — Bank Fees',
-  'Deductible — Business Meals','Deductible — Business Travel',
-  'Deductible — Car & Truck','Deductible — Contract Labor',
-  'Deductible — Education & Training','Deductible — Equipment & Tools',
-  'Deductible — Home Office','Deductible — Insurance',
-  'Deductible — Legal & Professional','Deductible — Medical',
-  'Deductible — Office Supplies','Deductible — Phone & Internet',
-  'Deductible — Rent & Lease','Deductible — Software & Subscriptions',
-  'Deductible — Taxes & Licenses','Deductible — Utilities',
-  'Deductible — Other Business Expense',
-  'Personal — Dining & Restaurants','Personal — Entertainment & Gambling',
-  'Personal — Groceries','Personal — Gas & Fuel',
-  'Personal — Health & Fitness','Personal — Personal Care',
-  'Personal — Shopping','Personal — Transportation',
-  'Personal — Other Personal Expense',
-  'Needs Review'
-];
-
-const TAB_LABELS={
-  gambling:'🎰 Gambling W/L', mileage:'🚗 Mileage', homeoffice:'🏠 Home Office',
-  retirement:'🏦 Retirement', equipment:'💻 Equipment',
-  invoices:'🧾 Invoices', pl:'📊 P&L', clients:'👥 Clients', yoy:'📈 Year vs Year',
-  '1099':'📄 1099 Tracker', quarterly:'📅 Quarterly', settings:'⚙️ Settings',
-};
-
-const OPTIONAL_TABS=[
-  {id:'clients',     icon:'👥', name:'Client Tracker',      desc:'Manage clients and track income by client'},
-  {id:'invoices',    icon:'🧾', name:'Invoice Tracker',     desc:'Track client invoices — paid, outstanding, and overdue'},
-  {id:'pl',          icon:'📊', name:'Profit & Loss',       desc:'Auto-generated P&L statement from your transactions'},
-  {id:'yoy',         icon:'📈', name:'Year-over-Year',      desc:'Compare this year to previous years side by side'},
-  {id:'mileage',     icon:'🚗', name:'Vehicle Mileage',     desc:'Log work trips and calculate your mileage deduction'},
-  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
-  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
-  {id:'homeoffice',  icon:'🏠', name:'Home Office',         desc:'Calculate your home office deduction'},
-  {id:'1099',        icon:'📄', name:'1099 Tracker',        desc:'Track 1099 income from each client or platform'},
-  {id:'quarterly',   icon:'📅', name:'Quarterly Taxes',     desc:'Estimate your quarterly tax payments'},
-  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
-];
-
-// ── DEFAULT RULES ──────────────────────────────────────────────────────────
-const DEFAULT_RULES=[
-  {kw:'stripe',cat:'Income — Client Payment'},
-  {kw:'paypal',cat:'Income — Client Payment'},
-  {kw:'venmo',cat:'Income — Client Payment'},
-  {kw:'zelle',cat:'Income — Client Payment'},
-  {kw:'direct dep',cat:'Income — Direct Deposit'},
-  {kw:'deposit',cat:'Income — Direct Deposit'},
-  {kw:'uber eats',cat:'Deductible — Business Meals'},
-  {kw:'doordash',cat:'Deductible — Business Meals'},
-  {kw:'grubhub',cat:'Deductible — Business Meals'},
-  {kw:'amazon',cat:'Deductible — Office Supplies'},
-  {kw:'office depot',cat:'Deductible — Office Supplies'},
-  {kw:'staples',cat:'Deductible — Office Supplies'},
-  {kw:'at&t',cat:'Deductible — Phone & Internet'},
-  {kw:'verizon',cat:'Deductible — Phone & Internet'},
-  {kw:'t-mobile',cat:'Deductible — Phone & Internet'},
-  {kw:'comcast',cat:'Deductible — Phone & Internet'},
-  {kw:'xfinity',cat:'Deductible — Phone & Internet'},
-  {kw:'google',cat:'Deductible — Software & Subscriptions'},
-  {kw:'microsoft',cat:'Deductible — Software & Subscriptions'},
-  {kw:'adobe',cat:'Deductible — Software & Subscriptions'},
-  {kw:'netflix',cat:'Personal — Entertainment & Gambling'},
-  {kw:'spotify',cat:'Personal — Entertainment & Gambling'},
-  {kw:'hulu',cat:'Personal — Entertainment & Gambling'},
-  {kw:'apple',cat:'Deductible — Software & Subscriptions'},
-  {kw:'betmgm',cat:'Personal — Entertainment & Gambling'},
-  {kw:'draftkings',cat:'Personal — Entertainment & Gambling'},
-  {kw:'fanduel',cat:'Personal — Entertainment & Gambling'},
-  {kw:'wawa',cat:'Personal — Gas & Fuel'},
-  {kw:'shell',cat:'Personal — Gas & Fuel'},
-  {kw:'exxon',cat:'Personal — Gas & Fuel'},
-  {kw:'bp',cat:'Personal — Gas & Fuel'},
-  {kw:'lukoil',cat:'Personal — Gas & Fuel'},
-  {kw:'sunoco',cat:'Personal — Gas & Fuel'},
-  {kw:'progressive',cat:'Deductible — Insurance'},
-  {kw:'geico',cat:'Deductible — Insurance'},
-  {kw:'affirm',cat:'Personal — Shopping'},
-  {kw:'afterpay',cat:'Personal — Shopping'},
-  {kw:'gopuff',cat:'Personal — Groceries'},
-  {kw:'instacart',cat:'Personal — Groceries'},
-];
-
-// ── STATE ──────────────────────────────────────────────────────────────────
-const USER_COLORS=['brand','green','purple','amber','red'];
-const USER_AVATARS=['U1','U2','U3','U4','U5'];
-
-function emptyUser(avatar,color){
-  return {name:'',biz:'',avatar,color,tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]};
-}
-
-let S={
-  users:{ herbert:emptyUser('U1','brand') },
-  cur:'herbert',
-  extraUsers:[],
-  clients:[],  // [{id,name,biz,email,rate,notes}]
-  savedStatements:[], // [{id,name,period,thumbnail,dataUrl,pages}]
-  rules:[...DEFAULT_RULES],
-  year:new Date().getFullYear().toString(),
-  years:{},
-  activeTabs:[],
-  currentTab:'upload',
-  profile:{filingStatus:'single',state:''}
-};
-
-// ── PERSISTENCE ────────────────────────────────────────────────────────────
-function load(){
-  try{
-    const d=localStorage.getItem('tf_v3');
-    if(d){
-      const parsed=JSON.parse(d);
-      S=Object.assign(S,parsed);
-      if(!S.years) S.years={};
-      if(!S.savedStatements) S.savedStatements=[];
-      // If no transactions exist for any user, saved statements are stale — clear them
-      var hasTx=(S.users.herbert.tx||[]).length>0||
-        (S.extraUsers||[]).some(function(u){return (u.tx||[]).length>0;});
-      if(!hasTx) S.savedStatements=[];
-      if(!S.activeTabs) S.activeTabs=['settings'];
-      if(!S.profile) S.profile={filingStatus:'single',state:''};
-      if(!S.extraUsers) S.extraUsers=[];
-      if(!S.users.herbert) S.users.herbert=emptyUser('U1','brand');
-      ['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(f=>{
-        if(!S.users.herbert[f]) S.users.herbert[f]=[];
-      });
-      S.extraUsers.forEach(u=>{
-        ['invoices','retirement','equipment','tx','gambling','mileage','c1099'].forEach(f=>{
-          if(!u[f]) u[f]=[];
-        });
-      });
-      // Migrate old 'spouse' key
-      if(S.users.spouse){
-        const sp=S.users.spouse;
-        if((sp.name||'').trim()||(sp.tx||[]).length){
-          if(!S.extraUsers.find(u=>u.id==='user2')){
-            const eu=emptyUser('U2','green');
-            eu.id='user2'; eu.name=sp.name||''; eu.biz=sp.biz||'';
-            eu.tx=sp.tx||[]; eu.gambling=sp.gambling||[];
-            S.extraUsers.push(eu);
-          }
-        }
-        delete S.users.spouse;
-      }
-    }
-  }catch(e){console.error('Load error:',e);}
-  if(!S.rules||!S.rules.length) S.rules=[...DEFAULT_RULES];
-  populateCatSelects();
-  loadSettings();
-  renderTabs();
-  renderRules();
-  render();
-  updateSummary();
-  renderUserDropdown();
-  // Activate the current tab so the right panel is visible
-  showTab(S.currentTab||'upload');
-}
-
-// ── CATEGORIES ─────────────────────────────────────────────────────────────
-function bucket(cat){
-  if(!cat) return 'review';
-  if(cat.startsWith('Income')) return 'income';
-  if(cat.startsWith('Deductible')) return 'deductible';
-  if(cat.startsWith('Personal')) return 'personal';
-  return 'review';
-}
-
-function autoCat(desc){
-  if(!desc) return 'Needs Review';
-  const d=desc.toLowerCase();
-  for(const rule of (S.rules||[])){
-    if(d.includes(rule.kw)) return rule.cat;
-  }
-  return 'Needs Review';
-}
-
-function normalizeDate(raw){
-  if(!raw) return '';
-  const s=raw.replace(/[-\.]/g,'/');
-  const p=s.split('/');
-  if(p.length===3){
-    let [a,b,c]=p;
-    if(c.length===2) c='20'+c;
-    if(a.length===4){[a,b,c]=[b,c,a];}
-    return a.padStart(2,'0')+'/'+b.padStart(2,'0')+'/'+c;
-  }
-  return raw;
-}
-
-function cleanDesc(d){
-  return d
-    .replace(/DB[CR]+D\s+\w+\s+AP,\s*\*+[\d]+,\s*AUT\s*\d+\s*(?:VISA\s*)?DDA\s*(?:PUR|PMT)?\s*AP\s*/gi,'')
-    .replace(/DEBIT\s+POS\s+AP,\s*\*+[\d]+,\s*AUT\s*\d+\s*DDA\s*PURCHASE\s*AP\s*/gi,'')
-    .replace(/DEBIT\s+CARD\s+CREDIT,\s*\*+[\d]+,\s*AUT\s*\d+\s*VISA\s*DDA\s*REF\s*/gi,'')
-    .replace(/ELECTRONIC\s+PMT-WEB,\s*/gi,'')
-    .replace(/CCD\s+DEBIT,\s*/gi,'')
-    .replace(/ACH\s+DEBIT,\s*/gi,'')
-    .replace(/\s{2,}/g,' ')
-    .trim();
-}
-
-function populateCatSelects(){
-  document.querySelectorAll('select.cat-filter').forEach(sel=>{
-    if(sel.options.length>1) return;
-    CATS.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;sel.appendChild(o);});
-  });
-}
-
-// ── TABS ───────────────────────────────────────────────────────────────────
-
-// ── SAVED STATEMENTS ───────────────────────────────────────────────────────
-// Store statement metadata + first page render in state
-// S.savedStatements = [{id, name, date, pages, thumbnail (data URL), src}]
-
-function renderSavedStatements(){
-  var grid=document.getElementById('saved-statements-grid');
-  if(!grid) return;
-  var stmts=S.savedStatements||[];
-  grid.innerHTML='';
-  if(!stmts.length){
-    var empty=document.createElement('div');
-    empty.style.cssText='grid-column:1/-1;text-align:center;padding:32px;color:var(--text2);font-size:13px';
-    empty.textContent='No statements saved yet — upload PDFs above and they will appear here.';
-    grid.appendChild(empty);
-    return;
-  }
-  stmts.forEach(function(s){
-    var card=document.createElement('div');
-    card.style.cssText='background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:box-shadow 0.2s;box-shadow:var(--shadow)';
-    card.addEventListener('mouseenter',function(){card.style.boxShadow='0 4px 20px rgba(0,0,0,0.12)';});
-    card.addEventListener('mouseleave',function(){card.style.boxShadow='var(--shadow)';});
-    card.addEventListener('click',function(){openSavedStatement(s.id);});
-
-    // Thumbnail or placeholder
-    var thumb=document.createElement('div');
-    thumb.style.cssText='width:100%;height:140px;overflow:hidden;border-bottom:1px solid var(--border)';
-    if(s.thumbnail){
-      var img=document.createElement('img');
-      img.src=s.thumbnail;
-      img.style.cssText='width:100%;height:140px;object-fit:cover;object-position:top';
-      thumb.appendChild(img);
-    } else {
-      thumb.style.cssText+='background:linear-gradient(135deg,#1e3a5f,#2563eb);display:flex;align-items:center;justify-content:center;font-size:40px';
-      thumb.textContent='📄';
-    }
-    card.appendChild(thumb);
-
-    // Info
-    var info=document.createElement('div');
-    info.style.cssText='padding:10px 12px';
-    var name=document.createElement('div');
-    name.style.cssText='font-weight:700;font-size:13px;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-    name.textContent=s.name;
-    var period=document.createElement('div');
-    period.style.cssText='font-size:11px;color:var(--text2)';
-    period.textContent=s.period||s.date||'';
-    var pages=document.createElement('div');
-    pages.style.cssText='font-size:11px;color:var(--text3);margin-top:4px;display:flex;justify-content:space-between;align-items:center';
-    pages.innerHTML='<span>'+s.pages+' pages</span>';
-    var delBtn=document.createElement('button');
-    delBtn.textContent='✕';
-    delBtn.style.cssText='background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0';
-    delBtn.onclick=function(e){e.stopPropagation();deleteSavedStatement(s.id);};
-    pages.appendChild(delBtn);
-    info.appendChild(name);
-    info.appendChild(period);
-    info.appendChild(pages);
-    card.appendChild(info);
-    grid.appendChild(card);
-  });
-}
-
-function openSavedStatement(id){
-  var s=(S.savedStatements||[]).find(function(x){return x.id===id;});
-  if(!s||!s.dataUrl) return;
-  var modal=document.createElement('div');
-  modal.id='stmt-viewer-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
-  var box=document.createElement('div');
-  box.style.cssText='background:#fff;border-radius:16px;width:100%;max-width:860px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden';
-  // Header
-  var hdr=document.createElement('div');
-  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0';
-  var title=document.createElement('div');
-  var t1=document.createElement('div');t1.style.cssText='font-weight:800;font-size:15px';t1.textContent=s.name;
-  var t2=document.createElement('div');t2.style.cssText='font-size:12px;color:var(--text2)';t2.textContent=s.period||s.date||'';
-  title.appendChild(t1);title.appendChild(t2);
-  var closeBtn=document.createElement('button');
-  closeBtn.style.cssText='background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px';
-  closeBtn.textContent='✕ Close';
-  closeBtn.onclick=function(){modal.remove();};
-  hdr.appendChild(title);hdr.appendChild(closeBtn);
-  // PDF iframe
-  var frame=document.createElement('iframe');
-  frame.src=s.dataUrl;
-  frame.style.cssText='flex:1;border:none;min-height:600px';
-  frame.type='application/pdf';
-  box.appendChild(hdr);box.appendChild(frame);
-  modal.appendChild(box);
-  document.body.appendChild(modal);
-}
-
-function deleteSavedStatement(id, event){
-  if(event) event.stopPropagation();
-  if(!confirm('Remove this statement?')) return;
-  S.savedStatements = (S.savedStatements||[]).filter(function(s){return s.id!==id;});
-  save();
-  renderSavedStatements();
-}
-
-// Call this after a PDF is successfully parsed to save it
-async function saveStatementToLibrary(file, pageRows){
-  if(!S.savedStatements) S.savedStatements=[];
-  // Don't save duplicates
-  if(S.savedStatements.find(function(s){return s.name===file.name;})) return;
-
-  // Extract statement period from pageRows text
-  var allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
-  var periodMatch=allText.match(/(\w+\s+\d+\s+\d{4})\s*[-–]\s*(\w+\s+\d+\s+\d{4})/);
-  var period=periodMatch?periodMatch[1]+' – '+periodMatch[2]:'';
-
-  // Save dataUrl for PDF viewer
-  var dataUrl=await new Promise(function(res){
-    var reader=new FileReader();
-    reader.onload=function(e){res(e.target.result);};
-    reader.readAsDataURL(file);
-  });
-
-  // ── Step 1: Save immediately with no thumbnail so card appears right away ──
-  var entry={
-    id:uid(),
-    name:file.name,
-    period:period,
-    date:new Date().toISOString().split('T')[0],
-    pages:'?',
-    thumbnail:null,
-    dataUrl:dataUrl
-  };
-  S.savedStatements.push(entry);
-  save();
-  renderSavedStatements(); // render immediately — card shows as placeholder
-
-  // ── Step 2: Generate thumbnail in background, update card when ready ──────
-  try{
-    if(typeof pdfjsLib!=='undefined'){
-      var buf=await readBuf(file);
-      var pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true}).promise;
-      entry.pages=pdf.numPages;
-      var page=await pdf.getPage(1);
-      var scale=0.6;
-      var viewport=page.getViewport({scale:scale});
-      var canvas=document.createElement('canvas');
-      canvas.width=viewport.width;
-      canvas.height=viewport.height;
-      var ctx=canvas.getContext('2d');
-      await page.render({canvasContext:ctx,viewport:viewport}).promise;
-      entry.thumbnail=canvas.toDataURL('image/jpeg',0.7);
-      pdf.destroy();
-      save();
-      renderSavedStatements(); // re-render with thumbnail
-    }
-  }catch(e){
-    console.warn('Thumbnail generation failed:',e.message);
-  }
-}
 
 function renderTabs(){
   var inner=document.getElementById('tabs-inner');
   if(!inner) return;
-  var dynTabs=S.activeTabs.map(function(id){
-    var active=S.currentTab===id?' active':'';
-    var label=TAB_LABELS[id]||id;
-    var closeBtn=id==='settings'?'':' <span class="tab-close" onclick="removeTab(\'' +id+ '\',event)">\u00d7</span>';
-    return '<button class="tab-btn'+active+'" id="tab-btn-'+id+'" onclick="showTab(\'' +id+ '\')">'+label+closeBtn+'</button>';
-  }).join('');
-  var upAct=S.currentTab==='upload'?' active':'';
-  var sAct=S.currentTab==='statements'?' active':'';
-  var sumAct=S.currentTab==='summary'?' active':'';
-  inner.innerHTML=[
-    '<button class="tab-btn'+upAct+'" id="tab-btn-upload" onclick="showTab(\'upload\')">\ud83d\udcc2 Upload</button>',
-    '<button class="tab-btn'+sAct+'" id="tab-btn-statements" onclick="showTab(\'statements\')">\ud83d\udccb Transactions</button>',
-    '<button class="tab-btn'+sumAct+'" id="tab-btn-summary" onclick="showTab(\'summary\')">\ud83d\udcca Summary</button>',
-    dynTabs,
-    '<button class="tab-add" onclick="openOptModal()">+ Add tab</button>',
-    '<button class="tab-btn'+(S.currentTab==='settings'?' active':'')+' tab-settings-fixed" id="tab-btn-settings" onclick="showTab(\'settings\')" style="margin-left:auto;border-left:1px solid var(--border);padding:0 16px">\u2699\ufe0f Settings</button>'
-  ].join('');
+  inner.innerHTML='';
+  function makeBtn(id,label){
+    var b=document.createElement('button');
+    b.className='tab-btn'+(S.currentTab===id?' active':'');
+    b.id='tab-btn-'+id;
+    b.textContent=label;
+    b.onclick=function(){showTab(id);};
+    return b;
+  }
+  inner.appendChild(makeBtn('upload','Upload'));
+  inner.appendChild(makeBtn('statements','Transactions'));
+  inner.appendChild(makeBtn('summary','Summary'));
+  S.activeTabs.forEach(function(id){
+    var b=makeBtn(id,TAB_LABELS[id]||id);
+    var x=document.createElement('span');
+    x.className='tab-close';x.textContent='x';
+    x.onclick=function(e){e.stopPropagation();removeTab(id,e);};
+    b.appendChild(x);
+    inner.appendChild(b);
+  });
+  var addBtn=document.createElement('button');
+  addBtn.className='tab-add';addBtn.textContent='+ Add tab';addBtn.onclick=openOptModal;
+  inner.appendChild(addBtn);
+  var sb=document.createElement('button');
+  sb.className='tab-btn tab-settings-fixed'+(S.currentTab==='settings'?' active':'');
+  sb.id='tab-btn-settings';sb.textContent='Settings';
+  sb.style.cssText='margin-left:auto;border-left:1px solid var(--border);padding:0 16px';
+  sb.onclick=function(){showTab('settings');};
+  inner.appendChild(sb);
 }
 
 function showTab(id){
@@ -1316,7 +840,125 @@ function showTab(id){
   save();
 }
 
+function applyTierRestrictions(){
+  var tier=currentTier();
+  S.activeTabs=S.activeTabs.filter(function(t){return tier.optionalTabs.includes(t);});
+  showUpgradeBanners(tier);
+  updateTierBadge(tier);
+  renderUserDropdown();
+}
 
+function clearSession(){}
+
+async function signOut(){
+  if(!confirm('Sign out of TaxFlow? Your data stays saved on this device.'))return;
+  try{await sb.auth.signOut();}catch(e){}
+  currentProfile=null;statementsUploaded=0;
+  var badge=document.getElementById('tier-badge');if(badge)badge.remove();
+  document.querySelectorAll('.upgrade-banner').forEach(function(b){b.remove();});
+  clearAuthMessages();authTab('login');
+  S.currentTab='upload';
+  showAuthScreen();
+}
+
+
+function setEl(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+function setStyle(id, prop, val) {
+  const el = document.getElementById(id);
+  if (el) el.style[prop] = val;
+}
+
+// ── CONSTANTS ──────────────────────────────────────────────────────────────
+const CATS=[
+  'Income — Business Deposit / Check','Income — Gambling Winnings','Income — Venmo / Payment Received','Income — Other',
+  'Deductible — Meals & Entertainment (Work)','Deductible — Gas & Fuel (Work)','Deductible — Tools & Supplies',
+  'Deductible — Work Clothing','Deductible — Business Services','Deductible — Labor / Subcontractor',
+  'Deductible — Auto & Vehicle','Deductible — Home Improvement','Deductible — Utilities & Phone',
+  'Deductible — Insurance','Deductible — Bank Fees','Deductible — Travel & Transportation',
+  'Deductible — Professional / Licensing','Deductible — Taxes & Gov Fees','Deductible — Amazon (Work Tools)',
+  'Deductible — Other Business Expense',
+  'Personal — Groceries','Personal — Health & Medical','Personal — Entertainment & Gambling',
+  'Personal — Shopping','Personal — Food Delivery','Personal — Subscriptions',
+  'Personal — Transfer / Reimbursement','Personal — Other',
+  'Needs Review'
+];
+
+const OPTIONAL_TABS=[
+  {id:'gambling',    icon:'🎰', name:'Gambling W/L',        desc:'Track casino and sportsbook win/loss statements'},
+  {id:'mileage',     icon:'🚗', name:'Vehicle Mileage',     desc:'Log work trips and calculate your mileage deduction'},
+  {id:'homeoffice',  icon:'🏠', name:'Home Office',         desc:'Calculate your home office deduction'},
+  {id:'1099',        icon:'📄', name:'1099 Tracker',        desc:'Track 1099 income from each client or platform'},
+  {id:'quarterly',   icon:'📅', name:'Quarterly Taxes',     desc:'Estimate your quarterly tax payments'},
+  {id:'retirement',  icon:'🏦', name:'Retirement',          desc:'Track SEP-IRA, Solo 401k, and IRA contributions'},
+  {id:'equipment',   icon:'💻', name:'Equipment & Assets',  desc:'Track business equipment, computers, and Section 179 deductions'},
+];
+
+const TAB_LABELS={
+  gambling:'🎰 Gambling W/L', mileage:'🚗 Mileage', homeoffice:'🏠 Home Office',
+  retirement:'🏦 Retirement', equipment:'💻 Equipment',
+  '1099':'📄 1099s', quarterly:'📅 Quarterly', settings:'⚙️ Settings'
+};
+
+const DEFAULT_RULES=[
+  {kw:'deposit|atm check|check deposit',   cat:'Income — Business Deposit / Check'},
+  {kw:'wire transfer incoming',             cat:'Income — Business Deposit / Check'},
+  {kw:'venmo.*incoming|betmgm.*credit|betmgm llc.*visa direct', cat:'Income — Gambling Winnings'},
+  {kw:'betmgm|parx casino|mgm.*casino|casino', cat:'Personal — Entertainment & Gambling'},
+  {kw:'gopuff|uber eats|doordash|grubhub', cat:'Deductible — Meals & Entertainment (Work)'},
+  {kw:'wawa|royal farms|starbucks|chick.fil|restaurant|bistro|diner', cat:'Deductible — Meals & Entertainment (Work)'},
+  {kw:'shell oil|circle k|qt [0-9]|petroleum|3a petroleum|speedway|exxon|sunoco', cat:'Deductible — Gas & Fuel (Work)'},
+  {kw:'amazon',                             cat:'Deductible — Amazon (Work Tools)'},
+  {kw:'home depot|lowes|ace hardware|own boss supply|glory boys', cat:'Deductible — Tools & Supplies'},
+  {kw:'google gsuite|brandcrowd|vistaprint|design.com|simply business', cat:'Deductible — Business Services'},
+  {kw:'gjergj|vero',                        cat:'Deductible — Labor / Subcontractor'},
+  {kw:'progressive ins|simply business',    cat:'Deductible — Insurance'},
+  {kw:'verizon|at&t|comcast|t-mobile',      cat:'Deductible — Utilities & Phone'},
+  {kw:'american air|aa wifi|uber tech|lyft|amtrak|hotel|airport|hudson st', cat:'Deductible — Travel & Transportation'},
+  {kw:'pa driver|pa bcco|gov.*payment|frank vans|dmv', cat:'Deductible — Taxes & Gov Fees'},
+  {kw:'nontd atm|atm fee|maintenance fee|paper statement|wire transfer fee|intl atm|intl txn', cat:'Deductible — Bank Fees'},
+  {kw:'netflix|apple.com|spotify|hulu|playstation|rocket money|affirm|microsoft store|uber one', cat:'Personal — Subscriptions'},
+  {kw:'venmo|cash app|zelle|paypal',        cat:'Personal — Transfer / Reimbursement'},
+  {kw:'walmart|target|costco|shoprite|giant|acme|instacart', cat:'Personal — Groceries'},
+  {kw:'cvs|walgreen|pharmacy|urgent care|medical|dental', cat:'Personal — Health & Medical'},
+  {kw:'fanfix|robinhood|bidassets',         cat:'Personal — Other'},
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let S={
+  users:{
+    herbert:{name:'',biz:'',avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[]},
+    spouse:  {name:'',biz:'',avatar:'U2',color:'green',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[]}
+  },
+  cur:'herbert',
+  rules:[...DEFAULT_RULES],
+  year:'2025',
+  activeTabs:['settings'],  // settings always visible
+  currentTab:'statements'
+};
+
+function load(){
+  try{const d=localStorage.getItem('tf_v2');if(d){S=JSON.parse(d);if(!S.activeTabs)S.activeTabs=['settings'];}}catch(e){}
+  populateCatSelects();
+  loadSettings();
+  renderTabs();
+  renderRules();
+  renderGambling();
+  renderMileage();
+  render1099();
+  render();
+  updateSummary();
+}
+function save(){try{localStorage.setItem('tf_v2',JSON.stringify(S));}catch(e){}}
+function U(){return S.users[S.cur]}
+function tx(){return U().tx}
+function uid(){return Math.random().toString(36).slice(2)+Date.now().toString(36)}
+function fmt(n){return'$'+(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// ── TABS ───────────────────────────────────────────────────────────────────
 function removeTab(id,e){
   e.stopPropagation();
   S.activeTabs=S.activeTabs.filter(t=>t!==id);
@@ -1387,6 +1029,23 @@ function updateHeaderUser(){
 }
 
 // ── AUTO-CATEGORIZE ────────────────────────────────────────────────────────
+function autoCat(desc){
+  const d=(desc||'').toLowerCase();
+  for(const r of S.rules){
+    try{if(new RegExp(r.kw,'i').test(d)) return r.cat;}catch(e){}
+  }
+  return 'Needs Review';
+}
+
+function bucket(cat){
+  if(!cat) return 'review';
+  if(cat.startsWith('Income')) return 'income';
+  if(cat.startsWith('Deductible')) return 'deductible';
+  if(cat.startsWith('Personal')) return 'personal';
+  return 'review';
+}
+
+// ── FILE HANDLING ──────────────────────────────────────────────────────────
 function parseBankText(text,fname){
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
   const isTD=lines.some(l=>/td bank|td convenience|statement of account/i.test(l));
@@ -1444,6 +1103,18 @@ function parseBluevine(lines, fname) {
 
 function isBoilerplate(s){
   return /subtotal|beginning balance|ending balance|daily balance|average collected|interest earned|days in period|statement period|account summary|annual percentage|page \d+ of|how to balance|bank-by-phone|fdic insured|equal housing|privacy notice|deposit operations|grace period/i.test(s);
+}
+
+function cleanDesc(s){
+  return s.replace(/\*{3,}\d+/g,'').replace(/AUT\s+\d{6}/gi,'').replace(/VISA\s+DDA\s+(PUR|PMT)\s+AP/gi,'').replace(/DBCRD\s+(PUR|PMT)\s+AP/gi,'').replace(/DEBIT\s+POS\s+AP/gi,'').replace(/CCD\s+(DEBIT|CREDIT)/gi,'').replace(/ACH\s+(DEBIT|CREDIT)/gi,'').replace(/\s{2,}/g,' ').trim();
+}
+
+function normalizeDate(s){
+  if(!s) return '';
+  s=s.trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)){const[y,m,d]=s.split('-');return`${m}/${d}/${y.slice(2)}`;}
+  if(/^\d{1,2}\/\d{1,2}$/.test(s)) return s+'/25';
+  return s;
 }
 
 function parseTD(lines,fname){
@@ -1840,6 +1511,13 @@ function addManual(){
   toast('Transaction added');
 }
 
+function populateCatSelects(){
+  ['af-cat'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.innerHTML=CATS.map(c=>`<option>${c}</option>`).join('');
+  });
+}
+
 function autoCategAll(){
   tx().forEach(t=>{t.cat=autoCat(t.desc);});
   save();render();updateSummary();toast('✨ All transactions re-categorized');
@@ -1868,54 +1546,6 @@ function saveSettings(){
   const ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
   const ub2=document.getElementById('ud-biz2');if(ub2)ub2.textContent=S.users.spouse.biz||'Secondary Account';
   updateHeaderUser();save();toast('Settings saved');
-}
-
-function renderRules(){
-  const el=document.getElementById('rule-list');
-  if(!el) return;
-  el.innerHTML=S.rules.map((r,i)=>`
-    <div class="rule-item">
-      <span class="rule-kw">${esc(r.kw)}</span>
-      <span class="rule-arrow">→</span>
-      <span class="rule-cat">${esc(r.cat)}</span>
-      <button class="del-btn" onclick="delRule(${i})">✕</button>
-    </div>`).join('');
-}
-
-function addRule(){
-  // Build a modal with proper keyword input + category dropdown
-  const existing = document.getElementById('rule-modal');
-  if(existing) existing.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'rule-modal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  modal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:28px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,0.3)">
-      <h3 style="margin:0 0 20px;font-size:17px;font-weight:800;color:var(--text1)">Add Categorization Rule</h3>
-      <div style="margin-bottom:16px">
-        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Keyword or phrase to match</label>
-        <input id="rule-kw-input" type="text" placeholder="e.g. Amazon, Uber, Stripe..." style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;box-sizing:border-box;outline:none">
-        <div style="font-size:11px;color:var(--text2);margin-top:4px">Will match any transaction description containing this text</div>
-      </div>
-      <div style="margin-bottom:24px">
-        <label style="display:block;font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Assign to category</label>
-        <select id="rule-cat-input" style="width:100%;border:1.5px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;background:#fff;box-sizing:border-box;outline:none">
-          <option value="">— Select a category —</option>
-          ${CATS.map(c=>`<option value="${c}">${c}</option>`).join('')}
-        </select>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end">
-        <button onclick="document.getElementById('rule-modal').remove()" style="padding:10px 20px;border:1.5px solid var(--border);border-radius:8px;background:#fff;font-size:14px;font-weight:600;cursor:pointer;color:var(--text1)">Cancel</button>
-        <button onclick="submitRule()" style="padding:10px 20px;background:var(--brand);border:none;border-radius:8px;color:#fff;font-size:14px;font-weight:700;cursor:pointer">Add Rule</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  document.getElementById('rule-kw-input').focus();
-  // Allow pressing Enter to submit
-  document.getElementById('rule-kw-input').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('rule-cat-input').focus(); });
-  document.getElementById('rule-cat-input').addEventListener('keydown', e => { if(e.key==='Enter') submitRule(); });
 }
 
 function submitRule(){
@@ -2365,19 +1995,624 @@ function exportCsv(){
 // ── PROGRESS / TOAST ───────────────────────────────────────────────────────
 function showProg(){const p=document.getElementById('prog');if(p)p.style.display='flex';}
 function hideProg(){const p=document.getElementById('prog');if(p)p.style.display='none';}
-function clearSession(){}
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2800);
+}
 
-window.addEventListener('beforeunload', () => { clearSession(); });
 
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') { clearSession(); }
-});
+// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
+// Clears the login session when the window closes or tab is hidden.
+// Transaction data stays saved — only the session token is cleared.
 
-// ── INIT ─────────────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded', async () => {
-  load();
-  await checkAuth();
-});
+function currentTier() {
+  const plan   = currentProfile?.plan   ?? 'free';
+  const status = currentProfile?.plan_status ?? 'active';
+  if (status === 'canceled') return TIERS.free;
+  return TIERS[plan] ?? TIERS.free;
+}
+
+// ── Auth screen helpers ───────────────────────────────────────────────────────
+function showAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = ''; s.style.opacity = '1'; s.style.display = 'flex';
+}
+function hideAuthScreen() {
+  const s = document.getElementById('auth-screen');
+  s.style.transition = 'opacity 0.35s ease'; s.style.opacity = '0';
+  setTimeout(() => { s.style.display='none'; s.style.opacity='1'; s.style.transition=''; }, 360);
+  updateHeaderUser(); updateDropdownNames();
+}
+function authTab(tab) {
+  document.getElementById('form-login').style.display    = tab==='login'    ? 'block' : 'none';
+  document.getElementById('form-register').style.display = tab==='register' ? 'block' : 'none';
+  document.getElementById('tab-login').classList.toggle('active',    tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+  clearAuthMessages();
+}
+function showAuthError(msg)   { const e=document.getElementById('auth-error');   e.textContent=msg; e.style.display='block'; document.getElementById('auth-success').style.display='none'; }
+function showAuthSuccess(msg) { const e=document.getElementById('auth-success'); e.textContent=msg; e.style.display='block'; document.getElementById('auth-error').style.display='none'; }
+function clearAuthMessages()  { document.getElementById('auth-error').style.display='none'; document.getElementById('auth-success').style.display='none'; }
+
+function selectPlan(plan) {
+  selectedPlan = plan;
+  ['free','household','business'].forEach(p => {
+    document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
+  });
+}
+
+// ── Load profile from Supabase ────────────────────────────────────────────────
+async function loadProfile(userId) {
+  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
+  if (error) { console.error('Profile load error:', error); return null; }
+  return data;
+}
+
+function applyProfile(profile) {
+  currentProfile = profile;
+  if (profile.full_name)     S.users.herbert.name = profile.full_name;
+  if (profile.business_name) S.users.herbert.biz  = profile.business_name;
+  if (profile.user2_name)    S.users.spouse.name  = profile.user2_name;
+  applyTierRestrictions();
+}
+
+// ── Check session on load ─────────────────────────────────────────────────────
+async function checkAuth() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session?.user) {
+    const profile = await loadProfile(session.user.id);
+    if (profile) { applyProfile(profile); hideAuthScreen(); return true; }
+  }
+  showAuthScreen();
+  return false;
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  clearAuthMessages();
+  const email = document.getElementById('login-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('login-pass').value;
+  if (!email || !email.includes('@')) { showAuthError('Please enter your email address.'); return; }
+  if (!pass) { showAuthError('Please enter your password.'); return; }
+
+  const btn = document.querySelector('#form-login .auth-btn');
+  btn.textContent = 'Signing in…'; btn.disabled = true;
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.textContent = 'Sign in to TaxFlow'; btn.disabled = false;
+
+  if (error) {
+    if (error.message.includes('Invalid login')) showAuthError('Incorrect email or password.');
+    else if (error.message.includes('Email not confirmed')) showAuthError('Please confirm your email first.');
+    else showAuthError(error.message);
+    return;
+  }
+
+  const profile = await loadProfile(data.user.id);
+  if (!profile) { showAuthError('Account error — please contact support.'); return; }
+  applyProfile(profile);
+  hideAuthScreen(); save();
+  toast('✅ Welcome back, ' + (profile.full_name || email.split('@')[0]) + '!');
+}
+
+// ── Register ──────────────────────────────────────────────────────────────────
+async function doRegister() {
+  clearAuthMessages();
+  const name  = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const pass  = document.getElementById('reg-pass').value;
+  const pass2 = document.getElementById('reg-pass2').value;
+  const name2 = document.getElementById('reg-name2').value.trim();
+
+  if (!name)  { showAuthError('Please enter your name.'); return; }
+  if (!email || !email.includes('@')) { showAuthError('Please enter a valid email.'); return; }
+  if (!pass || pass.length < 8) { showAuthError('Password must be at least 8 characters.'); return; }
+  if (pass !== pass2) { showAuthError('Passwords do not match.'); return; }
+
+  const btn = document.querySelector('#form-register .auth-btn');
+  btn.textContent = 'Creating account…'; btn.disabled = true;
+
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: name } }
+  });
+  btn.textContent = 'Create account & sign in'; btn.disabled = false;
+
+  if (error) { showAuthError(error.message); return; }
+
+  if (data.user) {
+    await sb.from('profiles').update({
+      full_name: name, user2_name: name2 || null, plan: 'free',
+    }).eq('id', data.user.id);
+  }
+
+  // If paid plan selected, redirect to Stripe after account creation
+  if (selectedPlan !== 'free') {
+    showAuthSuccess('Account created! Redirecting to payment…');
+    setTimeout(() => {
+      const link = STRIPE_LINKS[selectedPlan + '_monthly'];
+      if (link) window.open(link + '?prefilled_email=' + encodeURIComponent(email), '_blank');
+    }, 1500);
+    setTimeout(() => { showAuthSuccess('Payment opened! Sign in after completing payment.'); authTab('login'); }, 2500);
+    return;
+  }
+
+  showAuthSuccess('Account created! Check your email to confirm, then sign in.');
+  setTimeout(() => authTab('login'), 2000);
+}
+
+// ── Sign out ──────────────────────────────────────────────────────────────────
+function updateTierBadge(tier) {
+  let badge = document.getElementById('tier-badge');
+  if (!badge) {
+    badge = document.createElement('span');
+    badge.id = 'tier-badge';
+    badge.style.cssText = 'font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;color:#fff;letter-spacing:0.05em;cursor:pointer;margin-right:8px;';
+    badge.onclick = () => showUpgradeModal();
+    const hdr = document.querySelector('.header-right');
+    if (hdr) hdr.insertBefore(badge, hdr.firstChild);
+  }
+  badge.textContent = tier.label.toUpperCase();
+  badge.style.background = tier.label === 'Free' ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)';
+}
+
+function showUpgradeBanners(tier) {
+  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
+  if (!tier.showUpgradeBanner) return;
+  const panel = document.getElementById('panel-statements');
+  if (!panel) return;
+  const banner = document.createElement('div');
+  banner.className = 'upgrade-banner';
+  banner.innerHTML = '<div><strong>You are on the Free plan</strong> — limited to ' + TIERS.free.maxTransactions + ' transactions and core features.</div><button class="btn btn-primary" style="white-space:nowrap;font-size:12px;padding:7px 14px" onclick="showUpgradeModal()">Upgrade ⭐</button>';
+  panel.insertBefore(banner, panel.firstChild);
+}
+
+function showUpgradeModal() {
+  const email = currentProfile?.email || '';
+  const link  = STRIPE_LINKS.household_monthly + (email ? '?prefilled_email=' + encodeURIComponent(email) : '');
+  window.open(link, '_blank');
+}
+
+function updateDropdownNames() {
+  const ud1=document.getElementById('ud-name1'); if(ud1) ud1.textContent=S.users.herbert.name||'User 1';
+  const ud2=document.getElementById('ud-name2'); if(ud2) ud2.textContent=S.users.spouse.name||'User 2';
+  const ub1=document.getElementById('ud-biz1');  if(ub1) ub1.textContent=S.users.herbert.biz||'Primary Account';
+}
+// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
+// Clears the session when the tab/window is closed or the app exits.
+// Transaction data remains saved — only the login session is cleared.
+
+
+// ── SAVED STATEMENTS ──────────────────────────────────────────────────────
+function renderSavedStatements(){
+  var grid=document.getElementById('saved-statements-grid');
+  if(!grid) return;
+  var stmts=S.savedStatements||[];
+  grid.innerHTML='';
+  if(!stmts.length){
+    var empty=document.createElement('div');
+    empty.style.cssText='grid-column:1/-1;text-align:center;padding:32px;color:var(--text2);font-size:13px';
+    empty.textContent='No statements saved yet. Upload PDFs above and they will appear here.';
+    grid.appendChild(empty);return;
+  }
+  stmts.forEach(function(s){
+    var card=document.createElement('div');
+    card.style.cssText='background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow)';
+    card.addEventListener('click',function(){openSavedStatement(s.id);});
+    var thumb=document.createElement('div');
+    thumb.style.cssText='width:100%;height:140px;overflow:hidden;border-bottom:1px solid var(--border)';
+    if(s.thumbnail){
+      var img=document.createElement('img');img.src=s.thumbnail;
+      img.style.cssText='width:100%;height:140px;object-fit:cover;object-position:top';
+      thumb.appendChild(img);
+    } else {
+      thumb.style.cssText+='background:linear-gradient(135deg,#1e3a5f,#2563eb);display:flex;align-items:center;justify-content:center;font-size:40px';
+      thumb.textContent='?';
+    }
+    card.appendChild(thumb);
+    var info=document.createElement('div');info.style.cssText='padding:10px 12px';
+    var name=document.createElement('div');name.style.cssText='font-weight:700;font-size:13px;color:var(--text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';name.textContent=s.name;
+    var period=document.createElement('div');period.style.cssText='font-size:11px;color:var(--text2)';period.textContent=s.period||s.date||'';
+    var pages=document.createElement('div');pages.style.cssText='font-size:11px;color:var(--text3);margin-top:4px;display:flex;justify-content:space-between;align-items:center';
+    var pspan=document.createElement('span');pspan.textContent=(s.pages||'?')+' pages';
+    var del=document.createElement('button');del.textContent='x';del.style.cssText='background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px';
+    del.onclick=function(e){e.stopPropagation();deleteSavedStatement(s.id);};
+    pages.appendChild(pspan);pages.appendChild(del);
+    info.appendChild(name);info.appendChild(period);info.appendChild(pages);
+    card.appendChild(info);grid.appendChild(card);
+  });
+}
+
+function openSavedStatement(id){
+  var s=(S.savedStatements||[]).find(function(x){return x.id===id;});
+  if(!s||!s.dataUrl) return;
+  var modal=document.createElement('div');modal.id='stmt-viewer-modal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;width:100%;max-width:860px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden';
+  var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);flex-shrink:0';
+  var title=document.createElement('div');
+  var t1=document.createElement('div');t1.style.cssText='font-weight:800;font-size:15px';t1.textContent=s.name;
+  var t2=document.createElement('div');t2.style.cssText='font-size:12px;color:var(--text2)';t2.textContent=s.period||s.date||'';
+  title.appendChild(t1);title.appendChild(t2);
+  var closeBtn=document.createElement('button');closeBtn.style.cssText='background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;font-size:13px';closeBtn.textContent='Close';closeBtn.onclick=function(){modal.remove();};
+  hdr.appendChild(title);hdr.appendChild(closeBtn);
+  var frame=document.createElement('iframe');frame.src=s.dataUrl;frame.style.cssText='flex:1;border:none;min-height:600px';
+  box.appendChild(hdr);box.appendChild(frame);modal.appendChild(box);document.body.appendChild(modal);
+}
+
+function deleteSavedStatement(id){
+  if(!confirm('Remove this statement?'))return;
+  S.savedStatements=(S.savedStatements||[]).filter(function(s){return s.id!==id;});
+  save();renderSavedStatements();
+}
+
+async function saveStatementToLibrary(file,pageRows){
+  if(!S.savedStatements)S.savedStatements=[];
+  if(S.savedStatements.find(function(s){return s.name===file.name;}))return;
+  var allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
+  var pm=allText.match(/(\w+\s+\d+\s+\d{4})\s*[-]\s*(\w+\s+\d+\s+\d{4})/);
+  var period=pm?pm[1]+' - '+pm[2]:'';
+  var dataUrl=await new Promise(function(res){var reader=new FileReader();reader.onload=function(e){res(e.target.result);};reader.readAsDataURL(file);});
+  var entry={id:uid(),name:file.name,period:period,date:new Date().toISOString().split('T')[0],pages:'?',thumbnail:null,dataUrl:dataUrl};
+  S.savedStatements.push(entry);save();renderSavedStatements();
+  try{
+    if(typeof pdfjsLib!=='undefined'){
+      var buf=await readBuf(file);
+      var pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true}).promise;
+      entry.pages=pdf.numPages;
+      var page=await pdf.getPage(1);var scale=0.6;
+      var viewport=page.getViewport({scale:scale});
+      var canvas=document.createElement('canvas');canvas.width=viewport.width;canvas.height=viewport.height;
+      var ctx=canvas.getContext('2d');
+      await page.render({canvasContext:ctx,viewport:viewport}).promise;
+      entry.thumbnail=canvas.toDataURL('image/jpeg',0.7);
+      pdf.destroy();save();renderSavedStatements();
+    }
+  }catch(e){console.warn('Thumbnail failed:',e.message);}
+}
+
+// ── RULES ─────────────────────────────────────────────────────────────────
+function renderRules(){
+  var el=document.getElementById('rule-list');if(!el)return;
+  var rules=S.rules||[];
+  if(!rules.length){el.innerHTML='<div style="color:var(--text2);font-size:13px;padding:8px 0">No custom rules. Add one below.</div>';return;}
+  el.innerHTML=rules.map(function(r,i){return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)"><span style="font-size:12px;background:var(--brand-light);color:var(--brand);padding:2px 8px;border-radius:99px;font-weight:600">'+esc(r.kw)+'</span><span style="font-size:12px;color:var(--text2);flex:1">to: '+esc(r.cat)+'</span><button data-i="'+i+'" onclick="deleteRule(parseInt(this.dataset.i))" style="background:none;border:none;color:var(--text3);cursor:pointer">x</button></div>';}).join('');
+}
+function addRule(){
+  var kw=prompt('Keyword to match:');if(!kw||!kw.trim())return;kw=kw.trim().toLowerCase();
+  var modal=document.createElement('div');modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:400px';
+  var sel='<select id="rule-cat-sel" class="field-input">'+CATS.map(function(c){return '<option>'+c+'</option>';}).join('')+'</select>';
+  box.innerHTML='<h3 style="margin:0 0 16px;font-size:16px;font-weight:800">Add Rule</h3><div style="font-size:13px;margin-bottom:8px">When description contains "'+esc(kw)+'", categorize as:</div>'+sel+'<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button id="rc" class="btn btn-outline">Cancel</button><button id="rs" class="btn btn-primary">Save</button></div>';
+  modal.appendChild(box);document.body.appendChild(modal);
+  document.getElementById('rc').onclick=function(){modal.remove();};
+  document.getElementById('rs').onclick=function(){var cat=document.getElementById('rule-cat-sel').value;if(!S.rules)S.rules=[];S.rules=S.rules.filter(function(r){return r.kw!==kw;});S.rules.unshift({kw:kw,cat:cat});modal.remove();save();renderRules();toast('Rule added: "'+kw+'" to '+cat);};
+}
+function deleteRule(i){if(!confirm('Remove this rule?'))return;S.rules.splice(i,1);save();renderRules();toast('Rule removed');}
+
+// ── CLIENT TRACKER ────────────────────────────────────────────────────────
+function renderClientCell(t){
+  var clients=S.clients||[];
+  var cBg=t.clientId?'var(--green-bg)':'#fff';var cCol=t.clientId?'var(--green)':'var(--text2)';
+  var opts='<option value="">-- Client --</option>'+clients.map(function(c){return '<option value="'+c.id+'"'+(t.clientId===c.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('');
+  var sel='<select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:'+cBg+';color:'+cCol+';max-width:130px;cursor:pointer" onchange="setTxClient(this.dataset.tid,this.value)" data-tid="'+t.id+'">'+opts+'</select>';
+  var invSel='';
+  if(t.clientId){var ci=(U().invoices||[]).filter(function(inv){return inv.clientId===t.clientId;});if(ci.length){var iBg=t.invoiceId?'var(--brand-light)':'#fff';var iCol=t.invoiceId?'var(--brand)':'var(--text2)';var iOpts='<option value="">-- Invoice --</option>'+ci.map(function(inv){var ref=inv.num||inv.desc||'INV';return '<option value="'+ref+'"'+(t.invoiceId===ref?' selected':'')+'>'+esc(ref)+'</option>';}).join('');invSel='<select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:'+iBg+';color:'+iCol+';max-width:120px;cursor:pointer;margin-top:3px" onchange="setTxInvoice(this.dataset.tid,this.value)" data-tid="'+t.id+'">'+iOpts+'</select>';}}
+  return '<div style="display:flex;flex-direction:column;gap:3px">'+sel+invSel+'</div>';
+}
+function getClientName(id){var c=(S.clients||[]).find(function(c){return c.id===id;});return c?c.name:'';}
+function setTxClient(txId,clientId){var t=(tx()||[]).find(function(x){return x.id===txId;});if(!t)return;t.clientId=clientId||null;t.invoiceId=null;save();render();}
+function setTxInvoice(txId,ref){var t=(tx()||[]).find(function(x){return x.id===txId;});if(!t)return;t.invoiceId=ref||null;if(ref){var inv=(U().invoices||[]).find(function(i){return(i.num||i.desc)===ref;});if(inv&&inv.status!=='paid'){inv.status='paid';toast('Invoice '+ref+' marked Paid');}}save();render();}
+function addClient(){
+  var modal=document.createElement('div');modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Client</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div style="grid-column:1/-1"><label class="field-label">Name *</label><input id="cl-name" type="text" class="field-input"></div><div><label class="field-label">Email</label><input id="cl-email" type="email" class="field-input"></div><div><label class="field-label">Phone</label><input id="cl-phone" type="text" class="field-input"></div><div><label class="field-label">Rate</label><input id="cl-rate" type="text" class="field-input"></div><div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-notes" type="text" class="field-input"></div></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button id="cl-cancel" class="btn btn-outline">Cancel</button><button id="cl-submit" class="btn btn-primary">Add Client</button></div>';
+  modal.appendChild(box);document.body.appendChild(modal);
+  document.getElementById('cl-cancel').onclick=function(){modal.remove();};
+  document.getElementById('cl-submit').onclick=submitClient;
+  document.getElementById('cl-name').focus();
+}
+function submitClient(){
+  var name=(document.getElementById('cl-name').value||'').trim();if(!name){toast('Please enter a name');return;}
+  if(!S.clients)S.clients=[];
+  S.clients.push({id:'cl_'+uid(),name:name,email:(document.getElementById('cl-email').value||'').trim(),phone:(document.getElementById('cl-phone').value||'').trim(),rate:(document.getElementById('cl-rate').value||'').trim(),notes:(document.getElementById('cl-notes').value||'').trim(),added:new Date().toISOString().split('T')[0]});
+  var m=document.querySelector('#cl-cancel')?.closest('[style*="fixed"]');if(m)m.remove();
+  save();renderClients();toast('Client added: '+name);
+}
+function deleteClient(id){if(!confirm('Remove this client?'))return;S.clients=(S.clients||[]).filter(function(c){return c.id!==id;});(U().tx||[]).forEach(function(t){if(t.clientId===id){t.clientId=null;t.invoiceId=null;}});save();renderClients();render();}
+function editClient(id){
+  var c=(S.clients||[]).find(function(c){return c.id===id;});if(!c)return;
+  var modal=document.createElement('div');modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Edit Client</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div style="grid-column:1/-1"><label class="field-label">Name *</label><input id="cl-edit-name" type="text" class="field-input" value="'+esc(c.name)+'"></div><div><label class="field-label">Email</label><input id="cl-edit-email" type="email" class="field-input" value="'+esc(c.email||'')+'"></div><div><label class="field-label">Phone</label><input id="cl-edit-phone" type="text" class="field-input" value="'+esc(c.phone||'')+'"></div><div><label class="field-label">Rate</label><input id="cl-edit-rate" type="text" class="field-input" value="'+esc(c.rate||'')+'"></div><div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-edit-notes" type="text" class="field-input" value="'+esc(c.notes||'')+'"></div></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px"><button id="cl-ec" class="btn btn-outline">Cancel</button><button id="cl-es" class="btn btn-primary">Save</button></div>';
+  modal.appendChild(box);document.body.appendChild(modal);
+  document.getElementById('cl-ec').onclick=function(){modal.remove();};
+  document.getElementById('cl-es').onclick=function(){saveEditClient(id);};
+}
+function saveEditClient(id){
+  var c=(S.clients||[]).find(function(c){return c.id===id;});if(!c)return;
+  var name=(document.getElementById('cl-edit-name').value||'').trim();if(!name){toast('Enter a name');return;}
+  c.name=name;c.email=(document.getElementById('cl-edit-email').value||'').trim();c.phone=(document.getElementById('cl-edit-phone').value||'').trim();c.rate=(document.getElementById('cl-edit-rate').value||'').trim();c.notes=(document.getElementById('cl-edit-notes').value||'').trim();
+  var m=document.getElementById('cl-ec')?.closest('[style*="fixed"]');if(m)m.remove();
+  save();renderClients();render();toast('Client updated');
+}
+function renderClients(){
+  var roster=document.getElementById('client-roster');
+  if(roster){var clients=S.clients||[];if(!clients.length){roster.innerHTML='<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;color:var(--text2)">No clients yet.</div>';}else{roster.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">'+clients.map(function(c){var txs=(U().tx||[]).filter(function(t){return t.clientId===c.id&&bucket(t.cat)==='income';});var total=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow)"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div style="font-weight:800;font-size:15px">'+esc(c.name)+'</div></div><div style="display:flex;gap:6px"><button data-id="'+c.id+'" onclick="editClient(this.dataset.id)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer">edit</button><button data-id="'+c.id+'" onclick="deleteClient(this.dataset.id)" style="background:none;border:1px solid var(--red-mid);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--red)">x</button></div></div>'+(c.email?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">'+esc(c.email)+'</div>':'')+(c.phone?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">'+esc(c.phone)+'</div>':'')+(c.rate?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">'+esc(c.rate)+'</div>':'')+'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)"><div style="font-size:18px;font-weight:800;color:var(--green)">$'+total.toLocaleString('en-US',{maximumFractionDigits:0})+'</div><div style="font-size:10px;color:var(--text2)">'+txs.length+' payments</div></div></div>';}).join('')+'</div>';}}
+  var el=document.getElementById('clients-content');if(!el)return;
+  var txs=(U().tx||[]).filter(function(t){return bucket(t.cat)==='income';});
+  if(!txs.length){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:20px">No income transactions yet.</div>';return;}
+  var groups={};var totalInc=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
+  txs.forEach(function(t){var key,label,tagged=false;if(t.clientId){key=t.clientId;label=getClientName(t.clientId)||'Unknown';tagged=true;}else{var src=t.desc;if(/stripe/i.test(src))src='Stripe';else if(/paypal/i.test(src))src='PayPal';else if(/venmo/i.test(src))src='Venmo';else if(/zelle/i.test(src))src='Zelle';else if(/deposit|transfer/i.test(src))src='Bank Deposit';else src=src.length>30?src.slice(0,28)+'...':src;key='_u_'+src;label=src+' (untagged)';}if(!groups[key])groups[key]={label:label,total:0,count:0,tagged:tagged};groups[key].total+=Math.abs(t.amount);groups[key].count++;});
+  var sorted=Object.entries(groups).sort(function(a,b){return b[1].total-a[1].total;});
+  function fC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  el.innerHTML=sorted.map(function(e){var d=e[1];var bw=Math.round(d.total/totalInc*100);return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><div style="font-weight:700;font-size:15px;color:'+(d.tagged?'var(--text)':'var(--text2)')+'">'+esc(d.label)+'</div><div style="font-size:12px;color:var(--text2)">'+bw+'% &middot; '+d.count+' tx</div></div><div style="font-weight:800;font-size:16px;color:var(--green)">'+fC(d.total)+'</div></div><div style="background:var(--bg3);border-radius:99px;height:6px;overflow:hidden"><div style="background:'+(d.tagged?'var(--green)':'var(--border)')+';height:100%;width:'+bw+'%;border-radius:99px"></div></div></div>';}).join('');
+}
+
+// ── INVOICES ──────────────────────────────────────────────────────────────
+function addInvoice(){
+  var modal=document.createElement('div');modal.id='inv-modal';modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  var t2=new Date().toISOString().split('T')[0];
+  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto';
+  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Invoice</h3><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px"><div><label class="field-label">Invoice #</label><input id="inv-num" type="text" placeholder="INV-001" class="field-input"></div><div><label class="field-label">Client</label><input id="inv-client" type="text" placeholder="Client name" class="field-input"></div><div><label class="field-label">Date Sent</label><input id="inv-sent" type="date" class="field-input" value="'+t2+'"></div><div><label class="field-label">Due Date</label><input id="inv-due" type="date" class="field-input"></div><div style="grid-column:1/-1"><label class="field-label">Description</label><input id="inv-desc" type="text" placeholder="e.g. Web design services" class="field-input"></div><div><label class="field-label">Amount ($)</label><input id="inv-amount" type="number" placeholder="0.00" min="0" step="0.01" class="field-input"></div><div><label class="field-label">Status</label><select id="inv-status" class="field-input"><option value="outstanding">Outstanding</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></div><div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="inv-notes" type="text" placeholder="e.g. Net 30" class="field-input"></div></div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px"><button id="inv-cancel-btn" class="btn btn-outline">Cancel</button><button id="inv-save-btn" class="btn btn-primary">Save Invoice</button></div>';
+  modal.appendChild(box);document.body.appendChild(modal);
+  document.getElementById('inv-cancel-btn').onclick=function(){modal.remove();};
+  document.getElementById('inv-save-btn').onclick=submitInvoice;
+  document.getElementById('inv-num').focus();
+}
+function submitInvoice(){
+  var num=(document.getElementById('inv-num').value||'').trim();var client=(document.getElementById('inv-client').value||'').trim();var sent=document.getElementById('inv-sent').value;var due=document.getElementById('inv-due').value;var desc=(document.getElementById('inv-desc').value||'').trim();var amount=parseFloat(document.getElementById('inv-amount').value)||0;var status=document.getElementById('inv-status').value;var notes=(document.getElementById('inv-notes').value||'').trim();
+  if(!client){toast('Please enter a client name');return;}if(!amount||amount<=0){toast('Please enter a valid amount');return;}
+  if(!U().invoices)U().invoices=[];var mc=(S.clients||[]).find(function(c){return c.name.toLowerCase()===client.toLowerCase();});
+  U().invoices.push({num:num,client:client,clientId:mc?mc.id:null,sent:sent,due:due,desc:desc,amount:Math.round(amount*100)/100,status:status,notes:notes});
+  var m=document.getElementById('inv-modal');if(m)m.remove();save();renderInvoices();toast('Invoice added');
+}
+function updateInvoiceStatus(i,status){if(U().invoices&&U().invoices[i]){U().invoices[i].status=status;save();renderInvoices();}}
+function delInvoice(i){if(!confirm('Delete this invoice?'))return;U().invoices.splice(i,1);save();renderInvoices();}
+function renderInvoices(){
+  var invs=U().invoices||[],today=new Date();var paid=0,paidC=0,out=0,outC=0,over=0,overC=0,total=0;invs.forEach(function(inv){total+=inv.amount||0;if(inv.status==='paid'){paid+=inv.amount||0;paidC++;}else{var due=inv.due?new Date(inv.due):null;if(due&&due<today){over+=inv.amount||0;overC++;}else{out+=inv.amount||0;outC++;}}});function fI(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}setEl('inv-paid-total',fI(paid));setEl('inv-paid-count',paidC+' invoice'+(paidC!==1?'s':''));setEl('inv-out-total',fI(out));setEl('inv-out-count',outC+' invoice'+(outC!==1?'s':''));setEl('inv-over-total',fI(over));setEl('inv-over-count',overC+' invoice'+(overC!==1?'s':''));setEl('inv-total-total',fI(total));setEl('inv-total-count',invs.length+' invoice'+(invs.length!==1?'s':''));
+  var tbody=document.getElementById('invoice-body');if(!tbody)return;
+  if(!invs.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">No invoices yet</td></tr>';return;}
+  tbody.innerHTML=invs.map(function(inv,i){var due=inv.due?new Date(inv.due):null,isOv=inv.status!=='paid'&&due&&due<today;var sC=inv.status==='paid'?'var(--green)':isOv?'var(--red)':'var(--amber)';var sB=inv.status==='paid'?'var(--green-bg)':isOv?'var(--red-bg)':'var(--amber-bg)';return '<tr style="'+(isOv?'background:var(--red-bg)':'')+'">'+'<td style="font-weight:700;color:var(--brand)">'+esc(inv.num||'#'+(i+1))+'</td>'+'<td>'+esc(inv.client||'')+'</td><td>'+esc(inv.desc||'')+'</td>'+'<td>'+esc(inv.sent||'')+'</td><td>'+esc(inv.due||'--')+'</td>'+'<td style="text-align:right;font-weight:700">$'+(inv.amount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+'<td><select onchange="updateInvoiceStatus('+i+',this.value)" style="background:'+sB+';color:'+sC+';border:1px solid '+sC+';border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700"><option value="outstanding"'+(inv.status==='outstanding'?' selected':'')+'>Outstanding</option><option value="paid"'+(inv.status==='paid'?' selected':'')+'>Paid</option><option value="overdue"'+(inv.status==='overdue'?' selected':'')+'>Overdue</option><option value="cancelled"'+(inv.status==='cancelled'?' selected':'')+'>Cancelled</option></select></td><td style="font-size:12px;color:var(--text2)">'+esc(inv.notes||'')+'</td>'+'<td><button class="del-btn" onclick="delInvoice('+i+')">x</button></td></tr>';}).join('');
+}
+
+// ── P&L ───────────────────────────────────────────────────────────────────
+function renderPL(){
+  var el=document.getElementById('pl-content');if(!el)return;
+  var u=U(),txs=tx();var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));var miVal=roundAmt(mi*0.70);var retT=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eqT=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var incByCat={},dedByCat={},totalInc=0,totalDed=0,totalPer=0;txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income'){incByCat[t.cat]=(incByCat[t.cat]||0)+a;totalInc+=a;}else if(bucket(t.cat)==='deductible'){dedByCat[t.cat]=(dedByCat[t.cat]||0)+a;totalDed+=a;}else totalPer+=a;});totalInc=roundAmt(totalInc);totalDed=roundAmt(totalDed);totalPer=roundAmt(totalPer);var totalExp=roundAmt(totalDed+miVal+retT+eqT);var netInc=roundAmt(totalInc-totalExp);function fP(n){return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}var incRows=Object.entries(incByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' -- ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">'+fP(e[1])+'</td></tr>';}).join('');var dedRows=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' -- ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">('+fP(e[1])+')</td></tr>';}).join('');el.innerHTML='<div style="border:1px solid var(--border);border-radius:14px;overflow:hidden"><div style="background:#1F4E79;color:#fff;padding:20px 24px"><div style="font-size:18px;font-weight:800">'+esc(u.biz||u.name||'Business')+' P&amp;L</div><div style="font-size:13px;opacity:0.8;margin-top:4px">Tax Year '+S.year+'</div></div><div style="padding:16px 24px;background:var(--green-bg);border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:8px">Revenue</div><table style="width:100%;border-collapse:collapse">'+incRows+'</table><div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--green);color:#fff;border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Revenue</span><span>'+fP(totalInc)+'</span></div></div><div style="padding:16px 24px;border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:8px">Expenses</div><table style="width:100%;border-collapse:collapse">'+dedRows+(miVal>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Vehicle Mileage</td><td style="text-align:right;padding:8px 12px">('+fP(miVal)+')</td></tr>':'')+(retT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Retirement</td><td style="text-align:right;padding:8px 12px">('+fP(retT)+')</td></tr>':'')+(eqT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Section 179</td><td style="text-align:right;padding:8px 12px">('+fP(eqT)+')</td></tr>':'')+'</table><div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Expenses</span><span>('+fP(totalExp)+')</span></div></div><div style="padding:20px 24px;background:'+(netInc>=0?'#1F4E79':'#C00000')+';color:#fff;display:flex;justify-content:space-between;align-items:center"><span style="font-size:18px;font-weight:800">Net '+(netInc>=0?'Profit':'Loss')+'</span><span style="font-size:22px;font-weight:900">'+(netInc<0?'(':'')+(netInc<0?fP(netInc)+')':(fP(netInc)))+'</span></div><div style="padding:12px 24px;background:var(--bg2);font-size:12px;color:var(--text2)">Personal: '+fP(totalPer)+' excluded. Not tax advice.</div></div>';
+}
+
+// ── YEAR-OVER-YEAR ────────────────────────────────────────────────────────
+function renderYOY(){
+  var el=document.getElementById('yoy-content');if(!el)return;var years=getAvailableYears();if(years.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px">Only one year of data. Add a previous year in Settings.</div>';return;}
+  function calcY(ud){if(!ud)return{inc:0,ded:0,per:0,net:0,txCount:0};var inc=0,ded=0,per=0;(ud.tx||[]).forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});var mi=roundAmt((ud.mileage||[]).reduce(function(s,m){return s+m.miles;},0)*0.70);var ret=roundAmt((ud.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eq=roundAmt((ud.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var td=roundAmt(ded+mi+ret+eq);return{inc:roundAmt(inc),ded:td,per:roundAmt(per),net:Math.max(0,roundAmt(inc-td)),txCount:(ud.tx||[]).length};}
+  var data={};data[S.year]=calcY(S.users.herbert);Object.entries(S.years||{}).forEach(function(e){data[e[0]]=calcY(e[1].herbert);});
+  function fY(n){return '$'+Math.round(n).toLocaleString();}function arrow(curr,prev){if(!prev&&prev!==0)return '';var pct=((curr-prev)/(prev||1)*100),up=pct>=0;return '<span style="font-size:11px;color:'+(up?'var(--green)':'var(--red)')+';margin-left:6px">'+(up?'^':'v')+Math.abs(pct).toFixed(1)+'%</span>';}
+  var metrics=[{key:'inc',label:'Total Income',color:'var(--green)'},{key:'ded',label:'Total Deductions',color:'var(--brand)'},{key:'net',label:'Net Taxable',color:'#C00000'},{key:'per',label:'Personal',color:'var(--text2)'}];
+  var sy=years.sort(function(a,b){return b-a;});
+  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#1F4E79"><th style="padding:12px 16px;text-align:left;color:#fff">Metric</th>'+sy.map(function(y){return '<th style="padding:12px 16px;text-align:right;color:#fff">'+y+(y===S.year?' (current)':'')+'</th>';}).join('')+'</tr></thead><tbody>'+metrics.map(function(m,mi){return '<tr style="background:'+(mi%2===0?'#fff':'var(--bg2)')+'"><td style="padding:14px 16px;font-weight:600;color:'+m.color+'">'+m.label+'</td>'+sy.map(function(y,yi){var val=(data[y]&&data[y][m.key])||0,prevY=sy[yi+1],prev=prevY&&data[prevY]&&data[prevY][m.key];return '<td style="padding:14px 16px;text-align:right;font-weight:700;color:'+m.color+'">'+fY(val)+(yi<sy.length-1?arrow(val,prev):'')+'</td>';}).join('')+'</tr>';}).join('')+'<tr style="background:var(--bg3);border-top:2px solid var(--border)"><td style="padding:14px 16px;font-weight:600;color:var(--text2)">Transactions</td>'+sy.map(function(y){return '<td style="padding:14px 16px;text-align:right;color:var(--text2)">'+((data[y]&&data[y].txCount)||0).toLocaleString()+'</td>';}).join('')+'</tr></tbody></table></div>';
+}
+
+// ── MISC ──────────────────────────────────────────────────────────────────
+function clearAllData(){
+  if(!confirm('Delete ALL transactions and saved statements?'))return;
+  S.users.herbert.tx=[];(S.extraUsers||[]).forEach(function(u){u.tx=[];});S.savedStatements=[];statementsUploaded=0;
+  save();render();updateSummary();renderSavedStatements();toast('All data cleared');
+}
+function setSectionSort(k,val){if(!S._sort)S._sort={};S._sort[k]=val;render();}
+function toggleReceipt(id){var t=tx().find(function(x){return x.id===id;});if(!t)return;t.receipt=!t.receipt;save();var btn=document.getElementById('rcpt-'+id);if(btn){btn.textContent=t.receipt?'R':'p';btn.style.opacity=t.receipt?'1':'0.3';}toast(t.receipt?'Receipt marked':'Receipt removed');}
+function roundAmt(n){return Math.round((n||0)*100)/100;}
+
+// ── PDF PARSING ───────────────────────────────────────────────────────────
+async function parsePDF(f){
+  if(window.electronAPI&&window.electronAPI.isElectron){
+    const buf=await readBuf(f);if(!buf||buf.byteLength===0){toast('Empty file: '+f.name);return 0;}
+    const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(buf));
+    if(!result||!result.success){toast('PDF error: '+(result&&result.error||'unknown'));return 0;}
+    const count=parseBankText(result.text,f.name);
+    if(count===0)toast('0 transactions found in '+f.name);return count;
+  }
+  if(typeof pdfjsLib==='undefined'){toast('PDF reader not loaded.');return 0;}
+  try{
+    const buf=await readBuf(f);if(!buf||buf.byteLength===0){toast('Empty file: '+f.name);return 0;}
+    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true,useSystemFonts:true}).promise;
+    const pageRows=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);const ct=await page.getTextContent();page.cleanup();
+      const byY={};
+      ct.items.forEach(function(item){const x=Math.round(item.transform[4]);const y=Math.round(item.transform[5]/3)*3;const t=(item.str||'').trim();if(!t)return;if(!byY[y])byY[y]=[];byY[y].push({x:x,text:t});});
+      Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){byY[y].sort(function(a,b){return a.x-b.x;});pageRows.push({y:y,items:byY[y],page:p});});
+    }
+    pdf.destroy();
+    const count=parseBankStructured(pageRows,f.name);
+    if(count===0)toast('0 transactions found in '+f.name+' — format may not be supported.');
+    saveStatementToLibrary(f,pageRows).catch(function(e){console.warn('Statement save failed:',e.message);});
+    return count;
+  }catch(e){console.error('parsePDF error:',e);toast('Error reading '+f.name+': '+(e.message||'unknown'));return 0;}
+}
+
+function parseBankStructured(pageRows,fname){
+  const allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
+  const isTD=/(td bank|td convenience|td convenience checking|td savings)/i.test(allText);
+  const isBluevine=/(bluevine|blue vine)/i.test(allText);
+  if(isTD){const n=parseTDStructured(pageRows,fname);if(n>0)return n;}
+  const lines=[];pageRows.forEach(function(r){var line=r.items.map(function(i){return i.text;}).join(' ').trim();if(line)lines.push(line);});
+  if(isBluevine)return parseBluevine(lines,fname);
+  if(isTD)return parseTD(lines,fname);
+  return parseGeneric(lines,fname);
+}
+
+function parseGenericFromRows(pageRows,fname){
+  var lines=[];pageRows.forEach(function(r){var line=r.items.map(function(i){return i.text;}).join(' ').trim();if(line)lines.push(line);});
+  return parseGeneric(lines,fname);
+}
+
+function parseTDStructured(pageRows,fname){
+  var added=0;
+  var DATE_MAX_X=130,DESC_MIN_X=100,DESC_MAX_X=520,AMT_MIN_X=510;
+  var datePat=/^\d{2}\/\d{2}$/,amtPat=/^[\d,]+\.\d{2}$/;
+  var bankPfx=/^(DBCRD|DEBIT\s+POS|DEBIT\s+CARD|ACH\s+DEBIT|CCD\s+DEBIT|ELECTRONIC\s+PMT)/i;
+  var skipPat=/^(STATEMENT OF ACCOUNT|POSTING DATE|DESCRIPTION|AMOUNT$|ACCOUNT SUMMARY|Beginning Balance|Ending Balance|Average Collected|Interest Earned|Interest Paid|Annual Percentage|Days in Period|Grace Period|Total for|DAILY ACCOUNT ACTIVITY|DATE\s+BALANCE|Call 1-800|xxxxxx|Bank Deposits|Subtotal|How to Balance|For Consumer|For Questions|TD Bank|TD Convenience|cid:|We must|We will|If you|In case|Finance Charge|Interest Notice|FINANCE CHARGES|QUESTIONS ABOUT|BILLING RIGHTS|Sub Total|Adjusted$|Ending$|Total Deposits|Total Withdrawals|Withdrawals$|Account #|\$0\.00|Please see important)/i;
+  var pageHdrPat=/^(Page:|Statement Period|Cust Ref|Primary Account|Mar |Apr |Jan |Feb |Jun |Jul |Aug |Sep |Oct |Nov |Dec |\d+ of \d+)/i;
+  function normSection(s){return s.replace(/\s+/g,'').toLowerCase();}
+  var INCOME_SECTIONS=['deposits','electronicdeposits','otherdeposits','othercredits','atmdeposits','mobiledeposits','checkdeposits','electroniccredits','zellereceivedcredits','achcredits','wirecredits','incomingwire','creditadjustments'];
+  var EXPENSE_SECTIONS=['electronicpayments','servicefees','servicefee','servicecharges','checkspaid','otherwithdrawals','atmwithdrawals','debitcardpurchases','wiretransfers','otherdebits'];
+  function isSectionIncome(t){var n=normSection(t);return INCOME_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});}
+  function isSectionExpense(t){var n=normSection(t);return EXPENSE_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});}
+  function cleanD(s){return s.replace(/\*{3,}\d+/g,'').replace(/AUT\s+\d{6}/gi,'').replace(/VISA\s+DDA\s+(PUR|PMT|REF)\s*AP?/gi,'').replace(/(DBCRD|DEBIT\s+(POS|CARD))\s*(PUR|PMT|CREDIT|CARD)?\s*AP,?/gi,'').replace(/DDA\s+(PUR|PMT|PURCHASE)\s*AP,?/gi,'').replace(/(ACH|CCD)\s+DEBIT,?/gi,'').replace(/ELECTRONIC\s+PMT-WEB,?/gi,'').replace(/DEBIT\s+CARD\s+CREDIT,?/gi,'').replace(/,\s*,+/g,'').replace(/^\W+|\W+$/g,'').replace(/\s+/g,' ').trim();}
+  function isGoodDesc(d){return d&&d.length>2&&/[A-Za-z]{2}/.test(d)&&d.length<120;}
+  var curSection=null,inActivity=false,curTx=null;
+  function finishTx(){
+    if(!curTx)return;
+    var rawParts=curTx.descParts.slice(),amt=curTx.amount;
+    if(amt===null&&rawParts.length){var lp=rawParts[rawParts.length-1];var gm=lp.match(/^(.*?)\s*\*?[A-Z]{0,2}([\d,]+\.\d{2})$/);if(gm){var cp=gm[1].trim();amt=parseFloat(gm[2].replace(/,/g,''));if(cp)rawParts[rawParts.length-1]=cp;else rawParts.pop();}}
+    var desc=cleanD(rawParts.join(' '));
+    if(isGoodDesc(desc)&&amt&&amt>0){var amount=curTx.section==='income'?amt:-amt;var rawDate=curTx.date;if(rawDate&&!/\/\d{2,4}$/.test(rawDate))rawDate=rawDate+'/25';tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});added++;}
+    curTx=null;
+  }
+  pageRows.forEach(function(row){
+    var items=row.items;
+    var dateItems=items.filter(function(i){return i.x<DATE_MAX_X&&datePat.test(i.text);});
+    var descItems=items.filter(function(i){return i.x>=DESC_MIN_X&&i.x<DESC_MAX_X;});
+    var amtItems=items.filter(function(i){return i.x>=AMT_MIN_X&&amtPat.test(i.text);});
+    var allText=items.map(function(i){return i.text;}).join(' ').trim();
+    if(/daily balance summary/i.test(allText)){finishTx();inActivity=false;return;}
+    if(/daily account activity/i.test(allText)){finishTx();inActivity=true;curSection=null;return;}
+    if(!inActivity)return;
+    if(pageHdrPat.test(allText.trim()))return;
+    if(skipPat.test(allText.trim()))return;
+    if(allText.length>100&&!/\d{2}\/\d{2}/.test(allText)&&/[a-z]{5}/.test(allText))return;
+    var dateText=dateItems.length?dateItems[0].text:'';
+    var descText=descItems.filter(function(i){return !pageHdrPat.test(i.text);}).map(function(i){return i.text;}).join(' ').trim();
+    var amtText=amtItems.length?amtItems[0].text:'';
+    var noDate=!dateText;
+    if(isSectionIncome(allText)&&noDate){finishTx();curSection='income';return;}
+    if(isSectionExpense(allText)&&noDate){finishTx();curSection='expense';return;}
+    if(!curSection)return;
+    if(!descText&&!dateText&&!amtText)return;
+    if(descText&&pageHdrPat.test(descText.trim()))return;
+    var hasBankPfx=descItems.some(function(i){return bankPfx.test(i.text);});
+    var isNewTx=hasBankPfx||(dateText&&descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText));
+    if(isNewTx){finishTx();curTx={section:curSection,date:dateText,descParts:descText?[descText]:[],amount:amtText?parseFloat(amtText.replace(/,/g,'')):null};}
+    else if(curTx){if(descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText)){if(/[A-Za-z]{2}/.test(descText)&&descText.length<120)curTx.descParts.push(descText);}if(amtText&&curTx.amount===null)curTx.amount=parseFloat(amtText.replace(/,/g,''));}
+  });
+  finishTx();
+  return added||parseGenericFromRows(pageRows,fname);
+}
+
+function handleFiles(files){
+  var list=[].slice.call(files);if(!list.length)return;
+  var wTier=currentTier();var total=0;
+  var banner=document.getElementById('import-banner');var bannerMsg=document.getElementById('import-banner-msg');
+  if(banner)banner.style.display='block';
+  var i=0;
+  function next(){
+    if(i>=list.length){
+      if(banner)banner.style.display='none';
+      if(total>0){save();render();updateSummary();}
+      toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions found - check file format');
+      return;
+    }
+    var f=list[i++];var ext=f.name.toLowerCase().split('.').pop();
+    if(bannerMsg)bannerMsg.textContent='Reading '+f.name+'...';
+    setTimeout(function(){
+      if(ext==='pdf'){
+        if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade!');showUpgradeModal();if(banner)banner.style.display='none';if(total>0){save();render();updateSummary();}return;}
+        parsePDF(f).then(function(n){if(n>0)statementsUploaded++;total+=n;next();}).catch(function(e){toast('Error: '+e.message);next();});
+      } else if(ext==='csv'){
+        readText(f).then(function(text){total+=parseCSV(text,f.name);next();}).catch(function(){toast('Error reading '+f.name);next();});
+      } else if(ext==='xlsx'||ext==='xls'){
+        readBuf(f).then(function(buf){total+=parseXLSX(buf,f.name);next();}).catch(function(){toast('Error reading '+f.name);next();});
+      } else {toast('Unsupported: '+f.name);next();}
+    },50);
+  }
+  next();
+}
+
+function readBuf(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsArrayBuffer(f);});}
+function readText(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsText(f);});}
+
+function parseCSV(text,fname){
+  var lines=text.split('\n').map(function(l){return l.trim();}).filter(Boolean);var added=0;
+  var dp=/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/;
+  lines.forEach(function(line){var parts=line.split(',');if(parts.length<3)return;var date=parts[0].replace(/"/g,'').trim();if(!dp.test(date))return;var desc=parts[1].replace(/"/g,'').trim();var amtStr=parts[parts.length-1].replace(/"/g,'').replace(/[\$,]/g,'').trim();var amt=parseFloat(amtStr);if(isNaN(amt)||!desc)return;tx().push({id:uid(),date:normalizeDate(date),desc:desc,amount:amt,cat:autoCat(desc),src:fname});added++;});
+  return added;
+}
+
+function parseXLSX(buf,fname){
+  if(typeof XLSX==='undefined')return 0;
+  var wb=XLSX.read(buf,{type:'array'});var ws=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(ws,{header:1});var added=0;
+  var dp=/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/;
+  rows.forEach(function(row){if(!row||row.length<3)return;var date=String(row[0]||'').trim();if(!dp.test(date))return;var desc=String(row[1]||'').trim();var amt=parseFloat(String(row[row.length-1]).replace(/[\$,]/g,''));if(isNaN(amt)||!desc)return;tx().push({id:uid(),date:normalizeDate(date),desc:desc,amount:amt,cat:autoCat(desc),src:fname});added++;});
+  return added;
+}
+
+// ── EXPORT CPA PACKAGE ────────────────────────────────────────────────────
+function exportCPAPackage(){
+  var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
+  if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();toast('CPA Export requires a paid plan.');return;}
+  if(typeof window.jspdf==='undefined'||typeof window.jspdf.jsPDF==='undefined'){toast('PDF library not loaded.');return;}
+  var u=U(),txs=tx();var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));var miVal=roundAmt(mi*0.70);var ret=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eq=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var inc=0,ded=0,per=0;txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});inc=roundAmt(inc);ded=roundAmt(ded);per=roundAmt(per);var totalDed=roundAmt(ded+miVal+ret+eq);var netTax=roundAmt(Math.max(0,inc-totalDed));var dedByCat={};txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){var k=t.cat.split(' -- ')[1]||t.cat;dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);});var dedEntries=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];});function fC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});var W=210,margin=18,y=0,lineH=7;
+  var brandBlue=[31,78,121],green=[22,163,74],red=[192,0,0],darkText=[30,30,30];
+  function setF(size,bold,color){doc.setFontSize(size);doc.setFont('helvetica',bold?'bold':'normal');doc.setTextColor(color?color[0]:darkText[0],color?color[1]:darkText[1],color?color[2]:darkText[2]);}
+  function fR(x,fy,w,h,color){doc.setFillColor(color[0],color[1],color[2]);doc.rect(x,fy,w,h,'F');}
+  function kv(label,value,bold,color){setF(10,bold||false,darkText);doc.text(label,margin,y);setF(10,bold||false,color||darkText);doc.text(value,W-margin,y,{align:'right'});y+=lineH;}
+  function sH(title,bgColor){fR(margin,y-4,W-margin*2,8,bgColor||brandBlue);doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text(title.toUpperCase(),margin+3,y+0.5);y+=10;}
+  fR(0,0,W,38,brandBlue);setF(20,true,[255,255,255]);doc.text('Tax Preparation Package',margin,15);setF(10,false,[200,220,240]);doc.text((u.biz||u.name||'TaxFlow')+' - Tax Year '+S.year+' - '+today,margin,23);doc.text('Generated by TaxFlow - gettaxflow.com',margin,30);y=46;
+  sH('Revenue / Income',[22,101,52]);kv('Total Gross Income',fC(inc),false,green);setF(10,true,green);doc.text('TOTAL REVENUE',margin,y);doc.text(fC(inc),W-margin,y,{align:'right'});y+=lineH+2;
+  sH('Operating Expenses',brandBlue);dedEntries.forEach(function(e){kv(e[0],fC(e[1]));});if(miVal>0)kv('Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70)',fC(miVal));if(ret>0)kv('Retirement',fC(ret));if(eq>0)kv('Section 179',fC(eq));setF(10,true,brandBlue);doc.text('TOTAL EXPENSES',margin,y);doc.text(fC(totalDed),W-margin,y,{align:'right'});y+=lineH+2;
+  sH('Personal Spending',[100,60,140]);kv('Total Personal',fC(per),false,red);y+=2;
+  fR(margin,y,W-margin*2,14,red);doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text('NET TAXABLE INCOME',margin+3,y+9);doc.text(fC(netTax),W-margin-3,y+9,{align:'right'});y+=20;
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);doc.text('TaxFlow is a financial organization tool, not tax advice. gettaxflow.com',W/2,y,{align:'center'});
+  var fname=((u.biz||u.name||'TaxFlow').replace(/[^a-zA-Z0-9]/g,'_').replace(/_+/g,'_'))+'_'+S.year+'_CPA.pdf';
+  if(window.electronAPI&&window.electronAPI.isElectron){var arr=doc.output('arraybuffer');window.electronAPI.saveFile(fname,new Uint8Array(arr),'pdf').then(function(r){if(r&&r.success)toast('Saved');});}else{doc.save(fname);toast('CPA Package downloaded');}
+}
+
+// ── AUTH SYSTEM (Supabase + Stripe) ─────────────────────────────────────────
+
+const SUPABASE_URL  = 'https://ltwyiitvakabtltwxxmz.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_jQdwf4ddqaWCP-Fzi1Fp0w_55qDHBjQ';
+
+const STRIPE_LINKS = {
+  household_monthly: 'https://buy.stripe.com/7sY6oz7jbfQc7Ep1y687K00',
+  household_yearly:  'https://buy.stripe.com/4gM6ozeLDeM88It6Sq87K01',
+  business_monthly:  'https://buy.stripe.com/8x228j6f7dI4gaV3Ge87K02',
+  business_yearly:   'https://buy.stripe.com/9B65kv1YReM87EpekS87K03',
+};
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+
+const TIERS = {
+  free: {
+    label: 'Free', maxUsers: 1,
+    optionalTabs: ['settings'],
+    maxStatements: 3,
+    maxTransactions: 50,
+    canExportExcel: false,
+    canExportCsv: false,
+    canImportPdf: true,
+    showUpgradeBanner: true,
+  },
+  household: {
+    label: 'Household', maxUsers: 2,
+    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
+    canExportExcel: true, canImportPdf: true, canExportCsv: true,
+    maxTransactions: Infinity, showUpgradeBanner: false,
+  },
+  business: {
+    label: 'Business', maxUsers: 5,
+    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
+    canExportExcel: true, canImportPdf: true, canExportCsv: true,
+    maxTransactions: Infinity, showUpgradeBanner: false,
+  },
+};
+
+let currentProfile = null;
+let selectedPlan = 'household';
 
 function currentTier() {
   const plan   = currentProfile?.plan   ?? 'free';
@@ -2584,581 +2819,16 @@ function updateDropdownNames() {
 // Clears the session when the tab/window is closed or the app exits.
 // Transaction data remains saved — only the login session is cleared.
 
-// ── PDF PARSING (coordinate-aware) ────────────────────────────────────────
-async function parsePDF(f){
-  if(window.electronAPI&&window.electronAPI.isElectron){
-    const buf=await readBuf(f);
-    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
-    const result=await window.electronAPI.extractPdfText(f.name,new Uint8Array(buf));
-    if(!result||!result.success){toast('PDF error: '+(result&&result.error||'unknown'));return 0;}
-    if(!result.text||!result.text.trim()){toast('No text found in '+f.name);return 0;}
-    const count=parseBankText(result.text,f.name);
-    if(count===0) toast('0 transactions found in '+f.name);
-    return count;
-  }
-  if(typeof pdfjsLib==='undefined'){
-    toast('PDF reader not loaded — check your internet connection.');
-    return 0;
-  }
-  try{
-    const buf=await readBuf(f);
-    if(!buf||buf.byteLength===0){toast('File appears empty: '+f.name);return 0;}
-    const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf),verbosity:0,disableFontFace:true,useSystemFonts:true}).promise;
-    const pageRows=[];
-    for(let p=1;p<=pdf.numPages;p++){
-      const page=await pdf.getPage(p);
-      const ct=await page.getTextContent();
-      page.cleanup();
-      const byY={};
-      ct.items.forEach(function(item){
-        const x=Math.round(item.transform[4]);
-        const y=Math.round(item.transform[5]/3)*3;
-        const t=(item.str||'').trim();
-        if(!t) return;
-        if(!byY[y]) byY[y]=[];
-        byY[y].push({x:x,text:t});
-      });
-      const sortedY=Object.keys(byY).map(Number).sort(function(a,b){return b-a;});
-      sortedY.forEach(function(y){
-        const row=byY[y];
-        row.sort(function(a,b){return a.x-b.x;});
-        pageRows.push({y:y,items:row,page:p});
-      });
-    }
-    pdf.destroy();
-    const count=parseBankStructured(pageRows,f.name);
-    if(count===0) toast('0 transactions found in '+f.name+' — bank format may not be supported yet.');
-    // Save to library (async, non-blocking)
-    saveStatementToLibrary(f,pageRows).catch(function(e){console.warn('Statement save failed:',e.message);});
-    return count;
-  }catch(e){
-    console.error('parsePDF error:',e);
-    toast('Error reading '+f.name+': '+(e.message||'unknown error'));
-    return 0;
+function clearSession() {
+  const auth = loadAuth();
+  if (auth) {
+    auth.loggedIn = false;
+    saveAuth(auth);
   }
 }
-
-function parseBankStructured(pageRows,fname){
-  const allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
-  const isTD=/(td bank|td convenience|td convenience checking|td savings)/i.test(allText);
-  const isBluevine=/(bluevine|blue vine)/i.test(allText);
-  if(isTD){
-    const n=parseTDStructured(pageRows,fname);
-    if(n>0) return n;
-  }
-  const lines=[];
-  pageRows.forEach(function(r){
-    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
-    if(line) lines.push(line);
-  });
-  if(isBluevine) return parseBluevine(lines,fname);
-  if(isTD) return parseTD(lines,fname);
-  return parseGeneric(lines,fname);
-}
-
-function parseGenericFromRows(pageRows,fname){
-  var lines=[];
-  pageRows.forEach(function(r){
-    var line=r.items.map(function(i){return i.text;}).join(' ').trim();
-    if(line) lines.push(line);
-  });
-  return parseGeneric(lines,fname);
-}
-
-function parseTDStructured(pageRows,fname){
-  var added=0;
-  var DATE_MAX_X=130,DESC_MIN_X=100,DESC_MAX_X=520,AMT_MIN_X=510;
-  var datePat=/^\d{2}\/\d{2}$/;
-  var amtPat=/^[\d,]+\.\d{2}$/;
-  var bankPfx=/^(DBCRD|DEBIT\s+POS|DEBIT\s+CARD|ACH\s+DEBIT|CCD\s+DEBIT|ELECTRONIC\s+PMT)/i;
-  var skipPat=/^(STATEMENT OF ACCOUNT|POSTING DATE|DESCRIPTION|AMOUNT$|ACCOUNT SUMMARY|Beginning Balance|Ending Balance|Average Collected|Interest Earned|Interest Paid|Annual Percentage|Days in Period|Grace Period|Total for|DAILY ACCOUNT ACTIVITY|DATE\s+BALANCE|Call 1-800|xxxxxx|Bank Deposits|Subtotal|How to Balance|For Consumer|For Questions|TD Bank|TD Convenience|cid:|We must|We will|If you|In case|Finance Charge|Interest Notice|FINANCE CHARGES|QUESTIONS ABOUT|BILLING RIGHTS|HERBERT VONDERLINDEN|5811 JACKSON|PHILADELPHIA PA|Sub Total|Adjusted$|Ending$|Total Deposits|Total Withdrawals|Withdrawals$|Account #|\$0\.00|Please see important)/i;
-  var pageHdrPat=/^(Page:|Statement Period|Cust Ref|Primary Account|Mar |Apr |Jan |Feb |Jun |Jul |Aug |Sep |Oct |Nov |Dec |\d+ of \d+|4433181734|443-3181734)/i;
-  function normSection(s){return s.replace(/\s+/g,'').toLowerCase();}
-  var INCOME_SECTIONS=['deposits','electronicdeposits','otherdeposits','othercredits','atmdeposits','mobiledeposits','checkdeposits','electroniccredits','zellereceivedcredits','zelledirectcredits','achcredits','wirecredits','incomingwire','creditadjustments'];
-  var EXPENSE_SECTIONS=['electronicpayments','servicefees','servicefee','servicecharges','checkspaid','otherwithdrawals','atmwithdrawals','debitcardpurchases','wiretransfers','otherdebits'];
-  function isSectionIncome(text){var n=normSection(text);return INCOME_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});}
-  function isSectionExpense(text){var n=normSection(text);return EXPENSE_SECTIONS.some(function(s){return n===s||n.indexOf(s)===0;});}
-  function cleanD(s){
-    return s.replace(/\*{3,}\d+/g,'').replace(/AUT\s+\d{6}/gi,'').replace(/VISA\s+DDA\s+(PUR|PMT|REF)\s*AP?/gi,'').replace(/(DBCRD|DEBIT\s+(POS|CARD))\s*(PUR|PMT|CREDIT|CARD)?\s*AP,?/gi,'').replace(/DDA\s+(PUR|PMT|PURCHASE)\s*AP,?/gi,'').replace(/(ACH|CCD)\s+DEBIT,?/gi,'').replace(/ELECTRONIC\s+PMT-WEB,?/gi,'').replace(/DEBIT\s+CARD\s+CREDIT,?/gi,'').replace(/,\s*,+/g,'').replace(/^\W+|\W+$/g,'').replace(/\s+/g,' ').trim();
-  }
-  function isGoodDesc(d){return d&&d.length>2&&/[A-Za-z]{2}/.test(d)&&d.length<120;}
-  var curSection=null,inActivity=false,curTx=null;
-  function finishTx(){
-    if(!curTx) return;
-    var rawParts=curTx.descParts.slice();
-    var amt=curTx.amount;
-    if(amt===null&&rawParts.length){
-      var lastPart=rawParts[rawParts.length-1];
-      var gluedMatch=lastPart.match(/^(.*?)\s*\*?[A-Z]{0,2}([\d,]+\.\d{2})$/);
-      if(gluedMatch){var cleanedPart=gluedMatch[1].trim();amt=parseFloat(gluedMatch[2].replace(/,/g,''));if(cleanedPart)rawParts[rawParts.length-1]=cleanedPart;else rawParts.pop();}
-    }
-    var desc=cleanD(rawParts.join(' '));
-    if(isGoodDesc(desc)&&amt&&amt>0){
-      var amount=curTx.section==='income'?amt:-amt;
-      var rawDate=curTx.date;
-      if(rawDate&&!/\/\d{2,4}$/.test(rawDate)) rawDate=rawDate+'/25';
-      tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});
-      added++;
-    }
-    curTx=null;
-  }
-  pageRows.forEach(function(row){
-    var items=row.items;
-    var dateItems=items.filter(function(i){return i.x<DATE_MAX_X&&datePat.test(i.text);});
-    var descItems=items.filter(function(i){return i.x>=DESC_MIN_X&&i.x<DESC_MAX_X;});
-    var amtItems=items.filter(function(i){return i.x>=AMT_MIN_X&&amtPat.test(i.text);});
-    var allText=items.map(function(i){return i.text;}).join(' ').trim();
-    if(/daily balance summary/i.test(allText)){finishTx();inActivity=false;return;}
-    if(/daily account activity/i.test(allText)){finishTx();inActivity=true;curSection=null;return;}
-    if(!inActivity) return;
-    if(pageHdrPat.test(allText.trim())) return;
-    if(skipPat.test(allText.trim())) return;
-    if(allText.length>100&&!/\d{2}\/\d{2}/.test(allText)&&/[a-z]{5}/.test(allText)) return;
-    var dateText=dateItems.length?dateItems[0].text:'';
-    var descText=descItems.filter(function(i){return !pageHdrPat.test(i.text);}).map(function(i){return i.text;}).join(' ').trim();
-    var amtText=amtItems.length?amtItems[0].text:'';
-    var noDate=!dateText;
-    var textForSection=allText.replace(/\s*\(continued\)/i,'(continued)');
-    if(isSectionIncome(textForSection)&&noDate){finishTx();curSection='income';return;}
-    if(isSectionExpense(textForSection)&&noDate){finishTx();curSection='expense';return;}
-    if(isSectionIncome(allText)&&noDate&&!amtPat.test(allText)){finishTx();curSection='income';return;}
-    if(isSectionExpense(allText)&&noDate&&!amtPat.test(allText)){finishTx();curSection='expense';return;}
-    if(!curSection) return;
-    if(!descText&&!dateText&&!amtText) return;
-    if(descText&&pageHdrPat.test(descText.trim())) return;
-    var hasBankPfx=descItems.some(function(i){return bankPfx.test(i.text);});
-    var isNewTx=hasBankPfx||(dateText&&descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText));
-    if(isNewTx){
-      finishTx();
-      curTx={section:curSection,date:dateText,descParts:descText?[descText]:[],amount:amtText?parseFloat(amtText.replace(/,/g,'')):null};
-    } else if(curTx){
-      if(descText&&!skipPat.test(descText)&&!pageHdrPat.test(descText)){if(/[A-Za-z]{2}/.test(descText)&&descText.length<120)curTx.descParts.push(descText);}
-      if(amtText&&curTx.amount===null) curTx.amount=parseFloat(amtText.replace(/,/g,''));
-    }
-  });
-  finishTx();
-  return added||parseGenericFromRows(pageRows,fname);
-}
-
-function handleFiles(files){
-  var list=[].slice.call(files);
-  if(!list.length) return;
-  var wTier=currentTier();
-  var total=0;
-  // Show import banner
-  var banner=document.getElementById('import-banner');
-  var bannerMsg=document.getElementById('import-banner-msg');
-  if(banner) banner.style.display='block';
-  var i=0;
-  function next(){
-    if(i>=list.length){
-      if(banner) banner.style.display='none';
-      if(total>0){save();render();updateSummary();}
-      toast(total>0?'Imported '+total+' transaction'+(total!==1?'s':''):'No transactions found — check file format');
-      return;
-    }
-    var f=list[i++];
-    var ext=f.name.toLowerCase().split('.').pop();
-    if(bannerMsg) bannerMsg.textContent='Reading '+f.name+'...';
-    setTimeout(function(){
-      var p;
-      if(ext==='pdf'){
-        if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){
-          toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade for unlimited!');
-          showUpgradeModal();
-          if(banner) banner.style.display='none';
-          if(total>0){save();render();updateSummary();}
-          return;
-        }
-        p=parsePDF(f).then(function(n){if(n>0)statementsUploaded++;total+=n;next();}).catch(function(e){toast('Error: '+e.message);next();});
-      } else if(ext==='csv'){
-        try{var text=readTextSync(f);total+=parseCSV(text,f.name);}catch(e){toast('Error reading '+f.name);}
-        next();
-      } else if(ext==='xlsx'||ext==='xls'){
-        try{var bin=readBinSync(f);total+=parseXLSX(bin,f.name);}catch(e){toast('Error reading '+f.name);}
-        next();
-      } else {
-        toast('Unsupported file type: '+f.name);
-        next();
-      }
-    },50);
-  }
-  next();
-}
-
-function readBuf(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsArrayBuffer(f);});}
-function readText(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsText(f);});}
-function readBin(f){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(e){res(e.target.result);};r.onerror=rej;r.readAsBinaryString(f);});}
-
-function parseCSV(text,fname){
-  var lines=text.split('\n').map(function(l){return l.trim();}).filter(Boolean);
-  var added=0;
-  var datePat=/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/;
-  lines.forEach(function(line){
-    var parts=line.split(',');
-    if(parts.length<3) return;
-    var date=parts[0].replace(/"/g,'').trim();
-    if(!datePat.test(date)) return;
-    var desc=parts[1].replace(/"/g,'').trim();
-    var amtStr=parts[parts.length-1].replace(/"/g,'').replace(/[\$,]/g,'').trim();
-    var amt=parseFloat(amtStr);
-    if(isNaN(amt)||!desc) return;
-    tx().push({id:uid(),date:normalizeDate(date),desc:desc,amount:amt,cat:autoCat(desc),src:fname});
-    added++;
-  });
-  return added;
-}
-
-function parseXLSX(bin,fname){
-  if(typeof XLSX==='undefined') return 0;
-  var wb=XLSX.read(bin,{type:'binary'});
-  var ws=wb.Sheets[wb.SheetNames[0]];
-  var rows=XLSX.utils.sheet_to_json(ws,{header:1});
-  var added=0;
-  var datePat=/^(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}-\d{2}-\d{2})/;
-  rows.forEach(function(row){
-    if(!row||row.length<3) return;
-    var date=String(row[0]||'').trim();
-    if(!datePat.test(date)) return;
-    var desc=String(row[1]||'').trim();
-    var amt=parseFloat(String(row[row.length-1]).replace(/[\$,]/g,''));
-    if(isNaN(amt)||!desc) return;
-    tx().push({id:uid(),date:normalizeDate(date),desc:desc,amount:amt,cat:autoCat(desc),src:fname});
-    added++;
-  });
-  return added;
-}
-
-// ── AUTO-CATEGORIZATION RULES ─────────────────────────────────────────────
-function deleteRule(i){if(!confirm('Remove this rule?'))return;S.rules.splice(i,1);save();renderRules();toast('Rule removed');}
-
-// ── CLIENT MANAGEMENT ─────────────────────────────────────────────────────
-function renderClientCell(t){
-  var clients=S.clients||[];
-  var cBg=t.clientId?'var(--green-bg)':'#fff';
-  var cCol=t.clientId?'var(--green)':'var(--text2)';
-  var opts='<option value="">— Client —</option>'+clients.map(function(c){return '<option value="'+c.id+'"'+(t.clientId===c.id?' selected':'')+'>'+esc(c.name)+'</option>';}).join('');
-  var sel='<select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:'+cBg+';color:'+cCol+';max-width:130px;cursor:pointer" onchange="setTxClient(this.dataset.tid,this.value)" data-tid="'+t.id+'">'+opts+'</select>';
-  var invSel='';
-  if(t.clientId){
-    var clientInvs=(U().invoices||[]).filter(function(inv){return inv.clientId===t.clientId;});
-    if(clientInvs.length){
-      var iBg=t.invoiceId?'var(--brand-light)':'#fff';var iCol=t.invoiceId?'var(--brand)':'var(--text2)';
-      var iOpts='<option value="">— Invoice —</option>'+clientInvs.map(function(inv){var ref=inv.num||inv.desc||'INV';return '<option value="'+ref+'"'+(t.invoiceId===ref?' selected':'')+'>'+esc(ref)+'</option>';}).join('');
-      invSel='<select style="font-size:11px;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:'+iBg+';color:'+iCol+';max-width:120px;cursor:pointer;margin-top:3px" onchange="setTxInvoice(this.dataset.tid,this.value)" data-tid="'+t.id+'">'+iOpts+'</select>';
-    }
-  }
-  return '<div style="display:flex;flex-direction:column;gap:3px">'+sel+invSel+'</div>';
-}
-function getClientName(clientId){var c=(S.clients||[]).find(function(c){return c.id===clientId;});return c?c.name:'';}
-function setTxClient(txId,clientId){var t=(tx()||[]).find(function(x){return x.id===txId;});if(!t)return;t.clientId=clientId||null;t.invoiceId=null;save();render();}
-function setTxInvoice(txId,invoiceRef){
-  var t=(tx()||[]).find(function(x){return x.id===txId;});if(!t)return;
-  t.invoiceId=invoiceRef||null;
-  if(invoiceRef){var inv=(U().invoices||[]).find(function(i){return(i.num||i.desc)===invoiceRef;});if(inv&&inv.status!=='paid'){inv.status='paid';toast('Invoice '+invoiceRef+' marked as Paid');}}
-  save();render();
-}
-function addClient(){
-  var modal=document.createElement('div');modal.id='client-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Client</h3>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
-    +'<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-name" type="text" placeholder="Acme Corp" class="field-input"></div>'
-    +'<div><label class="field-label">Contact Name</label><input id="cl-contact" type="text" placeholder="Jane Smith" class="field-input"></div>'
-    +'<div><label class="field-label">Email</label><input id="cl-email" type="email" placeholder="jane@acme.com" class="field-input"></div>'
-    +'<div><label class="field-label">Phone</label><input id="cl-phone" type="text" placeholder="555-555-5555" class="field-input"></div>'
-    +'<div><label class="field-label">Default Rate</label><input id="cl-rate" type="text" placeholder="$150/hr" class="field-input"></div>'
-    +'<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-notes" type="text" placeholder="Net 30, retainer" class="field-input"></div>'
-    +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'
-    +'<button id="cl-cancel-btn" class="btn btn-outline">Cancel</button>'
-    +'<button id="cl-submit-btn" class="btn btn-primary">Add Client</button></div>';
-  modal.appendChild(box);document.body.appendChild(modal);
-  document.getElementById('cl-cancel-btn').onclick=function(){modal.remove();};
-  document.getElementById('cl-submit-btn').onclick=submitClient;
-  var ni=document.getElementById('cl-name');if(ni)ni.focus();
-}
-function submitClient(){
-  var name=(document.getElementById('cl-name').value||'').trim();if(!name){toast('Please enter a client name');return;}
-  var client={id:'cl_'+uid(),name:name,contact:(document.getElementById('cl-contact').value||'').trim(),email:(document.getElementById('cl-email').value||'').trim(),phone:(document.getElementById('cl-phone').value||'').trim(),rate:(document.getElementById('cl-rate').value||'').trim(),notes:(document.getElementById('cl-notes').value||'').trim(),added:new Date().toISOString().split('T')[0]};
-  if(!S.clients)S.clients=[];S.clients.push(client);
-  var modal=document.getElementById('client-modal');if(modal)modal.remove();
-  save();renderClients();toast('Client added: '+name+' ✓');
-}
-function deleteClient(id){
-  if(!confirm('Remove this client? Their tags on transactions will be cleared.'))return;
-  S.clients=(S.clients||[]).filter(function(c){return c.id!==id;});
-  (U().tx||[]).forEach(function(t){if(t.clientId===id){t.clientId=null;t.invoiceId=null;}});
-  save();renderClients();render();
-}
-function editClient(id){
-  var c=(S.clients||[]).find(function(c){return c.id===id;});if(!c)return;
-  var modal=document.createElement('div');modal.id='client-edit-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.3)';
-  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Edit Client</h3>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">'
-    +'<div style="grid-column:1/-1"><label class="field-label">Client / Company Name *</label><input id="cl-edit-name" type="text" class="field-input" value="'+esc(c.name)+'"></div>'
-    +'<div><label class="field-label">Contact Name</label><input id="cl-edit-contact" type="text" class="field-input" value="'+esc(c.contact||'')+'"></div>'
-    +'<div><label class="field-label">Email</label><input id="cl-edit-email" type="email" class="field-input" value="'+esc(c.email||'')+'"></div>'
-    +'<div><label class="field-label">Phone</label><input id="cl-edit-phone" type="text" class="field-input" value="'+esc(c.phone||'')+'"></div>'
-    +'<div><label class="field-label">Default Rate</label><input id="cl-edit-rate" type="text" class="field-input" value="'+esc(c.rate||'')+'"></div>'
-    +'<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="cl-edit-notes" type="text" class="field-input" value="'+esc(c.notes||'')+'"></div>'
-    +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'
-    +'<button id="cl-edit-cancel-btn" class="btn btn-outline">Cancel</button>'
-    +'<button id="cl-edit-save-btn" class="btn btn-primary">Save</button></div>';
-  modal.appendChild(box);document.body.appendChild(modal);
-  document.getElementById('cl-edit-cancel-btn').onclick=function(){modal.remove();};
-  document.getElementById('cl-edit-save-btn').onclick=function(){saveEditClient(id);};
-}
-function saveEditClient(id){
-  var c=(S.clients||[]).find(function(c){return c.id===id;});if(!c)return;
-  var name=(document.getElementById('cl-edit-name').value||'').trim();if(!name){toast('Please enter a client name');return;}
-  c.name=name;c.contact=(document.getElementById('cl-edit-contact').value||'').trim();c.email=(document.getElementById('cl-edit-email').value||'').trim();c.phone=(document.getElementById('cl-edit-phone').value||'').trim();c.rate=(document.getElementById('cl-edit-rate').value||'').trim();c.notes=(document.getElementById('cl-edit-notes').value||'').trim();
-  var em=document.getElementById('client-edit-modal');if(em)em.remove();
-  save();renderClients();render();toast('Client updated ✓');
-}
-function renderClients(){
-  var roster=document.getElementById('client-roster');
-  if(roster){
-    var clients=S.clients||[];
-    if(!clients.length){roster.innerHTML='<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;text-align:center;color:var(--text2);font-size:13px">No clients yet — click &ldquo;+ Add Client&rdquo; to build your roster.</div>';}
-    else{roster.innerHTML='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">'+clients.map(function(c){var txs=(U().tx||[]).filter(function(t){return t.clientId===c.id&&bucket(t.cat)==='income';});var total=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);var invCount=(U().invoices||[]).filter(function(i){return i.clientId===c.id;}).length;return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:var(--shadow)"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px"><div><div style="font-weight:800;font-size:15px">'+esc(c.name)+'</div>'+(c.contact?'<div style="font-size:12px;color:var(--text2)">'+esc(c.contact)+'</div>':'')+'</div><div style="display:flex;gap:6px"><button data-id="'+c.id+'" onclick="editClient(this.dataset.id)" style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--text2)">✏️</button><button data-id="'+c.id+'" onclick="deleteClient(this.dataset.id)" style="background:none;border:1px solid var(--red-mid);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--red)">✕</button></div></div>'+(c.email?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">📧 '+esc(c.email)+'</div>':'')+(c.phone?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">📞 '+esc(c.phone)+'</div>':'')+(c.rate?'<div style="font-size:12px;color:var(--text2);margin-bottom:3px">💰 '+esc(c.rate)+'</div>':'')+'<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);display:flex;gap:16px"><div><div style="font-size:18px;font-weight:800;color:var(--green)">$'+total.toLocaleString('en-US',{maximumFractionDigits:0})+'</div><div style="font-size:10px;color:var(--text2)">'+txs.length+' payment'+(txs.length!==1?'s':'')+'</div></div>'+(invCount?'<div><div style="font-size:18px;font-weight:800;color:var(--brand)">'+invCount+'</div><div style="font-size:10px;color:var(--text2)">invoice'+(invCount!==1?'s':'')+'</div></div>':'')+'</div></div>';}).join('')+'</div>';}
-  }
-  var el=document.getElementById('clients-content');if(!el)return;
-  var txs=(U().tx||[]).filter(function(t){return bucket(t.cat)==='income';});
-  if(!txs.length){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:20px">No income transactions yet.</div>';return;}
-  var groups={};var totalInc=txs.reduce(function(s,t){return s+Math.abs(t.amount);},0);
-  txs.forEach(function(t){var key,label,tagged=false;if(t.clientId){key=t.clientId;label=getClientName(t.clientId)||'Unknown Client';tagged=true;}else{var src=t.desc;if(/stripe/i.test(src))src='Stripe';else if(/paypal/i.test(src))src='PayPal';else if(/venmo/i.test(src))src='Venmo';else if(/zelle/i.test(src))src='Zelle';else if(/ach|deposit|transfer|direct dep/i.test(src))src='Bank Deposit';else if(/check|ccd|ppd/i.test(src))src='Check / Wire';else src=src.length>30?src.slice(0,28)+'...':src;key='_untagged_'+src;label=src+' — untagged';}if(!groups[key])groups[key]={label:label,total:0,count:0,tagged:tagged};groups[key].total+=Math.abs(t.amount);groups[key].count++;});
-  var sorted=Object.entries(groups).sort(function(a,b){return b[1].total-a[1].total;});
-  function fmtC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  el.innerHTML=sorted.map(function(e){var data=e[1];var barW=Math.round(data.total/totalInc*100);return '<div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div><div style="font-weight:700;font-size:15px;color:'+(data.tagged?'var(--text)':'var(--text2)')+'">'+esc(data.label)+'</div><div style="font-size:12px;color:var(--text2)">'+barW+'% · '+data.count+' transaction'+(data.count!==1?'s':'')+'</div></div><div style="font-weight:800;font-size:16px;color:var(--green)">'+fmtC(data.total)+'</div></div><div style="background:var(--bg3);border-radius:99px;height:6px;overflow:hidden"><div style="background:'+(data.tagged?'var(--green)':'var(--border)')+';height:100%;width:'+barW+'%;border-radius:99px"></div></div></div>';}).join('');
-}
-
-function renderPL(){
-  var el=document.getElementById('pl-content');if(!el)return;
-  var u=U(),txs=tx();var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));var miVal=roundAmt(mi*0.70);var retT=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eqT=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var incByCat={},dedByCat={},totalInc=0,totalDed=0,totalPer=0;txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income'){incByCat[t.cat]=(incByCat[t.cat]||0)+a;totalInc+=a;}else if(bucket(t.cat)==='deductible'){dedByCat[t.cat]=(dedByCat[t.cat]||0)+a;totalDed+=a;}else totalPer+=a;});totalInc=roundAmt(totalInc);totalDed=roundAmt(totalDed);totalPer=roundAmt(totalPer);var totalExp=roundAmt(totalDed+miVal+retT+eqT);var netInc=roundAmt(totalInc-totalExp);function fmtP(n){return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}var incRows=Object.entries(incByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' — ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">'+fmtP(e[1])+'</td></tr>';}).join('');var dedRows=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];}).map(function(e){return '<tr><td style="padding:8px 12px;color:var(--text2)">'+esc(e[0].split(' — ')[1]||e[0])+'</td><td style="text-align:right;padding:8px 12px">('+fmtP(e[1])+')</td></tr>';}).join('');el.innerHTML='<div style="border:1px solid var(--border);border-radius:14px;overflow:hidden"><div style="background:#1F4E79;color:#fff;padding:20px 24px"><div style="font-size:18px;font-weight:800">'+esc(u.biz||u.name||'Business')+' Profit & Loss</div><div style="font-size:13px;opacity:0.8;margin-top:4px">Tax Year '+S.year+' · Generated by TaxFlow</div></div><div style="padding:16px 24px;background:var(--green-bg);border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:800;color:var(--green);text-transform:uppercase;margin-bottom:8px">Revenue</div><table style="width:100%;border-collapse:collapse">'+incRows+'</table><div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--green);color:#fff;border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Revenue</span><span>'+fmtP(totalInc)+'</span></div></div><div style="padding:16px 24px;border-bottom:1px solid var(--border)"><div style="font-size:12px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:8px">Operating Expenses</div><table style="width:100%;border-collapse:collapse">'+dedRows+(miVal>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Vehicle Mileage</td><td style="text-align:right;padding:8px 12px">('+fmtP(miVal)+')</td></tr>':'')+(retT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Retirement Contributions</td><td style="text-align:right;padding:8px 12px">('+fmtP(retT)+')</td></tr>':'')+(eqT>0?'<tr><td style="padding:8px 12px;color:var(--text2)">Section 179 Equipment</td><td style="text-align:right;padding:8px 12px">('+fmtP(eqT)+')</td></tr>':'')+'</table><div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:8px;margin-top:8px;font-weight:800;font-size:15px"><span>Total Expenses</span><span>('+fmtP(totalExp)+')</span></div></div><div style="padding:20px 24px;background:'+(netInc>=0?'#1F4E79':'#C00000')+';color:#fff;display:flex;justify-content:space-between;align-items:center"><span style="font-size:18px;font-weight:800">Net '+(netInc>=0?'Profit':'Loss')+'</span><span style="font-size:22px;font-weight:900">'+(netInc<0?'-':'')+fmtP(netInc)+'</span></div><div style="padding:12px 24px;background:var(--bg2);font-size:12px;color:var(--text2)">Personal spending of '+fmtP(totalPer)+' excluded. TaxFlow is not tax advice.</div></div>';
-}
-
-function renderInvoices(){
-  var invs=U().invoices||[],today=new Date();var paid=0,paidC=0,out=0,outC=0,over=0,overC=0,total=0;invs.forEach(function(inv){total+=inv.amount||0;if(inv.status==='paid'){paid+=inv.amount||0;paidC++;}else{var due=inv.due?new Date(inv.due):null;if(due&&due<today){over+=inv.amount||0;overC++;}else{out+=inv.amount||0;outC++;}}});function fmtI(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}setEl('inv-paid-total',fmtI(paid));setEl('inv-paid-count',paidC+' invoice'+(paidC!==1?'s':''));setEl('inv-out-total',fmtI(out));setEl('inv-out-count',outC+' invoice'+(outC!==1?'s':''));setEl('inv-over-total',fmtI(over));setEl('inv-over-count',overC+' invoice'+(overC!==1?'s':''));setEl('inv-total-total',fmtI(total));setEl('inv-total-count',invs.length+' invoice'+(invs.length!==1?'s':''));
-  var tbody=document.getElementById('invoice-body');if(!tbody)return;
-  if(!invs.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--text2);padding:24px">No invoices yet</td></tr>';return;}
-  tbody.innerHTML=invs.map(function(inv,i){var due=inv.due?new Date(inv.due):null,isOv=inv.status!=='paid'&&due&&due<today;var sC=inv.status==='paid'?'var(--green)':isOv?'var(--red)':'var(--amber)';var sB=inv.status==='paid'?'var(--green-bg)':isOv?'var(--red-bg)':'var(--amber-bg)';return '<tr style="'+(isOv?'background:var(--red-bg)':'')+'">'+'<td style="font-weight:700;color:var(--brand)">'+esc(inv.num||'#'+(i+1))+'</td>'+'<td>'+esc(inv.client||'')+'</td><td>'+esc(inv.desc||'')+'</td>'+'<td>'+esc(inv.sent||'')+'</td><td style="'+(isOv?'color:var(--red);font-weight:700':'')+'">'+ esc(inv.due||'--')+'</td>'+'<td style="text-align:right;font-weight:700">$'+(inv.amount||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+'</td>'+'<td><select onchange="updateInvoiceStatus('+i+',this.value)" style="background:'+sB+';color:'+sC+';border:1px solid '+sC+';border-radius:6px;padding:4px 8px;font-size:12px;font-weight:700">'+'<option value="outstanding"'+(inv.status==='outstanding'?' selected':'')+'>Outstanding</option>'+'<option value="paid"'+(inv.status==='paid'?' selected':'')+'>Paid</option>'+'<option value="overdue"'+(inv.status==='overdue'?' selected':'')+'>Overdue</option>'+'<option value="cancelled"'+(inv.status==='cancelled'?' selected':'')+'>Cancelled</option>'+'</select></td><td style="font-size:12px;color:var(--text2)">'+esc(inv.notes||'')+'</td>'+'<td><button class="del-btn" onclick="delInvoice('+i+')">✕</button></td></tr>';}).join('');
-}
-function addInvoice(){
-  var modal=document.createElement('div');modal.id='inv-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-  var t2=new Date().toISOString().split('T')[0];
-  var box=document.createElement('div');
-  box.style.cssText='background:#fff;border-radius:16px;padding:28px;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(0,0,0,0.3);max-height:90vh;overflow-y:auto';
-  box.innerHTML='<h3 style="margin:0 0 20px;font-size:17px;font-weight:800">Add Invoice</h3>'
-    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">'
-    +'<div><label class="field-label">Invoice #</label><input id="inv-num" type="text" placeholder="INV-001" class="field-input"></div>'
-    +'<div><label class="field-label">Client</label><input id="inv-client" type="text" placeholder="Client name" class="field-input"></div>'
-    +'<div><label class="field-label">Date Sent</label><input id="inv-sent" type="date" class="field-input" value="'+t2+'"></div>'
-    +'<div><label class="field-label">Due Date</label><input id="inv-due" type="date" class="field-input"></div>'
-    +'<div style="grid-column:1/-1"><label class="field-label">Description</label><input id="inv-desc" type="text" placeholder="e.g. Web design services" class="field-input"></div>'
-    +'<div><label class="field-label">Amount ($)</label><input id="inv-amount" type="number" placeholder="0.00" min="0" step="0.01" class="field-input"></div>'
-    +'<div><label class="field-label">Status</label><select id="inv-status" class="field-input"><option value="outstanding">Outstanding</option><option value="paid">Paid</option><option value="overdue">Overdue</option></select></div>'
-    +'<div style="grid-column:1/-1"><label class="field-label">Notes</label><input id="inv-notes" type="text" placeholder="e.g. Net 30" class="field-input"></div>'
-    +'</div><div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">'
-    +'<button id="inv-cancel-btn" class="btn btn-outline">Cancel</button>'
-    +'<button id="inv-save-btn" class="btn btn-primary">Save Invoice</button></div>';
-  modal.appendChild(box);document.body.appendChild(modal);
-  document.getElementById('inv-cancel-btn').onclick=function(){modal.remove();};
-  document.getElementById('inv-save-btn').onclick=submitInvoice;
-  var ni=document.getElementById('inv-num');if(ni)ni.focus();
-}
-
-
-function submitInvoice(){
-  var num=(document.getElementById('inv-num').value||'').trim();var client=(document.getElementById('inv-client').value||'').trim();var sent=document.getElementById('inv-sent').value;var due=document.getElementById('inv-due').value;var desc=(document.getElementById('inv-desc').value||'').trim();var amount=parseFloat(document.getElementById('inv-amount').value)||0;var status=document.getElementById('inv-status').value;var notes=(document.getElementById('inv-notes').value||'').trim();
-  if(!client){toast('Please enter a client name');return;}if(!amount||amount<=0){toast('Please enter a valid amount');return;}
-  if(!U().invoices)U().invoices=[];
-  var matchedClient=(S.clients||[]).find(function(c){return c.name.toLowerCase()===client.toLowerCase();});
-  U().invoices.push({num:num,client:client,clientId:matchedClient?matchedClient.id:null,sent:sent,due:due,desc:desc,amount:Math.round(amount*100)/100,status:status,notes:notes});
-  var m=document.getElementById('inv-modal');if(m)m.remove();save();renderInvoices();toast('Invoice added');
-}
-function updateInvoiceStatus(i,status){if(U().invoices&&U().invoices[i]){U().invoices[i].status=status;save();renderInvoices();}}
-function delInvoice(i){if(!confirm('Delete this invoice?'))return;U().invoices.splice(i,1);save();renderInvoices();}
-
-function renderYOY(){
-  var el=document.getElementById('yoy-content');if(!el)return;
-  var years=getAvailableYears();if(years.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px"><div style="font-size:48px;margin-bottom:12px">📅</div><div style="font-size:16px;font-weight:700;margin-bottom:8px">Only one year of data</div><div>Go to Settings to add a previous year.</div></div>';return;}
-  function calcY(ud){if(!ud)return{inc:0,ded:0,per:0,net:0,txCount:0};var inc=0,ded=0,per=0;(ud.tx||[]).forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});var mi=roundAmt((ud.mileage||[]).reduce(function(s,m){return s+m.miles;},0)*0.70);var ret=roundAmt((ud.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eq=roundAmt((ud.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var td=roundAmt(ded+mi+ret+eq);return{inc:roundAmt(inc),ded:td,per:roundAmt(per),net:Math.max(0,roundAmt(inc-td)),txCount:(ud.tx||[]).length};}
-  var data={};data[S.year]=calcY(S.users.herbert);Object.entries(S.years||{}).forEach(function(e){data[e[0]]=calcY(e[1].herbert);});
-  function fmtY(n){return '$'+Math.round(n).toLocaleString();}function arrow(curr,prev){if(!prev&&prev!==0)return '';var pct=((curr-prev)/(prev||1)*100),up=pct>=0;return '<span style="font-size:11px;color:'+(up?'var(--green)':'var(--red)')+';margin-left:6px">'+(up?'▲':'▼')+Math.abs(pct).toFixed(1)+'%</span>';}
-  var metrics=[{key:'inc',label:'Total Income',color:'var(--green)'},{key:'ded',label:'Total Deductions',color:'var(--brand)'},{key:'net',label:'Net Taxable',color:'#C00000'},{key:'per',label:'Personal Spending',color:'var(--text2)'}];
-  var sy=years.sort(function(a,b){return b-a;});
-  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;min-width:400px"><thead><tr style="background:#1F4E79"><th style="padding:12px 16px;text-align:left;color:#fff;font-size:13px">Metric</th>'+sy.map(function(y){return '<th style="padding:12px 16px;text-align:right;color:#fff;font-size:13px">'+y+(y===S.year?' (current)':'')+'</th>';}).join('')+'</tr></thead><tbody>'+metrics.map(function(m,mi){return '<tr style="background:'+(mi%2===0?'#fff':'var(--bg2)')+'"><td style="padding:14px 16px;font-weight:600;color:'+m.color+'">'+m.label+'</td>'+sy.map(function(y,yi){var val=(data[y]&&data[y][m.key])||0,prevY=sy[yi+1],prev=prevY&&data[prevY]&&data[prevY][m.key];return '<td style="padding:14px 16px;text-align:right;font-weight:700;color:'+m.color+'">'+fmtY(val)+(yi<sy.length-1?arrow(val,prev):'')+'</td>';}).join('')+'</tr>';}).join('')+'<tr style="background:var(--bg3);border-top:2px solid var(--border)"><td style="padding:14px 16px;font-weight:600;color:var(--text2)">Transactions</td>'+sy.map(function(y){return '<td style="padding:14px 16px;text-align:right;color:var(--text2)">'+((data[y]&&data[y].txCount)||0).toLocaleString()+'</td>';}).join('')+'</tr></tbody></table></div>';
-}
-
-function clearAllData(){
-  if(!confirm('This will delete ALL transactions AND all saved statements. Are you sure?'))return;
-  S.users.herbert.tx=[];(S.extraUsers||[]).forEach(function(u){u.tx=[];});S.savedStatements=[];statementsUploaded=0;
-  save();render();updateSummary();renderSavedStatements();toast('All data cleared');
-}
-
-function setSectionSort(k,val){if(!S._sort)S._sort={};S._sort[k]=val;render();}
-
-function toggleReceipt(id){var t=tx().find(function(x){return x.id===id;});if(!t)return;t.receipt=!t.receipt;save();var btn=document.getElementById('rcpt-'+id);if(btn){btn.textContent=t.receipt?'🧾':'📎';btn.style.opacity=t.receipt?'1':'0.3';}toast(t.receipt?'Receipt marked':'Receipt tag removed');}
-function exportCPAPackage(){
-  var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
-  if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();toast('CPA Export requires a paid plan.');return;}
-  if(typeof window.jspdf==='undefined'||typeof window.jspdf.jsPDF==='undefined'){
-    toast('PDF library not loaded — check your internet connection.');return;
-  }
-  var u=U(),txs=tx();
-  var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));
-  var miVal=roundAmt(mi*0.70);
-  var ret=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
-  var eq=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
-  var invPaid=roundAmt((u.invoices||[]).filter(function(i){return i.status==='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
-  var invOut=roundAmt((u.invoices||[]).filter(function(i){return i.status!=='paid';}).reduce(function(s,i){return s+(i.amount||0);},0));
-  var inc=0,ded=0,per=0;
-  txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});
-  inc=roundAmt(inc);ded=roundAmt(ded);per=roundAmt(per);
-  var totalDed=roundAmt(ded+miVal+ret+eq);var netTax=roundAmt(Math.max(0,inc-totalDed));
-  var receiptCount=txs.filter(function(t){return t.receipt;}).length;
-  var dedByCat={};txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){var k=t.cat.split(' — ')[1]||t.cat;dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);});
-  var dedEntries=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];});
-  function fmtC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-  var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
-  var W=210,margin=18,y=0,lineH=7;
-  var brandBlue=[31,78,121],green=[22,163,74],red=[192,0,0],darkText=[30,30,30],lightGray=[240,242,245];
-  function setFont(size,bold,color){doc.setFontSize(size);doc.setFont('helvetica',bold?'bold':'normal');doc.setTextColor(color?color[0]:darkText[0],color?color[1]:darkText[1],color?color[2]:darkText[2]);}
-  function fillRect(x,fy,w,h,color){doc.setFillColor(color[0],color[1],color[2]);doc.rect(x,fy,w,h,'F');}
-  function kv(label,value,bold,color){setFont(10,bold||false,darkText);doc.text(label,margin,y);setFont(10,bold||false,color||darkText);doc.text(value,W-margin,y,{align:'right'});y+=lineH;}
-  function sectionHdr(title,bgColor){fillRect(margin,y-4,W-margin*2,8,bgColor||brandBlue);doc.setFontSize(10);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text(title.toUpperCase(),margin+3,y+0.5);y+=10;}
-  fillRect(0,0,W,38,brandBlue);
-  doc.setFontSize(20);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text('Tax Preparation Package',margin,15);
-  doc.setFontSize(10);doc.setFont('helvetica','normal');doc.setTextColor(200,220,240);doc.text((u.biz||u.name||'TaxFlow User')+' · Tax Year '+S.year+' · '+today,margin,23);doc.text('Generated by TaxFlow · gettaxflow.com',margin,30);y=46;
-  sectionHdr('Revenue / Income',[22,101,52]);kv('Total Gross Income',fmtC(inc),false,green);setFont(10,true,green);doc.text('TOTAL REVENUE',margin,y);doc.text(fmtC(inc),W-margin,y,{align:'right'});y+=lineH+2;
-  sectionHdr('Operating Expenses',brandBlue);dedEntries.forEach(function(e){kv(e[0],fmtC(e[1]));});if(miVal>0)kv('Vehicle Mileage ('+mi.toFixed(1)+' mi @ $0.70)',fmtC(miVal));if(ret>0)kv('Retirement Contributions',fmtC(ret));if(eq>0)kv('Section 179 Equipment',fmtC(eq));setFont(10,true,brandBlue);doc.text('TOTAL EXPENSES',margin,y);doc.text(fmtC(totalDed),W-margin,y,{align:'right'});y+=lineH+2;
-  sectionHdr('Personal Spending (Non-Deductible)',[100,60,140]);kv('Total Personal Expenses',fmtC(per),false,red);y+=2;
-  fillRect(margin,y,W-margin*2,14,red);doc.setFontSize(13);doc.setFont('helvetica','bold');doc.setTextColor(255,255,255);doc.text('NET TAXABLE INCOME',margin+3,y+9);doc.text(fmtC(netTax),W-margin-3,y+9,{align:'right'});y+=20;
-  fillRect(margin,y,W-margin*2,14,[255,251,235]);doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(146,64,14);doc.text('DISCLAIMER: TaxFlow is a financial organization tool, not tax advice.',margin+3,y+5);doc.text('Always review with a qualified CPA before filing.',margin+3,y+10);y+=18;
-  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(150,150,150);doc.text('Generated by TaxFlow · gettaxflow.com · '+today,W/2,y,{align:'center'});
-  var fname=((u.biz||u.name||'TaxFlow').replace(/[^a-zA-Z0-9]/g,'_').replace(/_+/g,'_').replace(/^_|_$/g,''))+'_'+S.year+'_CPA_Package.pdf';
-  if(window.electronAPI&&window.electronAPI.isElectron){
-    var arrBuf=doc.output('arraybuffer');window.electronAPI.saveFile(fname,new Uint8Array(arrBuf),'pdf').then(function(r){if(r&&r.success)toast('CPA Package saved');else if(r&&r.error)toast('Save failed: '+r.error);});
-  } else {doc.save(fname);toast('CPA Package downloaded: '+fname);}
-}
-
-
-// ── AUTH SYSTEM (Supabase + Stripe) ─────────────────────────────────────────
-
-const SUPABASE_URL  = 'https://ltwyiitvakabtltwxxmz.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_jQdwf4ddqaWCP-Fzi1Fp0w_55qDHBjQ';
-
-const STRIPE_LINKS = {
-  household_monthly: 'https://buy.stripe.com/7sY6oz7jbfQc7Ep1y687K00',
-  household_yearly:  'https://buy.stripe.com/4gM6ozeLDeM88It6Sq87K01',
-  business_monthly:  'https://buy.stripe.com/8x228j6f7dI4gaV3Ge87K02',
-  business_yearly:   'https://buy.stripe.com/9B65kv1YReM87EpekS87K03',
-};
-
-const { createClient } = supabase;
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
-
-const TIERS = {
-  free: {
-    label: 'Free', maxUsers: 1,
-    optionalTabs: ['settings'],
-    maxStatements: 3,
-    maxTransactions: 50,
-    canExportExcel: false,
-    canExportCsv: false,
-    canImportPdf: true,
-    showUpgradeBanner: true,
-  },
-  household: {
-    label: 'Household', maxUsers: 2,
-    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: true,
-    maxTransactions: Infinity, showUpgradeBanner: false,
-  },
-  business: {
-    label: 'Business', maxUsers: 5,
-    optionalTabs: ['gambling','mileage','homeoffice','1099','quarterly','settings'],
-    canExportExcel: true, canImportPdf: true, canExportCsv: true,
-    maxTransactions: Infinity, showUpgradeBanner: false,
-  },
-};
-
-let currentProfile = null;
-let selectedPlan = 'household';
-
-function showAuthScreen() {
-  const s = document.getElementById('auth-screen');
-  s.style.transition = ''; s.style.opacity = '1'; s.style.display = 'flex';
-}
-function hideAuthScreen() {
-  const s = document.getElementById('auth-screen');
-  s.style.transition = 'opacity 0.35s ease'; s.style.opacity = '0';
-  setTimeout(() => { s.style.display='none'; s.style.opacity='1'; s.style.transition=''; }, 360);
-  updateHeaderUser(); updateDropdownNames();
-}
-function authTab(tab) {
-  document.getElementById('form-login').style.display    = tab==='login'    ? 'block' : 'none';
-  document.getElementById('form-register').style.display = tab==='register' ? 'block' : 'none';
-  document.getElementById('tab-login').classList.toggle('active',    tab==='login');
-  document.getElementById('tab-register').classList.toggle('active', tab==='register');
-  clearAuthMessages();
-}
-function showAuthError(msg)   { const e=document.getElementById('auth-error');   e.textContent=msg; e.style.display='block'; document.getElementById('auth-success').style.display='none'; }
-function showAuthSuccess(msg) { const e=document.getElementById('auth-success'); e.textContent=msg; e.style.display='block'; document.getElementById('auth-error').style.display='none'; }
-function clearAuthMessages()  { document.getElementById('auth-error').style.display='none'; document.getElementById('auth-success').style.display='none'; }
-
-function selectPlan(plan) {
-  selectedPlan = plan;
-  ['free','household','business'].forEach(p => {
-    document.getElementById('plan-'+p).classList.toggle('selected', p===plan);
-  });
-}
-
-// ── Load profile from Supabase ────────────────────────────────────────────────
-async function loadProfile(userId) {
-  const { data, error } = await sb.from('profiles').select('*').eq('id', userId).single();
-  if (error) { console.error('Profile load error:', error); return null; }
-  return data;
-}
-
-function applyTierRestrictions() {
-  const tier = currentTier();
-  S.activeTabs = S.activeTabs.filter(t => tier.optionalTabs.includes(t));
-  // Settings tab is always visible regardless of tier
-  if(!S.activeTabs.includes('settings')) S.activeTabs.push('settings');
-  showUpgradeBanners(tier);
-  const ud2 = document.getElementById('ud-spouse');
-  if (ud2) {
-    ud2.style.opacity      = tier.maxUsers < 2 ? '0.4' : '';
-    ud2.style.pointerEvents = tier.maxUsers < 2 ? 'none' : '';
-    ud2.title = tier.maxUsers < 2 ? 'Upgrade to Household to add a second user' : '';
-  }
-  updateTierBadge(tier);
-}
-
-function showUpgradeModal() {
-  const email = currentProfile?.email || '';
-  const link  = STRIPE_LINKS.household_monthly + (email ? '?prefilled_email=' + encodeURIComponent(email) : '');
-  window.open(link, '_blank');
-}
-
-function updateDropdownNames() {
-  const ud1=document.getElementById('ud-name1'); if(ud1) ud1.textContent=S.users.herbert.name||'User 1';
-  const ud2=document.getElementById('ud-name2'); if(ud2) ud2.textContent=S.users.spouse.name||'User 2';
-  const ub1=document.getElementById('ud-biz1');  if(ub1) ub1.textContent=S.users.herbert.biz||'Primary Account';
-}
-// ── AUTO LOGOUT ON CLOSE ──────────────────────────────────────────────────
-// Clears the session when the tab/window is closed or the app exits.
-// Transaction data remains saved — only the login session is cleared.
-
-function clearSession(){}
 
 // Fires when the tab/window is about to close
+
 window.addEventListener('DOMContentLoaded', async function(){
   if(typeof pdfjsLib !== 'undefined'){
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -3168,6 +2838,5 @@ window.addEventListener('DOMContentLoaded', async function(){
 });
 
 </script>
-
 </body>
 </html>
