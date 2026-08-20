@@ -308,7 +308,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.6.4</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.6.8</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +393,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.6.4</span>
+      <span class="logo-beta">v2.6.8</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -415,7 +415,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         </div>
       </div>
       <button class="btn btn-white" onclick="exportAll()">Export Excel</button>
-      <button class="btn btn-white" onclick="exportCPAPackage()">CPA Package</button>
+      <button class="btn btn-white" onclick="exportCPAPackage()">Export Full CPA Package</button>
       <button onclick="signOut()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:8px;color:#fff;font-size:12px;font-weight:600;padding:6px 12px;cursor:pointer">Sign Out</button>
     </div>
   </div>
@@ -485,19 +485,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <input type="file" id="fi" style="display:none" accept=".csv,.xlsx,.xls,.pdf" multiple onchange="handleFiles(this.files)">
     </div>
 
-    <div class="manual-form" id="add-form" style="display:none">
-      <div class="form-title">➕ Add transaction manually</div>
-      <div class="form-grid">
-        <div class="form-group"><label>Date</label><input type="date" id="af-date"></div>
-        <div class="form-group"><label>Description</label><input type="text" id="af-desc" placeholder="e.g. Hardware store, gas station..."></div>
-        <div class="form-group"><label>Amount (use − for expense)</label><input type="number" id="af-amt" placeholder="e.g. -48.76 or 500.00"></div>
-        <div class="form-group"><label>Category</label><select id="af-cat"></select></div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-primary" onclick="addManual()">Add</button>
-        <button class="btn btn-outline" onclick="toggleAddForm()">Cancel</button>
-      </div>
-    </div>
+    
 
     
     <div id="import-banner" style="display:none;background:var(--brand-light);border-radius:10px;padding:12px 16px;margin-top:12px;font-size:13px;color:var(--brand)">
@@ -512,9 +500,11 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 <div class="tab-panel" id="panel-statements">
     <div class="panel-header" style="margin-bottom:0">
       <h2 class="panel-title">Transactions</h2>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn btn-outline" onclick="toggleAddForm()" style="font-size:12px">+ Manual</button>
         <button class="btn btn-outline" onclick="autoCategAll()" style="font-size:12px">Re-categorize</button>
+        <button class="btn btn-outline" onclick="exportCsv()" style="font-size:12px">Export CSV</button>
+        <button class="btn btn-outline" onclick="exportCPAPackage()" style="font-size:12px">Export Full CPA Package</button>
         <button class="btn btn-outline" onclick="clearAllData()" style="font-size:12px;color:var(--red)">Clear All</button>
       </div>
     </div>
@@ -598,7 +588,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
         <div class="sum-total" style="background:var(--amber-bg);color:var(--amber)"><span>Total review</span><span id="sum-rev-total">$0.00</span></div>
       </div>
     </div>
-    <div style="text-align:right"><button class="btn btn-success" onclick="exportAll()">⬇ Export full Excel workbook</button></div>
+    <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end"><button class="btn btn-success" onclick="exportAll()">⬇ Export full Excel workbook</button><button class="btn btn-outline" onclick="exportCPAPackage()" style="background:#fff">Export Full CPA Package</button></div>
   </div>
 
   <!-- GAMBLING W/L -->
@@ -1219,9 +1209,8 @@ function load(){
       if(S.currentTab==='statements'||!S.currentTab) S.currentTab='upload';
       if(!S.users.herbert.invoices) S.users.herbert.invoices=[];
       (S.extraUsers||[]).forEach(function(u){if(!u.invoices)u.invoices=[];});
-      var hasTx=(S.users.herbert.tx||[]).length>0||
-        (S.extraUsers||[]).some(function(u){return(u.tx||[]).length>0;});
-      if(!hasTx) S.savedStatements=[];
+      // Don't clear savedStatements on load - statements persist independently
+      // var hasTx=... removed to prevent clearing statements when tx are empty
     }
   }catch(e){console.error('Load error:',e);}
   if(!S.rules||!S.rules.length) S.rules=[...DEFAULT_RULES];
@@ -1892,6 +1881,7 @@ function addManual(){
   tx().push({id:uid(),date,desc,amount,cat,src:'manual'});
   save();render();updateSummary();
   document.getElementById('af-desc').value='';document.getElementById('af-amt').value='';
+  toggleAddForm();
   toast('Transaction added');
 }
 
@@ -2646,6 +2636,13 @@ async function parsePDF(f){
       Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){byY[y].sort(function(a,b){return a.x-b.x;});pageRows.push({y:y,items:byY[y],page:p});});
     }
     pdf.destroy();
+    console.log('PDF parsed: '+pageRows.length+' rows from '+pdf.numPages+' pages');
+    if(pageRows.length===0){
+      toast('PDF loaded but no text found — check that pdf.worker.min.js is in your GitHub repo');
+      return 0;
+    }
+    // Log first few rows for debugging
+    if(pageRows.length>0) console.log('First row sample:',JSON.stringify(pageRows[0]).slice(0,200));
     const count=parseBankStructured(pageRows,f.name);
     if(count===0)toast('0 transactions found in '+f.name+' — format may not be supported.');
     saveStatementToLibrary(f,pageRows).catch(function(e){console.warn('Statement save failed:',e.message);});
@@ -2780,19 +2777,30 @@ function parseXLSX(buf,fname){
 
 // ── EXPORT CPA PACKAGE ────────────────────────────────────────────────────
 async function exportCPAPackage(){
-  if(typeof window.jspdf === 'undefined'){
-    await new Promise(function(resolve, reject){
-      var s = document.createElement('script');
-      s.src = 'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';
-      s.onload = resolve; s.onerror = reject;
-      document.head.appendChild(s);
-    });
+  toast('Preparing CPA Package...');
+  // Load jsPDF if not already loaded - try multiple CDNs
+  if(typeof window.jspdf === 'undefined' && typeof window.jsPDF === 'undefined'){
+    var jsPDFLoaded = false;
+    var cdns = [
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+      'https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js'
+    ];
+    for(var ci=0; ci<cdns.length && !jsPDFLoaded; ci++){
+      try{
+        await new Promise(function(resolve, reject){
+          var s = document.createElement('script');
+          s.src = cdns[ci];
+          s.onload = function(){jsPDFLoaded=true;resolve();};
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }catch(e){ console.warn('jsPDF CDN failed:',cdns[ci]); }
+    }
   }
-  var tier=typeof currentTier==='function'?currentTier():{canExportExcel:false};
+  var tier=typeof currentTier==='function'?currentTier():{canExportExcel:true};
   if(!tier.canExportExcel){if(typeof showUpgradeModal==='function')showUpgradeModal();toast('CPA Export requires a paid plan.');return;}
-  // jsPDF UMD may expose as window.jspdf or window.jsPDF depending on version
   var jsPDFLib = (window.jspdf&&window.jspdf.jsPDF) || window.jsPDF;
-  if(!jsPDFLib){toast('PDF library not loaded — check your internet connection.');return;}
+  if(!jsPDFLib){toast('Could not load PDF library — check your internet connection.');console.error('jsPDF not found. window.jspdf=',window.jspdf,'window.jsPDF=',window.jsPDF);return;}
   var u=U(),txs=tx();var mi=roundAmt((u.mileage||[]).reduce(function(s,m){return s+m.miles;},0));var miVal=roundAmt(mi*0.70);var ret=roundAmt((u.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eq=roundAmt((u.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var inc=0,ded=0,per=0;txs.forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});inc=roundAmt(inc);ded=roundAmt(ded);per=roundAmt(per);var totalDed=roundAmt(ded+miVal+ret+eq);var netTax=roundAmt(Math.max(0,inc-totalDed));var dedByCat={};txs.filter(function(t){return bucket(t.cat)==='deductible';}).forEach(function(t){var k=t.cat.split(' — ')[1]||t.cat.split(' -- ')[1]||t.cat;dedByCat[k]=(dedByCat[k]||0)+Math.abs(t.amount);});var dedEntries=Object.entries(dedByCat).sort(function(a,b){return b[1]-a[1];});function fC(n){return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
   var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   var doc=new jsPDFLib({orientation:'portrait',unit:'mm',format:'a4'});var W=210,margin=18,y=0,lineH=7;
