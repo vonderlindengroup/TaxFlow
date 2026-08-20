@@ -149,7 +149,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 /* ── TABLE ── */
 .tx-wrap{overflow-x:auto;max-height:380px;overflow-y:auto}
 .tx-table{width:100%;border-collapse:collapse;font-size:13px}
-.tx-table th{padding:9px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1.5px solid var(--border);background:var(--bg2);position:sticky;top:0}
+.tx-table th{padding:9px 14px;text-align:left;font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1.5px solid var(--border);background:var(--bg2)}
 .tx-table td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
 .tx-table tr:last-child td{border-bottom:none}
 .tx-table tr:hover td{background:#fafbff}
@@ -308,7 +308,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.2</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.3</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +393,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.7.2</span>
+      <span class="logo-beta">v2.7.3</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -1573,9 +1573,11 @@ function render(){
 
       // Header row
       var thead=document.createElement('thead');
+      var isIncomeSec = c.k === 'income';
       thead.innerHTML='<tr><th>Date</th><th>Description</th>'
         +'<th style="text-align:right">Amount</th><th>Category</th>'
-        +'<th>Client</th><th style="text-align:center">Receipt</th><th></th></tr>';
+        +(isIncomeSec?'<th>Client</th>':'')
+        +'<th style="text-align:center">Receipt</th><th></th></tr>';
       table.appendChild(thead);
 
       var tbody=document.createElement('tbody');
@@ -1594,7 +1596,7 @@ function render(){
           +'<td><select class="cat-select" data-tid="'+t.id+'" onchange="setCat(this.dataset.tid,this.value)">'
             +CATS.map(function(c2){return '<option'+(c2===t.cat?' selected':'')+'>'+c2+'</option>';}).join('')
             +'</select></td>'
-          +'<td style="white-space:nowrap;min-width:140px">'+clientHtml+'</td>'
+          +(isIncome?'<td style="white-space:nowrap;min-width:140px">'+clientHtml+'</td>':'')
           +'<td style="text-align:center;white-space:nowrap">'
             +'<button id="rcpt-'+t.id+'" data-tid="'+t.id+'" onclick="toggleReceipt(this.dataset.tid)" '
             +'title="'+(t.receipt?'Receipt on file':'Click to mark receipt')+'" '
