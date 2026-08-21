@@ -308,7 +308,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.8.0</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.8.1</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +393,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.8.0</span>
+      <span class="logo-beta">v2.8.1</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2717,7 +2717,10 @@ function parseChaseStructured(pageRows, fname){
     if(!desc || desc.length<2 || !/[A-Za-z]{2}/.test(desc)){ curDate=null;curDescParts=[];curAmt=null;return; }
     var yr   = (fname.match(/20(\d{2})/) || ['','25'])[1];
     var amt  = curSection==='income' ? Math.abs(curAmt) : -Math.abs(curAmt);
-    tx().push({id:uid(),date:normalizeDate(curDate+'/'+yr),desc:desc,amount:amt,cat:autoCat(desc),src:fname});
+    var cat  = autoCat(desc);
+    if(curSection==='income' && !cat.startsWith('Income')) cat='Income — Business Deposit / Check';
+    if(curSection==='expense' && cat==='Needs Review') cat='Personal — Other';
+    tx().push({id:uid(),date:normalizeDate(curDate+'/'+yr),desc:desc,amount:amt,cat:cat,src:fname});
     added++;
     curDate=null;curDescParts=[];curAmt=null;
   }
