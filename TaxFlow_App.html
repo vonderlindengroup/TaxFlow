@@ -308,7 +308,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.6</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.7</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +393,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.7.6</span>
+      <span class="logo-beta">v2.7.7</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2660,8 +2660,28 @@ async function parsePDF(f){
 
 
 function parseChaseStructured(pageRows, fname){
+  // DEBUG: dump the first 20 raw pageRows (y, page, items w/ x-positions) so we can
+  // eyeball actual column x-coordinates straight from the console when something looks off.
+  console.log('[parseChaseStructured] first 20 pageRows:', JSON.stringify(pageRows.slice(0,20).map(function(r){
+    return {page:r.page, y:r.y, items:r.items.map(function(i){return i.x+':'+i.text;})};
+  })));
+
   var added = 0;
-  var DATE_MAX_X = 90;
+  // Chase statements render DATE at x~35-40 and AMOUNT at x~486-516, but the
+  // DESCRIPTION column start varies by section/page — as low as x~70 on some
+  // "(continued)" pages and x~87 on the first page of a section. The old
+  // DATE_MAX_X=90 cutoff sat ABOVE some of those real description start
+  // x-positions, so the leading word of the description (often the very
+  // transaction-type word cleanChaseDesc() looks for, e.g. "Card", "ATM",
+  // "Orig", "Non-Chase", "Payment") was silently dropped before it ever
+  // reached descItems. That's what left "Purchase With Pin", "Withdraw ...",
+  // and garbled ACH noise ("CO Name:...") behind instead of a clean prefix
+  // strip, and it also meant ACH/wire deposits kept enough garbage in their
+  // description that auto-categorization couldn't recognize them as income.
+  // DATE_MAX_X sits comfortably above the date column (~35-40) and well
+  // below the lowest observed description start (~70), so nothing in
+  // between gets dropped.
+  var DATE_MAX_X = 50;
   var AMT_MIN_X  = 470;
   var datePat = /^\d{1,2}\/\d{2}$/;
   var amtPat  = /^\$?[\d,]+\.\d{2}$/;
@@ -2678,13 +2698,23 @@ function parseChaseStructured(pageRows, fname){
 
   function cleanChaseDesc(s){
     return s
-      // Remove transaction type prefix
-      .replace(/^(Recurring Card Purchase|Card Purchase With Pin|Card Purchase|ATM Cash Deposit|ATM Withdrawal|Non-Chase ATM Withdraw|Payment Sent|Orig CO Name:\s*|Orig CO Name\s*)/i,'')
+      // Remove transaction type prefix. Order matters: longer/more specific
+      // phrases must be listed before the shorter phrases they start with
+      // (e.g. "Card Purchase With Pin" before "Card Purchase") or the
+      // shorter alternative will match first and leave a dangling word
+      // ("With Pin", "Return") behind.
+      .replace(/^(Recurring Card Purchase|Card Purchase With Pin|Card Purchase Return|Card Purchase|ATM Cash Deposit|Non-Chase ATM Withdraw|ATM Withdrawal|Fedwire Credit|Payment Sent|Payment Received|Purchase Return|Orig CO Name:\s*|Orig CO Name\s*)/i,'')
       // Remove ACH noise fields
       .replace(/Orig ID:[^\s]+/gi,'').replace(/Desc Date:[^\s]*/gi,'').replace(/CO Entry/gi,'')
       .replace(/Descr:[^\s]+/gi,'').replace(/Sec:[^\s]+/gi,'').replace(/Trace#:[^\s]+/gi,'')
       .replace(/Eed:[^\s]+/gi,'').replace(/Ind ID:[^\s]*/gi,'').replace(/Ind Name:[^\n]*/gi,'')
       .replace(/Trn:[^\s]+/gi,'')
+      // Remove Fedwire noise fields (Ref: introduces trailing routing/reference
+      // junk we don't need, so strip it and everything after, same as Ind Name:)
+      .replace(/Ref:[^\n]*/gi,'')
+      .replace(/\bVia:\s*/gi,'').replace(/\bB\/O:\s*/gi,'')
+      .replace(/\/\d{6,}\b/g,'')
+      .replace(/(^|\s)\d\/(?=[A-Za-z])/g,' ')
       // Remove embedded date (04/15, 04/16, etc)
       .replace(/\d{2}\/\d{2}\s*/g,'')
       // Remove Card XXXX suffix
@@ -2721,8 +2751,18 @@ function parseChaseStructured(pageRows, fname){
     // Stop parsing at legal/boilerplate section
     if(STOP_PAT.test(allText)){stopped=true;finishTx();return;}
 
-    // Skip page headers (date range + account number lines)
-    if(/through.*\d{4}.*Account Number/i.test(allText)) return;
+    // Skip page headers (date range + account number lines). Note: the date
+    // range and "Account Number:" always land on two SEPARATE pageRows (pdf.js
+    // never merges them), so the original combined "through...Account Number"
+    // test could never match a single row — it was dead code, and these header
+    // lines were falling through into the description-continuation branch below
+    // and getting glued onto whatever transaction was still open (visible as
+    // "...Card 9185 April 13, 2026 through April 30, 2026 (continued)" stuck
+    // on the last transaction before a page break). Match each header line on
+    // its own instead.
+    if(/^[A-Za-z]+ \d{1,2}, \d{4}\s+through\s+[A-Za-z]+ \d{1,2}, \d{4}$/i.test(allText.trim())) return;
+    if(/^Account Number:/i.test(allText.trim())) return;
+    if(/^\(continued\)$/i.test(allText.trim())) return;
     if(/^page \d+ of \d+$/i.test(allText.trim())) return;
     if(/^\d{10,}$/.test(allText.trim())) return; // long account number
 
@@ -2743,7 +2783,8 @@ function parseChaseStructured(pageRows, fname){
       // Skip column headers and totals
       if(/^(date\s+description|date\s+amount|total\s|beginning balance|ending balance)/i.test(allText)) return;
 
-      // Amount-only row (standalone amount for multi-line tx like ACH deposits)
+      // Amount-only row (standalone amount for multi-line tx like ACH deposits,
+      // e.g. the dollar figure sits alone on its own row with no date/desc)
       if(hasAmt && !descText && curTx && curTx.amount===null){
         curTx.amount = parseFloat(amtItems[0].text.replace(/[\$,]/g,''));
         return;
@@ -2757,6 +2798,13 @@ function parseChaseStructured(pageRows, fname){
       if(curTx && curSection && descText && descText.length>2 && /[A-Za-z]/.test(descText)){
         var isBoiler=/^(total|beginning|ending|page |account |chase |jpmorgan|for personal|for business|we will|call us)/i.test(descText);
         if(!isBoiler) curTx.descParts.push(descText);
+      }
+      // A continuation line can also carry the transaction's amount trailing
+      // after some description text (not just on a fully bare row) — catch
+      // that here too so multi-line deposits aren't dropped for want of a
+      // *purely* standalone amount row.
+      if(hasAmt && curTx && curTx.amount===null){
+        curTx.amount = parseFloat(amtItems[0].text.replace(/[\$,]/g,''));
       }
       return;
     }
