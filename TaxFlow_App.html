@@ -308,7 +308,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.5</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.6</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +393,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.7.5</span>
+      <span class="logo-beta">v2.7.6</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2662,127 +2662,122 @@ async function parsePDF(f){
 function parseChaseStructured(pageRows, fname){
   var added = 0;
   var DATE_MAX_X = 90;
-  var AMT_MIN_X  = 480;
+  var AMT_MIN_X  = 470;
   var datePat = /^\d{1,2}\/\d{2}$/;
   var amtPat  = /^\$?[\d,]+\.\d{2}$/;
-  var multiDatePat = /\d{1,2}\/\d{2}.{5,}\d{1,2}\/\d{2}/; // two dates = balance row
 
   function normSection(s){ return s.replace(/[^a-z0-9]/gi,'').toLowerCase(); }
+  var INCOME_SECTIONS  = ['depositsandadditions'];
+  var EXPENSE_SECTIONS = ['atmdebitcardwithdrawals','atmanddebitcardwithdrawals','fees','checks','otherwithdrawals','electronicwithdrawals'];
+  var SKIP_SECTIONS    = ['checkingsummary','savingssummary','atmdebitcardsummary','atmanddebitcardsummary','dailyendingbalance','dailybalance'];
+  var STOP_PAT = /in case of errors|jpmorgan chase bank.*member fdic|this page intentionally/i;
 
-  var INCOME_SECTIONS = ['depositsandadditions','depositsadditions','creditcarddeposits'];
-  var EXPENSE_SECTIONS = ['atmdebitcardwithdrawals','atmanddebitcardwithdrawals',
-    'fees','servicefees','otherwithdrawals','electronicwithdrawals','checks'];
-  var SKIP_SECTIONS = ['checkingsummary','savingssummary','atmdebitcardsummary',
-    'atmanddebitcardsummary','dailyendingbalance','dailybalance',
-    'customerserviceinformation','incaseoferrors'];
-
-  function isSectionIncome(t){
-    var n=normSection(t);
-    return INCOME_SECTIONS.some(function(s){return n===s||n.indexOf(s)>=0;});
-  }
-  function isSectionExpense(t){
-    var n=normSection(t);
-    return EXPENSE_SECTIONS.some(function(s){return n===s||n.indexOf(s)>=0;});
-  }
-  function isSectionSkip(t){
-    var n=normSection(t);
-    return SKIP_SECTIONS.some(function(s){return n===s||n.indexOf(s)>=0;});
-  }
+  function isSectionIncome(t){var n=normSection(t);return INCOME_SECTIONS.some(function(s){return n.indexOf(s)>=0;});}
+  function isSectionExpense(t){var n=normSection(t);return EXPENSE_SECTIONS.some(function(s){return n.indexOf(s)>=0;});}
+  function isSectionSkip(t){var n=normSection(t);return SKIP_SECTIONS.some(function(s){return n.indexOf(s)>=0;});}
 
   function cleanChaseDesc(s){
-    // Remove leading transaction type prefix
     return s
-      .replace(/^(Card Purchase With Pin|Card Purchase|ATM Withdrawal|Non-Chase ATM Withdraw|Payment Sent|Recurring Card Purchase|ATM Cash Deposit|Orig CO Name:|Orig CO Name)\s*/i,'')
-      .replace(/\s*Card\s+\d{4}\s*$/i,'')
-      .replace(/\s*\d{2}\/\d{2}\s*/,'')  // remove embedded dates
-      .replace(/\s{2,}/g,' ')
-      .trim();
+      // Remove transaction type prefix
+      .replace(/^(Recurring Card Purchase|Card Purchase With Pin|Card Purchase|ATM Cash Deposit|ATM Withdrawal|Non-Chase ATM Withdraw|Payment Sent|Orig CO Name:\s*|Orig CO Name\s*)/i,'')
+      // Remove ACH noise fields
+      .replace(/Orig ID:[^\s]+/gi,'').replace(/Desc Date:[^\s]*/gi,'').replace(/CO Entry/gi,'')
+      .replace(/Descr:[^\s]+/gi,'').replace(/Sec:[^\s]+/gi,'').replace(/Trace#:[^\s]+/gi,'')
+      .replace(/Eed:[^\s]+/gi,'').replace(/Ind ID:[^\s]*/gi,'').replace(/Ind Name:[^\n]*/gi,'')
+      .replace(/Trn:[^\s]+/gi,'')
+      // Remove embedded date (04/15, 04/16, etc)
+      .replace(/\d{2}\/\d{2}\s*/g,'')
+      // Remove Card XXXX suffix
+      .replace(/\s*Card\s+\d{3,4}\s*$/i,'')
+      // Collapse whitespace
+      .replace(/\s{2,}/g,' ').trim();
   }
 
   var curSection = null;
-  var inStatement = false; // gate: only parse after first section header found
   var curTx = null;
+  var stopped = false;
 
   function finishTx(){
     if(!curTx) return;
-    var desc = curTx.descParts.join(' ').replace(/\s{2,}/g,' ').trim();
-    desc = cleanChaseDesc(desc);
-    if(desc && desc.length > 2 && /[A-Za-z]{2}/.test(desc) && curTx.amount !== null){
-      var amt = curSection === 'income' ? Math.abs(curTx.amount) : -Math.abs(curTx.amount);
-      tx().push({
-        id:uid(), date:normalizeDate(curTx.date+'/'+new Date().getFullYear().toString().slice(-2)),
-        desc:desc, amount:amt, cat:autoCat(desc), src:fname
-      });
-      added++;
-    }
+    if(curTx.amount === null){curTx=null;return;}
+    var raw = curTx.descParts.join(' ');
+    var desc = cleanChaseDesc(raw);
+    if(!desc || desc.length < 2 || !/[A-Za-z]{2}/.test(desc)){curTx=null;return;}
+    // Get year from filename or current year
+    var yr = (fname.match(/20(\d{2})/) || ['','25'])[1];
+    var fullDate = curTx.date + '/' + yr;
+    var amt = curSection==='income' ? Math.abs(curTx.amount) : -Math.abs(curTx.amount);
+    tx().push({id:uid(),date:normalizeDate(fullDate),desc:desc,amount:amt,cat:autoCat(desc),src:fname});
+    added++;
     curTx = null;
   }
 
   pageRows.forEach(function(row){
+    if(stopped) return;
     var items = row.items;
     var allText = items.map(function(i){return i.text;}).join(' ').trim();
+    if(!allText) return;
 
-    // Skip boilerplate pages
-    if(/this page intentionally left blank/i.test(allText)) return;
-    if(/in case of errors/i.test(allText)){ finishTx(); curSection=null; return; }
-    if(/jpmorgan chase bank.*member fdic/i.test(allText)){ finishTx(); curSection=null; return; }
-    if(/page \d+ of \d+/i.test(allText) && allText.length < 20) return;
-    if(/^april|^january|^february|^march|^may|^june|^july|^august|^september|^october|^november|^december/i.test(allText) && /account number/i.test(allText)) return;
-    if(/^\d{4}$/.test(allText.trim())) return; // lone account number fragment
+    // Stop parsing at legal/boilerplate section
+    if(STOP_PAT.test(allText)){stopped=true;finishTx();return;}
 
-    // Detect section headers (they span wide, have no date at left edge)
-    var dateItems = items.filter(function(i){return i.x < DATE_MAX_X && datePat.test(i.text);});
-    var amtItems  = items.filter(function(i){return i.x > AMT_MIN_X && amtPat.test(i.text.replace('$',''));});
-    var hasDate = dateItems.length > 0;
+    // Skip page headers (date range + account number lines)
+    if(/through.*\d{4}.*Account Number/i.test(allText)) return;
+    if(/^page \d+ of \d+$/i.test(allText.trim())) return;
+    if(/^\d{10,}$/.test(allText.trim())) return; // long account number
 
+    // Find date items at far left, amount items at far right
+    var dateItems = items.filter(function(i){return i.x<DATE_MAX_X && datePat.test(i.text);});
+    var amtItems  = items.filter(function(i){return i.x>AMT_MIN_X && amtPat.test(i.text.replace(/[\$,]/g,''));});
+    var descItems = items.filter(function(i){return i.x>=DATE_MAX_X && i.x<=AMT_MIN_X;});
+    var hasDate   = dateItems.length > 0;
+    var hasAmt    = amtItems.length > 0;
+    var descText  = descItems.map(function(i){return i.text;}).join(' ').trim();
+
+    // Section header detection (no date at left edge)
     if(!hasDate){
-      // Could be a section header
-      if(isSectionSkip(allText)){
-        finishTx(); curSection = null; return;
+      // Check for section header
+      if(isSectionSkip(allText)){finishTx();curSection=null;return;}
+      if(isSectionIncome(allText)){finishTx();curSection='income';return;}
+      if(isSectionExpense(allText)){finishTx();curSection='expense';return;}
+      // Skip column headers and totals
+      if(/^(date\s+description|date\s+amount|total\s|beginning balance|ending balance)/i.test(allText)) return;
+
+      // Amount-only row (standalone amount for multi-line tx like ACH deposits)
+      if(hasAmt && !descText && curTx && curTx.amount===null){
+        curTx.amount = parseFloat(amtItems[0].text.replace(/[\$,]/g,''));
+        return;
       }
-      if(isSectionIncome(allText)){
-        finishTx(); curSection = 'income'; inStatement = true; return;
+      // Amount-only row starting new orphan tx (rare)
+      if(hasAmt && !descText && curSection){
+        // standalone amount with no preceding tx context - skip
+        return;
       }
-      if(isSectionExpense(allText)){
-        finishTx(); curSection = 'expense'; inStatement = true; return;
-      }
-      // Header row (DATE DESCRIPTION AMOUNT)
-      if(/^date\s+description\s+amount$/i.test(allText.trim())) return;
-      if(/^date\s+amount/i.test(allText.trim())) return;
-      // Continuation of previous tx description
-      if(curTx && curSection && allText.length > 3 && /[A-Za-z]{2}/.test(allText)){
-        var isBoiler = /^(total|beginning balance|ending balance|page \d|account number|chase business|jpmorgan|for personal|for business|we will|call us|your name)/i.test(allText);
-        if(!isBoiler) curTx.descParts.push(allText);
+      // Description continuation for current tx
+      if(curTx && curSection && descText && descText.length>2 && /[A-Za-z]/.test(descText)){
+        var isBoiler=/^(total|beginning|ending|page |account |chase |jpmorgan|for personal|for business|we will|call us)/i.test(descText);
+        if(!isBoiler) curTx.descParts.push(descText);
       }
       return;
     }
 
     if(!curSection) return;
 
-    // Skip daily balance rows: multiple date patterns on same row
+    // Skip daily balance rows: multiple MM/DD dates on same row
     var dateCount = (allText.match(/\d{1,2}\/\d{2}/g)||[]).length;
-    if(dateCount >= 2 && amtItems.length >= 2){ finishTx(); return; }
+    if(dateCount>=2 && amtItems.length>=2){finishTx();return;}
 
     // Skip total rows
-    if(/^total/i.test(allText.trim())){ finishTx(); return; }
+    if(/^total\s/i.test(allText.trim())){finishTx();return;}
 
-    // This is a transaction row
-    var dateText = dateItems[0].text;
-    var descItems = items.filter(function(i){
-      return i.x >= DATE_MAX_X && i.x < AMT_MIN_X;
-    });
-    var descText = descItems.map(function(i){return i.text;}).join(' ').trim();
-    var amtText  = amtItems.length ? amtItems[0].text.replace('$','').replace(/,/g,'') : null;
-
-    if(!descText && !amtText) return;
-
-    // Check if this starts a new transaction
-    // New tx: has a date at the left edge
+    // New transaction row
     finishTx();
+    var dateText = dateItems[0].text;
+    var amt = hasAmt ? parseFloat(amtItems[0].text.replace(/[\$,]/g,'')) : null;
     curTx = {
       date: dateText,
       descParts: descText ? [descText] : [],
-      amount: amtText ? parseFloat(amtText) : null
+      amount: amt
     };
   });
   finishTx();
@@ -2790,6 +2785,7 @@ function parseChaseStructured(pageRows, fname){
   console.log('Chase parser: added', added, 'from', fname);
   return added;
 }
+
 
 function parseBankStructured(pageRows,fname){
   const allText=pageRows.map(function(r){return r.items.map(function(i){return i.text;}).join(' ');}).join(' ');
