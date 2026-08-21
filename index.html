@@ -248,7 +248,7 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
 <!-- HERO -->
 <div class="hero-wrap">
   <div class="hero">
-    <div class="hero-badge">🚀 Version 2.0.1 — No purchase necessary</div>
+    <div class="hero-badge">🚀 Version 2.8.1 — No purchase necessary</div>
     <h1>Tax prep that<br><span>doesn't suck.</span></h1>
     <p class="hero-sub">Drop in your bank statements. TaxFlow reads every transaction, sorts income from deductions from personal spending, and hands your accountant exactly what they need — in minutes, not days.</p>
 
@@ -300,9 +300,10 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
           <div style="color:rgba(255,255,255,0.7);font-size:11px">Tax Year 2025</div>
         </div>
         <div class="mockup-tabs">
-          <div class="mock-tab active">📋 Statements</div>
-          <div class="mock-tab">📊 Summary</div>
-          <div class="mock-tab">+ Add tab</div>
+          <div class="mock-tab active">Upload</div>
+          <div class="mock-tab">Transactions</div>
+          <div class="mock-tab">Summary</div>
+          <div class="mock-tab" style="color:var(--text3)">+ Add tab</div>
         </div>
         <div class="mockup-metrics">
           <div class="mock-metric"><div class="mm-label">Income</div><div class="mm-val" style="color:var(--green)">$169,321</div></div>
@@ -310,9 +311,10 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
           <div class="mock-metric"><div class="mm-label">Personal</div><div class="mm-val" style="color:var(--red)">$94,354</div></div>
           <div class="mock-metric"><div class="mm-label">Net taxable</div><div class="mm-val" style="color:var(--amber)">$70,001</div></div>
         </div>
-        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/20/25</div><div class="mr-desc">ATM Check Deposit — ENG Enterprise</div></div><span class="mr-badge badge-inc">Income</span><span class="mr-amt mr-pos">+$10,250</span></div>
-        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/22/25</div><div class="mr-desc">Amazon MKTPL — Work Tools</div></div><span class="mr-badge badge-ded">Deductible</span><span class="mr-amt mr-neg">-$48.76</span></div>
-        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/27/25</div><div class="mr-desc">Uber Eats — Job Site Delivery</div></div><span class="mr-badge badge-ded">Deductible</span><span class="mr-amt mr-neg">-$63.76</span></div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/20/25</div><div class="mr-desc">Client Payment — Work Contract</div></div><span class="mr-badge badge-inc">Income</span><span class="mr-amt mr-pos">+$10,250</span></div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/21/25</div><div class="mr-desc">ACH Deposit — Invoice #INV-042</div></div><span class="mr-badge badge-inc">Income</span><span class="mr-amt mr-pos">+$5,800</span></div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/22/25</div><div class="mr-desc">The Home Depot — Supplies</div></div><span class="mr-badge badge-ded">Deductible</span><span class="mr-amt mr-neg">-$278.67</span></div>
+        <div class="mock-row"><div class="mr-info"><div class="mr-date">05/27/25</div><div class="mr-desc">Shell Oil — Fuel</div></div><span class="mr-badge badge-ded">Deductible</span><span class="mr-amt mr-neg">-$63.77</span></div>
         <div class="mock-row"><div class="mr-info"><div class="mr-date">05/29/25</div><div class="mr-desc">Netflix</div></div><span class="mr-badge badge-per">Personal</span><span class="mr-amt mr-neg">-$26.49</span></div>
       </div>
     </div>
@@ -325,9 +327,9 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
   <div class="download-inner">
     <div class="download-header">
       <div class="section-tag">Download</div>
-      <h2 class="section-title">Get the desktop app</h2>
-      <p class="section-sub">Available for Windows and Mac. Free download — premium plans unlock cloud sync and priority support.</p>
-      <div class="version-badge" style="margin:16px auto 0">✅ Version 2.0.1 — Latest release</div>
+      <h2 class="section-title">Get TaxFlow</h2>
+      <p class="section-sub">Use TaxFlow instantly in your browser — no download required. Desktop apps for Windows and Mac are coming soon.</p>
+      <div class="version-badge" style="margin:16px auto 0">✅ Version 2.8.1 — Latest release</div>
     </div>
 
     <div class="download-grid">
@@ -337,11 +339,11 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
         <div class="dl-os-icon">🪟</div>
         <div class="dl-os-name">Windows</div>
         <div class="dl-os-sub">Windows 10 / 11</div>
-        <a href="https://drive.google.com/uc?export=download&id=1txYg62xqsDENvizf9-9ZqZ4yde1i6607" class="btn btn-dark btn-lg" style="width:100%;justify-content:center">
-          ⬇ Download for Windows
-        </a>
-        <div class="dl-size">~85 MB · .exe installer</div>
-        <div class="dl-reqs">Requires Windows 10 or later · 64-bit</div>
+        <button class="btn btn-dark btn-lg" style="width:100%;justify-content:center;opacity:0.45;cursor:not-allowed" disabled>
+          🔜 Coming Soon
+        </button>
+        <div class="dl-size">Desktop app update in progress</div>
+        <div class="dl-reqs">Use the web version in the meantime</div>
       </div>
 
       <!-- Mac -->
@@ -349,13 +351,11 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
         <div class="dl-os-icon">🍎</div>
         <div class="dl-os-name">macOS</div>
         <div class="dl-os-sub">Mac Intel &amp; Apple Silicon</div>
-        <a href="https://drive.google.com/uc?export=download&id=11-zJCVI7RI5rRymFgZKQOiE99gx49B2K" class="btn btn-dark btn-lg" style="width:100%;justify-content:center">
-          ⬇ Download for Mac (Intel)
-        </a>
-        <div class="dl-size">~90 MB · .dmg installer · Intel Mac</div>
-        <div class="dl-reqs">Requires macOS 11 Big Sur or later</div>
-        <a href="https://drive.google.com/uc?export=download&id=1ktHwtCWW-k5OB1e2QULR6OpPQ-WcCbRP" class="btn btn-dark" style="width:100%;justify-content:center;margin-top:8px;padding:10px 20px;font-size:13px">⬇ Download for Mac (Apple Silicon)</a>
-        <div class="dl-size">M1, M2, M3, M4 Macs</div>
+        <button class="btn btn-dark btn-lg" style="width:100%;justify-content:center;opacity:0.45;cursor:not-allowed" disabled>
+          🔜 Coming Soon
+        </button>
+        <div class="dl-size">Desktop app update in progress</div>
+        <div class="dl-reqs">Use the web version in the meantime</div>
       </div>
 
       <!-- Web version -->
@@ -430,15 +430,18 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
       <p class="section-sub" style="margin-top:12px">Built for contractors, freelancers, gig workers, and small business owners.</p>
     </div>
     <div class="features-grid">
-      <div class="feature-card"><div class="feature-icon">📄</div><div class="feature-title">PDF Statement Import</div><div class="feature-desc">Drop in your bank statement PDFs directly. Works with TD Bank, Bluevine, Chase, Bank of America, and most major banks.</div></div>
+      <div class="feature-card"><div class="feature-icon">📄</div><div class="feature-title">PDF Statement Import</div><div class="feature-desc">Drop in your bank statement PDFs directly. Works with TD Bank, Bluevine, and Chase — with more banks added regularly.</div></div>
       <div class="feature-card"><div class="feature-icon">🤖</div><div class="feature-title">Smart Auto-Categorization</div><div class="feature-desc">Every transaction is instantly sorted — income, deductible expense, or personal — based on smart keyword matching you can customize.</div></div>
-      <div class="feature-card"><div class="feature-icon">✏️</div><div class="feature-title">One-Click Reclassify</div><div class="feature-desc">Disagree with a category? Change it with a single dropdown. Bulk-reclassify entire vendors in seconds.</div></div>
-      <div class="feature-card"><div class="feature-icon">📊</div><div class="feature-title">Live Tax Dashboard</div><div class="feature-desc">See your income, deductions, and net taxable income update in real time as you work through your statements.</div></div>
-      <div class="feature-card"><div class="feature-icon">🎰</div><div class="feature-title">Gambling W/L Tracker</div><div class="feature-desc">Log casino and sportsbook win/loss statements. TaxFlow calculates net taxable gambling income and offsets losses against winnings.</div></div>
-      <div class="feature-card"><div class="feature-icon">🚗</div><div class="feature-title">Mileage Log</div><div class="feature-desc">Track every work trip and auto-calculate your IRS mileage deduction at $0.70/mile. Export to CSV for your records.</div></div>
+      <div class="feature-card"><div class="feature-icon">📊</div><div class="feature-title">Profit &amp; Loss Statement</div><div class="feature-desc">Auto-generated P&amp;L from your real transaction data. Revenue, operating expenses, and net income — ready to hand to your CPA.</div></div>
+      <div class="feature-card"><div class="feature-icon">📦</div><div class="feature-title">CPA Package Export</div><div class="feature-desc">One click generates a complete PDF tax package — P&amp;L, income breakdown, deductions, and totals — formatted for your accountant.</div></div>
+      <div class="feature-card"><div class="feature-icon">⬇️</div><div class="feature-title">Full Excel Export</div><div class="feature-desc">Export a full Excel workbook — income, deductions, personal, mileage log, and summary — all organized by category and ready for your accountant.</div></div>
+      <div class="feature-card"><div class="feature-icon">👥</div><div class="feature-title">Client Tracker</div><div class="feature-desc">Build your client roster and tag income transactions to specific clients. See exactly how much each client has paid you across all statements.</div></div>
+      <div class="feature-card"><div class="feature-icon">🧾</div><div class="feature-title">Invoice Tracker</div><div class="feature-desc">Create and track invoices — paid, outstanding, and overdue. Invoices auto-mark as paid when matched to incoming transactions.</div></div>
+      <div class="feature-card"><div class="feature-icon">📈</div><div class="feature-title">Year-Over-Year Comparison</div><div class="feature-desc">Compare income, deductions, and net taxable income across multiple tax years side by side to spot trends and plan ahead.</div></div>
+      <div class="feature-card"><div class="feature-icon">🚗</div><div class="feature-title">Mileage Log</div><div class="feature-desc">Track every work trip and auto-calculate your IRS mileage deduction at $0.70/mile.</div></div>
       <div class="feature-card"><div class="feature-icon">🏠</div><div class="feature-title">Home Office Calculator</div><div class="feature-desc">Enter your square footage and home expenses — TaxFlow calculates your exact home office deduction percentage instantly.</div></div>
-      <div class="feature-card"><div class="feature-icon">📅</div><div class="feature-title">Quarterly Tax Estimator</div><div class="feature-desc">Know what you owe before the IRS deadline. TaxFlow estimates your quarterly payments based on your real income and deductions.</div></div>
-      <div class="feature-card"><div class="feature-icon">⬇️</div><div class="feature-title">Accountant-Ready Export</div><div class="feature-desc">One click exports a full Excel workbook — income, deductions, personal, gambling W/L, mileage log, and summary — all organized.</div></div>
+      <div class="feature-card"><div class="feature-icon">📅</div><div class="feature-title">Quarterly Tax Estimator</div><div class="feature-desc">Know what you owe before the IRS deadline. Estimates your quarterly payments based on your real income and deductions.</div></div>
+      <div class="feature-card"><div class="feature-icon">🎰</div><div class="feature-title">Gambling W/L Tracker</div><div class="feature-desc">Log casino and sportsbook win/loss statements. TaxFlow calculates net taxable gambling income and offsets losses against winnings.</div></div>
     </div>
   </div>
 </section>
@@ -451,7 +454,7 @@ footer{background:var(--text);color:#94a3b8;padding:48px 24px 24px}
       <h2 class="section-title">From statement to tax-ready in 4 steps.</h2>
     </div>
     <div class="steps">
-      <div class="step"><div class="step-num">1</div><div class="step-title">Upload your statements</div><div class="step-desc">Drop in PDF bank statements from TD Bank, Bluevine, Chase, or any major bank. Multiple files at once.</div></div>
+      <div class="step"><div class="step-num">1</div><div class="step-title">Upload your statements</div><div class="step-desc">Drop in PDF bank statements from TD Bank, Bluevine, Chase, Bluevine, Chase, or any major bank. Multiple files at once.</div></div>
       <div class="step"><div class="step-num">2</div><div class="step-title">Auto-categorize</div><div class="step-desc">TaxFlow instantly reads every transaction and sorts income, deductible expenses, and personal spending.</div></div>
       <div class="step"><div class="step-num">3</div><div class="step-title">Review &amp; adjust</div><div class="step-desc">Reclassify anything with a single click. Add missing transactions manually. Mark business expenses clearly.</div></div>
       <div class="step"><div class="step-num">4</div><div class="step-title">Export &amp; hand off</div><div class="step-desc">Download a clean, fully organized Excel workbook and hand it to your accountant. Done in minutes.</div></div>
