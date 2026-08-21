@@ -308,7 +308,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.8</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.7.9</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +393,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.7.8</span>
+      <span class="logo-beta">v2.7.9</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -2669,6 +2669,7 @@ function parseChaseStructured(pageRows, fname){
       .map(function(i){return i.text;}).join(' ').trim();
     if(line) lines.push(line);
   });
+  console.log('[Chase] first 30 lines from', fname, ':', JSON.stringify(lines.slice(0,30)));
 
   // Section header patterns
   var SEC_INCOME   = /^deposits\s+and\s+additions/i;
@@ -2726,10 +2727,16 @@ function parseChaseStructured(pageRows, fname){
     if(PAGE_HDR.test(line)) continue;
     if(SKIP_LINE.test(line)){ finishTx(); continue; }
 
-    // Section header detection
-    if(SEC_SKIP.test(line)){    finishTx(); curSection='skip';    continue; }
-    if(SEC_INCOME.test(line)){  finishTx(); curSection='income';  continue; }
-    if(SEC_EXPENSE.test(line)){ finishTx(); curSection='expense'; continue; }
+    // Section header detection - only fire on lines without embedded numbers
+    // (avoids triggering on summary rows like "Deposits and Additions 3 19,352.88")
+    var hasNumbers = /\d{3,}/.test(line); // 3+ digit number = data row not header
+    if(SEC_SKIP.test(line) && !hasNumbers){    finishTx(); curSection='skip';    continue; }
+    if(SEC_INCOME.test(line) && !hasNumbers){  finishTx(); curSection='income';  continue; }
+    if(SEC_EXPENSE.test(line) && !hasNumbers){ finishTx(); curSection='expense'; continue; }
+    // Also detect the all-caps versions specifically
+    if(/^DEPOSITS AND ADDITIONS/.test(line)){  finishTx(); curSection='income';  continue; }
+    if(/^ATM & DEBIT CARD WITHDRAWALS|^FEES$|^CHECKS$/.test(line)){ finishTx(); curSection='expense'; continue; }
+    if(/^CHECKING SUMMARY|^DAILY ENDING BALANCE|^ATM & DEBIT CARD SUMMARY/.test(line)){ finishTx(); curSection='skip'; continue; }
 
     if(!curSection || curSection==='skip') continue;
 
