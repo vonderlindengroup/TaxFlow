@@ -297,6 +297,15 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 .upgrade-banner{background:linear-gradient(135deg,var(--brand-light),#fff);border:1.5px solid var(--brand-mid);border-radius:var(--radius-lg);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;font-size:13px}
 .upgrade-banner strong{color:var(--brand)}
 
+
+.year-tabs{display:flex;align-items:center;gap:6px;padding:8px 20px;background:var(--bg2);border-bottom:1px solid var(--border);overflow-x:auto}
+.year-tab{padding:5px 14px;border-radius:99px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--text2);white-space:nowrap;transition:all 0.15s}
+.year-tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+.year-tab-label{font-size:11px;color:var(--text3);font-weight:600;margin-right:4px;white-space:nowrap}
+
+.year-tab-btn{padding:5px 16px;border-radius:99px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--text2);white-space:nowrap;transition:all 0.15s;margin:0}
+.year-tab-btn.active,.year-tab-btn:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
+.year-tab-btn.active{box-shadow:0 2px 8px rgba(37,99,235,0.25)}
 </style>
 </head>
 <body>
@@ -308,7 +317,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
       <div class="auth-logo-mark">TF</div>
       <div class="auth-logo-name">TaxFlow</div>
     </div>
-    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.8.1</div>
+    <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:-20px;margin-bottom:20px">v2.9.5</div>
 
     <div class="auth-tabs">
       <button class="auth-tab active" id="tab-login" onclick="authTab('login')">Sign in</button>
@@ -393,7 +402,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <div class="logo">
       <div class="logo-mark">TF</div>
       <span class="logo-name">TaxFlow</span>
-      <span class="logo-beta">v2.8.1</span>
+      <span class="logo-beta">v2.9.5</span>
     </div>
     <div class="header-right">
       <select class="year-badge" id="year-sel" onchange="setYear(this.value)">
@@ -442,6 +451,14 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
     <button class="tab-add" onclick="openOptModal()">+ Add tab</button>
   </div>
 </div>
+
+<!-- YEAR TABS BAR -->
+<div id="year-tabs-bar" style="background:var(--bg2);border-bottom:1px solid var(--border);display:none">
+  <div style="max-width:1200px;margin:0 auto;padding:6px 20px;display:flex;align-items:center;gap:6px;overflow-x:auto">
+    <span style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;white-space:nowrap;margin-right:4px">TAX YEAR</span>
+  </div>
+</div>
+
 
 <!-- OPTIONAL<!-- OPTIONAL TABS MODAL -->
 <div class="modal-overlay" id="opt-modal">
@@ -860,7 +877,8 @@ select:focus,input:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0
 <script>
 
 // Safe DOM helper — silently skips if element doesn't exist
-var statementsUploaded = 0; // tracks uploads for free tier limit
+var statementsUploaded = 0;
+var _statementDataUrls = {}; // in-memory only - not persisted to localStorage // tracks uploads for free tier limit
 
 
 function getAvailableYears(){
@@ -901,7 +919,7 @@ function switchYear(y){
     S.users.herbert={name:n,biz:b,avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],c1099:[],retirement:[],equipment:[],invoices:[]};
     S.extraUsers=[];
   }
-  S.year=y;save();render();updateSummary();renderTabs();renderYearBtns();
+  S.year=y;save();render();updateSummary();renderTabs();renderYearBtns();renderYearTabsBar();renderYearTabsBar();
   renderUserDropdown();toast('Switched to '+y);
 }
 function renderSettingsUsers(){
@@ -1014,6 +1032,26 @@ function renderUserDropdown(){
   var ud1=document.getElementById('ud-name1');if(ud1)ud1.textContent=S.users.herbert.name||'User 1';
   var ub1=document.getElementById('ud-biz1');if(ub1)ub1.textContent=S.users.herbert.biz||'Primary Account';
   updateHeaderUser();
+}
+
+
+function renderYearTabsBar(){
+  var bar = document.getElementById('year-tabs-bar');
+  if(!bar) return;
+  var years = getAvailableYears();
+  // Show/hide bar
+  bar.style.display = years.length > 0 ? 'block' : 'none';
+  // Find or create the inner container
+  var inner = bar.querySelector('div');
+  if(!inner){ inner=document.createElement('div'); inner.style.cssText='max-width:1200px;margin:0 auto;padding:6px 20px;display:flex;align-items:center;gap:6px;overflow-x:auto'; bar.appendChild(inner); }
+  inner.innerHTML = '<span style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:0.05em;white-space:nowrap;margin-right:4px">TAX YEAR</span>';
+  years.forEach(function(y){
+    var btn = document.createElement('button');
+    btn.className = 'year-tab-btn' + (y===S.year?' active':'');
+    btn.textContent = y;
+    btn.onclick = function(){ switchYear(y); };
+    inner.appendChild(btn);
+  });
 }
 
 function renderTabs(){
@@ -1221,9 +1259,25 @@ function load(){
   render();
   updateSummary();
   renderUserDropdown();
-  showTab(S.currentTab||'upload');
+  showTab(S.currentTab||'upload');renderYearTabsBar();
 }
-function save(){try{localStorage.setItem('tf_v3',JSON.stringify(S));}catch(e){}}
+function save(){
+  try{
+    localStorage.setItem('tf_v3',JSON.stringify(S));
+  }catch(e){
+    // QuotaExceededError - localStorage full
+    // Try saving without thumbnails to preserve transactions
+    try{
+      var slim=JSON.parse(JSON.stringify(S));
+      (slim.savedStatements||[]).forEach(function(s){s.thumbnail=null;});
+      localStorage.setItem('tf_v3',JSON.stringify(slim));
+      console.warn('localStorage full - saved without thumbnails');
+    }catch(e2){
+      console.error('localStorage save failed:',e2.message);
+      toast('Warning: storage full - some data may not be saved. Try clearing old statements.');
+    }
+  }
+}
 function U(){
   if(S.cur==='herbert') return S.users.herbert;
   var eu=(S.extraUsers||[]).find(function(u){return u.id===S.cur;});
@@ -1387,8 +1441,7 @@ function parseBluevine(lines, fname) {
       added++;
     }
   }
-  console.log('Bluevine parser: added', added, 'transactions from', fname);
-  return added || parseGeneric(lines, fname);
+    return added || parseGeneric(lines, fname);
 }
 
 
@@ -1920,7 +1973,7 @@ function loadSettings(){
   var n2=document.getElementById('s-n2');
   if(n2) n2.value=(S.users.spouse&&S.users.spouse.name)||
     (S.extraUsers&&S.extraUsers[0]&&S.extraUsers[0].name)||'';
-  renderYearBtns();
+  renderYearBtns();renderYearTabsBar();
   renderSettingsUsers();
 }
 
@@ -2443,7 +2496,10 @@ function renderSavedStatements(){
 
 function openSavedStatement(id){
   var s=(S.savedStatements||[]).find(function(x){return x.id===id;});
-  if(!s||!s.dataUrl) return;
+  if(!s) return;
+  var dataUrl = _statementDataUrls[id] || s.dataUrl; // check memory first, fall back to stored
+  if(!dataUrl){toast('PDF not available — please re-upload this statement to view it.');return;}
+  s = Object.assign({}, s, {dataUrl: dataUrl}); // temp copy with dataUrl for viewer
   var modal=document.createElement('div');modal.id='stmt-viewer-modal';
   modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px';
   var box=document.createElement('div');box.style.cssText='background:#fff;border-radius:16px;width:100%;max-width:860px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden';
@@ -2471,8 +2527,11 @@ async function saveStatementToLibrary(file,pageRows){
   var pm=allText.match(/(\w+\s+\d+\s+\d{4})\s*[-]\s*(\w+\s+\d+\s+\d{4})/);
   var period=pm?pm[1]+' - '+pm[2]:'';
   var dataUrl=await new Promise(function(res){var reader=new FileReader();reader.onload=function(e){res(e.target.result);};reader.readAsDataURL(file);});
-  var entry={id:uid(),name:file.name,period:period,date:new Date().toISOString().split('T')[0],pages:'?',thumbnail:null,dataUrl:dataUrl};
-  S.savedStatements.push(entry);save();renderSavedStatements();
+  var entry={id:uid(),name:file.name,period:period,date:new Date().toISOString().split('T')[0],pages:'?',thumbnail:null};
+  S.savedStatements.push(entry);
+  // Store dataUrl in memory only - not in localStorage (too large, causes quota errors)
+  _statementDataUrls[entry.id] = dataUrl;
+  save();renderSavedStatements();
   try{
     if(typeof pdfjsLib!=='undefined'){
       var buf=await readBuf(file);
@@ -2483,7 +2542,7 @@ async function saveStatementToLibrary(file,pageRows){
       var canvas=document.createElement('canvas');canvas.width=viewport.width;canvas.height=viewport.height;
       var ctx=canvas.getContext('2d');
       await page.render({canvasContext:ctx,viewport:viewport}).promise;
-      entry.thumbnail=canvas.toDataURL('image/jpeg',0.7);
+      entry.thumbnail=canvas.toDataURL('image/jpeg',0.4);
       pdf.destroy();save();renderSavedStatements();
     }
   }catch(e){console.warn('Thumbnail failed:',e.message);}
@@ -2605,16 +2664,179 @@ function renderPL(){
 function roundAmt(n){return Math.round((n||0)*100)/100;}
 
 function renderYOY(){
-  var el=document.getElementById('yoy-content');if(!el)return;var years=getAvailableYears();if(years.length<2){el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px">Only one year of data. Add a previous year in Settings.</div>';return;}
-  function calcY(ud){if(!ud)return{inc:0,ded:0,per:0,net:0,txCount:0};var inc=0,ded=0,per=0;(ud.tx||[]).forEach(function(t){var a=Math.abs(t.amount);if(bucket(t.cat)==='income')inc+=a;else if(bucket(t.cat)==='deductible')ded+=a;else per+=a;});var mi=roundAmt((ud.mileage||[]).reduce(function(s,m){return s+m.miles;},0)*0.70);var ret=roundAmt((ud.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));var eq=roundAmt((ud.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));var td=roundAmt(ded+mi+ret+eq);return{inc:roundAmt(inc),ded:td,per:roundAmt(per),net:Math.max(0,roundAmt(inc-td)),txCount:(ud.tx||[]).length};}
-  var data={};data[S.year]=calcY(S.users.herbert);Object.entries(S.years||{}).forEach(function(e){data[e[0]]=calcY(e[1].herbert);});
-  function fY(n){return '$'+Math.round(n).toLocaleString();}function arrow(curr,prev){if(!prev&&prev!==0)return '';var pct=((curr-prev)/(prev||1)*100),up=pct>=0;return '<span style="font-size:11px;color:'+(up?'var(--green)':'var(--red)')+';margin-left:6px">'+(up?'^':'v')+Math.abs(pct).toFixed(1)+'%</span>';}
-  var metrics=[{key:'inc',label:'Total Income',color:'var(--green)'},{key:'ded',label:'Total Deductions',color:'var(--brand)'},{key:'net',label:'Net Taxable',color:'#C00000'},{key:'per',label:'Personal',color:'var(--text2)'}];
-  var sy=years.sort(function(a,b){return b-a;});
-  el.innerHTML='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#1F4E79"><th style="padding:12px 16px;text-align:left;color:#fff">Metric</th>'+sy.map(function(y){return '<th style="padding:12px 16px;text-align:right;color:#fff">'+y+(y===S.year?' (current)':'')+'</th>';}).join('')+'</tr></thead><tbody>'+metrics.map(function(m,mi){return '<tr style="background:'+(mi%2===0?'#fff':'var(--bg2)')+'"><td style="padding:14px 16px;font-weight:600;color:'+m.color+'">'+m.label+'</td>'+sy.map(function(y,yi){var val=(data[y]&&data[y][m.key])||0,prevY=sy[yi+1],prev=prevY&&data[prevY]&&data[prevY][m.key];return '<td style="padding:14px 16px;text-align:right;font-weight:700;color:'+m.color+'">'+fY(val)+(yi<sy.length-1?arrow(val,prev):'')+'</td>';}).join('')+'</tr>';}).join('')+'<tr style="background:var(--bg3);border-top:2px solid var(--border)"><td style="padding:14px 16px;font-weight:600;color:var(--text2)">Transactions</td>'+sy.map(function(y){return '<td style="padding:14px 16px;text-align:right;color:var(--text2)">'+((data[y]&&data[y].txCount)||0).toLocaleString()+'</td>';}).join('')+'</tr></tbody></table></div>';
+  var el=document.getElementById('yoy-content');
+  if(!el) return;
+  var years=getAvailableYears();
+  if(years.length<1){
+    el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px">Add a previous year in Settings to see comparisons.</div>';
+    return;
+  }
+
+  function _r(n){return Math.round((n||0)*100)/100;}
+  function calcY(ud){
+    if(!ud) return {inc:0,ded:0,per:0,net:0,txCount:0};
+    var inc=0,ded=0,per=0;
+    (ud.tx||[]).forEach(function(t){
+      var a=Math.abs(t.amount);
+      if(bucket(t.cat)==='income') inc+=a;
+      else if(bucket(t.cat)==='deductible') ded+=a;
+      else per+=a;
+    });
+    var mi=_r((ud.mileage||[]).reduce(function(s,m){return s+m.miles;},0)*0.70);
+    var ret=_r((ud.retirement||[]).reduce(function(s,r){return s+(r.amt||0);},0));
+    var eq=_r((ud.equipment||[]).reduce(function(s,e){return s+(e.deductible||0);},0));
+    var td=_r(ded+mi+ret+eq);
+    return {inc:_r(inc),ded:td,per:_r(per),net:Math.max(0,_r(inc-td)),txCount:(ud.tx||[]).length};
+  }
+
+  var sy=years.slice().sort(function(a,b){return a-b;}); // ascending for charts
+  var data={};
+  data[S.year]=calcY(S.users.herbert);
+  Object.entries(S.years||{}).forEach(function(e){data[e[0]]=calcY(e[1].herbert);});
+
+  function fY(n){return '$'+Math.round(n).toLocaleString();}
+  function fPct(curr,prev){
+    if(!prev) return '';
+    var pct=((curr-prev)/prev*100);
+    var up=pct>=0;
+    return '<span style="font-size:11px;font-weight:600;color:'+(up?'var(--green)':'var(--red)')+'">('+(up?'+':'')+pct.toFixed(1)+'%)</span>';
+  }
+
+  // Bar chart builder - pure SVG, no library
+  function buildBarChart(metricKey, color, label){
+    var vals = sy.map(function(y){ return (data[y]&&data[y][metricKey])||0; });
+    var maxVal = Math.max.apply(null, vals) || 1;
+    var chartH = 220;   // internal SVG units - will be scaled to 288px via CSS
+    var barW = Math.min(60, Math.floor(400/sy.length)-16);
+    var chartW = sy.length*(barW+24)+60;
+    var bars = sy.map(function(y,i){
+      var val = (data[y]&&data[y][metricKey])||0;
+      var barH = Math.round((val/maxVal)*(chartH-60));
+      var x = 40 + i*(barW+24);
+      var barY = chartH-40-barH;
+      var isActive = y===S.year;
+      return [
+        '<rect x="'+x+'" y="'+barY+'" width="'+barW+'" height="'+barH+'" rx="4"',
+        ' fill="'+(isActive?color:'rgba(37,99,235,0.25)')+'"',
+        ' style="transition:all 0.3s"/>',
+        '<text x="'+(x+barW/2)+'" y="'+(barY-8)+'" text-anchor="middle"',
+        ' font-size="11" font-weight="700" fill="'+(isActive?color:'var(--text2)')+'">'+fY(val)+'</text>',
+        '<text x="'+(x+barW/2)+'" y="'+(chartH-20)+'" text-anchor="middle"',
+        ' font-size="13" font-weight="'+(isActive?'800':'600')+'" fill="'+(isActive?color:'var(--text3)')+'">'+y+(isActive?' ★':'')+'</text>',
+      ].join('');
+    }).join('');
+
+    // Y axis gridlines
+    var gridLines = [0.25,0.5,0.75,1].map(function(pct){
+      var gY = chartH-40-Math.round(pct*(chartH-60));
+      return '<line x1="35" y1="'+gY+'" x2="'+(chartW-10)+'" y2="'+gY+'" stroke="var(--border)" stroke-dasharray="4"/>'
+        +'<text x="32" y="'+(gY+4)+'" text-anchor="end" font-size="9" fill="var(--text3)">'+fY(maxVal*pct)+'</text>';
+    }).join('');
+
+    return '<div style="max-width:480px;height:288px;margin-bottom:8px">'
+      +'<svg width="100%" height="100%" viewBox="0 0 '+chartW+' '+chartH+'" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">'
+      +'<line x1="35" y1="'+(chartH-40)+'" x2="'+(chartW-10)+'" y2="'+(chartH-40)+'" stroke="var(--border)"/>'
+      +gridLines+bars
+      +'</svg></div>';
+  }
+
+  // Summary comparison table
+  function buildTable(){
+    var sdesc=sy.slice().reverse(); // newest first for table
+    var metrics=[
+      {key:'inc',label:'Total Income',color:'var(--green)'},
+      {key:'ded',label:'Total Deductions',color:'var(--brand)'},
+      {key:'net',label:'Net Taxable Income',color:'#C00000'},
+      {key:'per',label:'Personal Spending',color:'var(--text2)'},
+    ];
+    return '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">'
+      +'<thead><tr style="background:#1F4E79">'
+      +'<th style="padding:12px 16px;text-align:left;color:#fff;font-weight:700">Metric</th>'
+      +sdesc.map(function(y){return '<th style="padding:12px 16px;text-align:right;color:#fff;font-weight:700">'+y+(y===S.year?' ★':'')+'</th>';}).join('')
+      +'</tr></thead><tbody>'
+      +metrics.map(function(m,mi){
+        return '<tr style="background:'+(mi%2===0?'#fff':'var(--bg2)')+'">'
+          +'<td style="padding:12px 16px;font-weight:600;color:'+m.color+'">'+m.label+'</td>'
+          +sdesc.map(function(y,yi){
+            var val=(data[y]&&data[y][m.key])||0;
+            var prev=sdesc[yi+1]&&(data[sdesc[yi+1]]&&data[sdesc[yi+1]][m.key])||0;
+            return '<td style="padding:12px 16px;text-align:right;font-weight:700;color:'+m.color+'">'
+              +fY(val)+' '+fPct(val,prev)+'</td>';
+          }).join('')
+          +'</tr>';
+      }).join('')
+      +'<tr style="background:var(--bg3);border-top:2px solid var(--border)">'
+      +'<td style="padding:12px 16px;font-weight:600;color:var(--text2)">Transactions</td>'
+      +sdesc.map(function(y){return '<td style="padding:12px 16px;text-align:right;color:var(--text2)">'+((data[y]&&data[y].txCount)||0).toLocaleString()+'</td>';}).join('')
+      +'</tr></tbody></table></div>';
+  }
+
+  // Build tabs + content
+  var activeTab = el._yoyTab || 'income';
+
+  var tabs = [
+    {id:'income',  label:'Income',     color:'var(--green)', key:'inc'},
+    {id:'expenses',label:'Expenses',   color:'var(--brand)', key:'ded'},
+    {id:'pl',      label:'Profit & Loss', color:'#C00000',   key:'net'},
+    {id:'table',   label:'Full Table', color:'var(--text2)', key:null},
+  ];
+
+  var tabDiv=document.createElement('div');
+  tabDiv.style.cssText='display:flex;gap:6px;margin-bottom:20px;border-bottom:2px solid var(--border);padding-bottom:0';
+  tabs.forEach(function(t){
+    var isActive=t.id===activeTab;
+    var b=document.createElement('button');
+    b.textContent=t.label;
+    b.style.cssText='padding:10px 18px;font-size:13px;font-weight:'+(isActive?'800':'600')+';border:none;background:none;cursor:pointer;color:'+(isActive?t.color:'var(--text3)')+';border-bottom:3px solid '+(isActive?t.color:'transparent')+';margin-bottom:-2px;transition:all 0.15s';
+    b.onclick=(function(tid){return function(){el._yoyTab=tid;renderYOY();};})(t.id);
+    tabDiv.appendChild(b);
+  });
+  el.innerHTML='';
+  el.appendChild(tabDiv);
+  var chartDiv=document.createElement('div');
+  chartDiv.style.cssText='width:100%';
+  if(activeTab==='table'){
+    chartDiv.innerHTML = buildTable();
+  } else {
+    var activeTabDef = tabs.find(function(t){return t.id===activeTab;});
+    if(activeTabDef){
+      // Summary stat cards above chart
+      var vals = sy.map(function(y){return (data[y]&&data[y][activeTabDef.key])||0;});
+      var statCards = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px">'
+        +sy.slice().reverse().map(function(y){
+          var val=(data[y]&&data[y][activeTabDef.key])||0;
+          var isActive=y===S.year;
+          return '<div style="background:'+(isActive?activeTabDef.color:'#fff')+';border:2px solid '+(isActive?activeTabDef.color:'var(--border)')+';border-radius:12px;padding:16px;text-align:center">'
+            +'<div style="font-size:12px;font-weight:700;color:'+(isActive?'rgba(255,255,255,0.8)':'var(--text3)')+';margin-bottom:4px">'+y+(isActive?' (current)':'')+'</div>'
+            +'<div style="font-size:15px;font-weight:900;color:'+(isActive?'#fff':activeTabDef.color)+'">'+fY(val)+'</div>'
+            +'</div>';
+        }).join('')
+        +'</div>';
+      chartDiv.innerHTML = statCards + buildBarChart(activeTabDef.key, activeTabDef.color, activeTabDef.label);
+    }
+  }
+
+  if(activeTab==='table'){
+    chartDiv.innerHTML = buildTable();
+  } else {
+    var activeTabDef = tabs.find(function(t){return t.id===activeTab;});
+    if(activeTabDef){
+      var statCards = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px">'
+        +sy.slice().reverse().map(function(y){
+          var val=(data[y]&&data[y][activeTabDef.key])||0;
+          var isActive=y===S.year;
+          return '<div style="background:'+(isActive?activeTabDef.color:'#fff')+';border:2px solid '+(isActive?activeTabDef.color:'var(--border)')+';border-radius:12px;padding:16px;text-align:center">'
+            +'<div style="font-size:12px;font-weight:700;color:'+(isActive?'rgba(255,255,255,0.8)':'var(--text3)')+';margin-bottom:4px">'+y+(isActive?' (current)':'')+'</div>'
+            +'<div style="font-size:15px;font-weight:900;color:'+(isActive?'#fff':activeTabDef.color)+'">'+fY(val)+'</div>'
+            +'</div>';
+        }).join('')
+        +'</div>';
+      chartDiv.innerHTML = statCards + buildBarChart(activeTabDef.key, activeTabDef.color, activeTabDef.label);
+    }
+  }
+  el.appendChild(chartDiv);
 }
 
-// ── MISC ──────────────────────────────────────────────────────────────────
 function clearAllData(){
   if(!confirm('Delete ALL transactions and saved statements?'))return;
   S.users.herbert.tx=[];(S.extraUsers||[]).forEach(function(u){u.tx=[];});S.savedStatements=[];statementsUploaded=0;
@@ -2631,7 +2853,7 @@ async function parsePDF(f){
     if(count===0)toast('0 transactions found in '+f.name);return count;
   }
   if(typeof pdfjsLib==='undefined'){
-    toast('PDF reader not loaded — check that pdf.min.js is in your GitHub repo.');
+    toast('PDF reader not available. Check your internet connection.');
     console.error('pdfjsLib is undefined — pdf.min.js may not have loaded correctly');
     return 0;
   }
@@ -2646,18 +2868,214 @@ async function parsePDF(f){
       Object.keys(byY).map(Number).sort(function(a,b){return b-a;}).forEach(function(y){byY[y].sort(function(a,b){return a.x-b.x;});pageRows.push({y:y,items:byY[y],page:p});});
     }
     pdf.destroy();
-    console.log('PDF parsed: '+pageRows.length+' rows from '+pdf.numPages+' pages');
-    if(pageRows.length===0){
+        if(pageRows.length===0){
       toast('PDF loaded but no text found — check that pdf.worker.min.js is in your GitHub repo');
       return 0;
     }
-    // Log first few rows for debugging
-    if(pageRows.length>0) console.log('First row sample:',JSON.stringify(pageRows[0]).slice(0,200));
+    if(pageRows.length>0){
     const count=parseBankStructured(pageRows,f.name);
     if(count===0)toast('0 transactions found in '+f.name+' — format may not be supported.');
     saveStatementToLibrary(f,pageRows).catch(function(e){console.warn('Statement save failed:',e.message);});
     return count;
+  }
   }catch(e){console.error('parsePDF error:',e);toast('Error reading '+f.name+': '+(e.message||'unknown'));return 0;}
+}
+
+
+
+function parseAHCUStructured(pageRows, fname){
+  var added = 0;
+
+  // Build plain text lines
+  var lines = [];
+  pageRows.forEach(function(r){
+    var line = r.items.slice().sort(function(a,b){return a.x-b.x;})
+      .map(function(i){return i.text;}).join(' ').trim();
+    if(line) lines.push(line);
+  });
+
+  // Detect year from statement header e.g. "Statement For: 07/01/2026 - 07/31/2026"
+  var yr = '26';
+  for(var li=0; li<Math.min(lines.length,30); li++){
+    var ym = lines[li].match(/(?:Statement For|Statement Period)[:\s].*?(20\d{2})/i);
+    if(!ym) ym = lines[li].match(/\d{2}\/\d{2}\/(20\d{2})/);
+    if(ym){ yr = ym[1].slice(-2); break; }
+  }
+  
+  // Section tracking
+  // Only parse CHECKING section - skip SAVINGS and LOAN sections
+  var CHECKING_HDR = /identity protection checking|checking.*id\s*0?1/i;
+  var SAVINGS_HDR  = /primary savings|savings.*id\s*0?0/i;
+  var LOAN_HDR     = /subaru|crosstrek|auto loan|mortgage|loan.*id/i;
+  var ACCT_SUMMARY = /account summary|account balance|your account balances/i;
+  var STOP_PAT     = /thank you for being a member/i; // only stop at true end of statement
+
+  // Internal transfers to skip always
+  var INTERNAL_PAT = /home banking transfer|(?:from|to) share \d|transfer.*loan|dividend/i;
+
+  // Date pattern: MM/DD at line start
+  var DATE_PAT = /^(\d{1,2}\/\d{2})\s+(.+)/;
+  // Amount patterns - AHCU has Withdrawal | Deposit | Balance columns
+  // Withdrawal is negative, Deposit is positive
+  // Amounts appear as plain numbers like "400.00" or "-400.00" or "$400.00"
+  var AMT_PAT  = /^-?\$?[\d,]+\.\d{2}$/;
+
+  // Skip line patterns
+  var SKIP_LINE = /^(date\s+transaction|withdrawal\s+deposit|beginning balance|ending balance|total deposits|total withdrawals|\d+\s+total|annual percentage|dividends|loan interest|continued from|continued on|page \d+|account statement|800\.342|americanheritage|member number|statement for|change service|2060 red lion|save all summer|member discounts|member savings|your total scorecard|visit www|scorecard|this credit union|equal housing|rev\.\s+\d|share draft reconcilement|list drafts outstanding|draft number|billing rights|how to compute|in case of errors|special rule for credit|in your draft register|notify us in case|if you think|write to us|if you find|if you fail|if we don|verify additions|enter draft balance|enter deposits|subtract total|this amount should|period ending|joint owner|annual percentage rate|periodic rate|loan interest year|a payment of|interest due|eff\.\s+trans|ref#\s+42|scorecard reward)/i;
+
+  var curSection = null; // 'checking' | 'skip'
+  var curDate    = null;
+  var curDescParts = [];
+  var curWithdrawal = null;
+  var curDeposit    = null;
+
+  function cleanAHCUDesc(s){
+    return s
+      // Remove transaction type prefixes
+      .replace(/^(Recurring Withdrawal Debit Card Debit Card|Withdrawal Debit Card Debit Card|Withdrawal Debit Card|Withdrawal POS #\d+|Withdrawal ACH|Withdrawal Home Banking|Withdrawal|Deposit Bill Payment #\d+|Deposit)/i, '')
+      // Remove "Merch. Post: MM/DD" pattern
+      .replace(/Merch\.\s*Post:\s*\d{2}\/\d{2}/gi, '')
+      // Remove ACH noise fields
+      .replace(/\bREF#\s*\d+\b/gi, '')
+      .replace(/\bID:\s*\d+\b/gi, '')
+      .replace(/\bTYPE:\s*\S+/gi, '')
+      .replace(/\bCO:\s*[^\n]*/gi, '')
+      .replace(/Entry Class Code:\s*\S+/gi, '')
+      .replace(/\bDATA:\s*\S+/gi, '')
+      // Remove long digit sequences (card numbers, batch IDs)
+      .replace(/\b\d{8,}\b/g, '')
+      // Remove trailing processor noise: dates, short codes, single letters+digits
+      .replace(/\s+\d{2}-\d{2}-\d{2,4}\b.*$/,'') // trailing dates like 08-01-26
+      .replace(/\s+[A-Z]{2,3}\s+\d+\s*$/,'')      // trailing "CA 4" "UNQ" type codes
+      .replace(/\s+\d+\s+[A-Z]{2,3}\s*$/,'')      // trailing "6 1 NON"
+      .replace(/\s+\d\s+\d\s*$/,'')               // trailing "4 4" lone digits
+      .replace(/\s+[A-Z]\s+\d+\s*$/,'')            // trailing "U 2"
+      .replace(/\s+\d+\s*$/,'')                     // trailing lone number
+      .replace(/,\s*$/, '')                          // trailing comma
+      .replace(/\s{2,}/g, ' ').trim();
+  }
+
+  function finishTx(){
+    if(!curDate) return;
+    var amt = null;
+    // Withdrawal = expense (negative), Deposit = income (positive)
+    if(curDeposit !== null) amt = Math.abs(curDeposit);
+    else if(curWithdrawal !== null) amt = -Math.abs(curWithdrawal);
+    
+    if(amt === null){ curDate=null;curDescParts=[];curWithdrawal=null;curDeposit=null;return; }
+    
+    var raw = curDescParts.join(' ');
+    
+    // Skip internal transfers - test on raw (before cleaning) AND on original desc parts
+    var rawFull = curDescParts.join(' ');
+    if(INTERNAL_PAT.test(rawFull)){ curDate=null;curDescParts=[];curWithdrawal=null;curDeposit=null;return; }
+    
+    var desc = cleanAHCUDesc(raw);
+    if(!desc || desc.length < 2 || !/[A-Za-z]{2}/.test(desc)){
+      curDate=null;curDescParts=[];curWithdrawal=null;curDeposit=null;return;
+    }
+    
+    var cat = autoCat(desc);
+    // Credit vouchers/refunds = personal, real deposits = income
+    var isRefund = /credit voucher|credit\/return|adjustment.*credit|refund/i.test(rawFull);
+    if(amt > 0 && !cat.startsWith('Income') && !isRefund){
+      cat = 'Income \u2014 Business Deposit / Check';
+    } else if(amt > 0 && isRefund && !cat.startsWith('Income')){
+      cat = 'Personal \u2014 Other'; // refund offsets an expense
+    }
+    
+        tx().push({id:uid(), date:normalizeDate(curDate+'/'+yr), desc:desc, amount:amt, cat:cat, src:fname});
+    added++;
+    curDate=null;curDescParts=[];curWithdrawal=null;curDeposit=null;
+  }
+
+  for(var li=0; li<lines.length; li++){
+    var line = lines[li];
+    if(!line) continue;
+    if(STOP_PAT.test(line)){ finishTx(); break; }
+    if(SKIP_LINE.test(line)){ finishTx(); continue; }
+
+    // Section detection
+    if(ACCT_SUMMARY.test(line)){ finishTx(); curSection='skip'; continue; }
+    if(SAVINGS_HDR.test(line)){  finishTx(); curSection='skip'; continue; }
+    if(LOAN_HDR.test(line)){     finishTx(); curSection='skip'; continue; }
+    if(CHECKING_HDR.test(line)){ finishTx(); curSection='checking'; continue; }
+
+    if(curSection !== 'checking') continue;
+
+    // Try to parse as transaction line starting with MM/DD
+    var dm = line.match(DATE_PAT);
+    if(dm){
+      // Skip internal transfers immediately at the line level
+      if(INTERNAL_PAT.test(dm[2])){
+        finishTx(); // close any open tx first
+        continue;
+      }
+      finishTx();
+      curDate = dm[1];
+      var rest = dm[2].trim();
+      
+      // AHCU format: Description [Withdrawal] [Deposit] [Balance]
+      // The amounts are space-separated at the end
+      // Try to detect: last 1-3 tokens that look like amounts
+      var tokens = rest.split(/\s+/);
+      var amounts = [];
+      while(tokens.length && AMT_PAT.test(tokens[tokens.length-1].replace(/[\$,]/g,''))){
+        amounts.unshift(parseFloat(tokens.pop().replace(/[\$,]/g,'')));
+      }
+      curDescParts = [tokens.join(' ')];
+      
+      // AHCU columns: Withdrawal | Deposit | Balance (3 amounts) or just Deposit | Balance (2)
+      // Detect if this is a deposit/credit even if not labeled "Deposit"
+    var isCredit = /^deposit|credit voucher|credit\/return|pending credit|adjustment.*credit/i.test(tokens.join(' '));
+    if(amounts.length >= 3){
+        curWithdrawal = (!isCredit && amounts[0] > 0) ? amounts[0] : null;
+        curDeposit    = (isCredit  && amounts[0] > 0) ? amounts[0] : (amounts[1] > 0 ? amounts[1] : null);
+        // amounts[2] is balance - ignore
+      } else if(amounts.length === 2){
+        if(isCredit){
+          curDeposit    = amounts[0];
+        } else {
+          curWithdrawal = amounts[0];
+        }
+        // amounts[1] is balance
+      } else if(amounts.length === 1){
+        if(isCredit){
+          curDeposit = amounts[0];
+        } else {
+          curWithdrawal = amounts[0];
+        }
+      }
+      continue;
+    }
+
+    // Continuation line (no date)
+    if(curDate){
+      var cTokens = line.split(/\s+/);
+      var cAmts = [];
+      // Pull trailing amounts off the end
+      while(cTokens.length && AMT_PAT.test(cTokens[cTokens.length-1].replace(/[\$,]/g,''))){
+        cAmts.unshift(parseFloat(cTokens.pop().replace(/[\$,]/g,'')));
+      }
+      // If we got amounts and still missing withdrawal/deposit, assign them
+      if(cAmts.length >= 1 && curWithdrawal===null && curDeposit===null){
+        // cAmts[0]=withdrawal or deposit, cAmts[1]=balance (ignore)
+        if(/^deposit/i.test(curDescParts.join(' '))){
+          curDeposit = Math.abs(cAmts[0]);
+        } else {
+          curWithdrawal = Math.abs(cAmts[0]);
+        }
+      }
+      var cRest = cTokens.join(' ').trim();
+      var isNoise = /^(\d{3,}|[A-Z]{2}\s+\d|\d+\/\d+\s+\d)/.test(cRest);
+      if(cRest && !isNoise && /[A-Za-z]{2}/.test(cRest)){
+        curDescParts.push(cRest);
+      }
+    }
+  }
+  finishTx();
+
+    return added;
 }
 
 
@@ -2671,8 +3089,7 @@ function parseChaseStructured(pageRows, fname){
       .map(function(i){return i.text;}).join(' ').trim();
     if(line) lines.push(line);
   });
-  console.log('[Chase] first 30 lines from', fname, ':', JSON.stringify(lines.slice(0,30)));
-
+  
   // Section header patterns
   var SEC_INCOME   = /^deposits\s+and\s+additions/i;
   var SEC_EXPENSE  = /^(atm\s*&?\s*debit\s+card\s+withdrawals|fees\s*$|checks\s*$|other\s+withdrawals|electronic\s+withdrawals)/i;
@@ -2789,8 +3206,7 @@ function parseChaseStructured(pageRows, fname){
   }
   finishTx();
 
-  console.log('Chase parser: added', added, 'from', fname);
-  return added;
+    return added;
 }
 
 
@@ -2801,8 +3217,10 @@ function parseBankStructured(pageRows,fname){
     || (/(statement of account)/i.test(allText) && !/(bluevine|blue vine)/i.test(allText) && !/(chase|jpmorgan)/i.test(allText));
   const isBluevine=/(bluevine|blue vine)/i.test(allText);
   const isChase=/(jpmorgan chase|chase business|checking summary.*chase|chase.*checking summary)/i.test(allText);
+  const isAHCU=/(american heritage|americanheritage|ahcu|heritage credit union)/i.test(allText);
   const lines=[];pageRows.forEach(function(r){var line=r.items.map(function(i){return i.text;}).join(' ').trim();if(line)lines.push(line);});
   // Try bank-specific parsers
+  if(isAHCU){const n=parseAHCUStructured(pageRows,fname);if(n>0)return n;}
   if(isChase){const n=parseChaseStructured(pageRows,fname);if(n>0)return n;}
   if(isBluevine){const n=parseBluevine(lines,fname);if(n>0)return n;}
   if(isTD){const n=parseTDStructured(pageRows,fname);if(n>0)return n;}
@@ -2835,7 +3253,7 @@ function parseTDStructured(pageRows,fname){
     var rawParts=curTx.descParts.slice(),amt=curTx.amount;
     if(amt===null&&rawParts.length){var lp=rawParts[rawParts.length-1];var gm=lp.match(/^(.*?)\s*\*?[A-Z]{0,2}([\d,]+\.\d{2})$/);if(gm){var cp=gm[1].trim();amt=parseFloat(gm[2].replace(/,/g,''));if(cp)rawParts[rawParts.length-1]=cp;else rawParts.pop();}}
     var desc=cleanD(rawParts.join(' '));
-    if(isGoodDesc(desc)&&amt&&amt>0){var amount=curTx.section==='income'?amt:-amt;var rawDate=curTx.date;if(rawDate&&!/\/\d{2,4}$/.test(rawDate))rawDate=rawDate+'/25';tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});added++;}
+    if(isGoodDesc(desc)&&amt&&amt>0){var amount=curTx.section==='income'?amt:-amt;var rawDate=curTx.date;if(rawDate&&!/\/\d{2,4}$/.test(rawDate))rawDate=rawDate+'/'+(new Date().getFullYear().toString().slice(-2));tx().push({id:uid(),date:normalizeDate(rawDate),desc:desc,amount:amount,cat:autoCat(desc),src:fname});added++;}
     curTx=null;
   }
   pageRows.forEach(function(row){
@@ -2868,6 +3286,59 @@ function parseTDStructured(pageRows,fname){
   return added||parseGenericFromRows(pageRows,fname);
 }
 
+
+function detectYearFromFilename(fname){
+  // Try to extract year from filename like "20260430-statements.pdf" or "2025_01_statement.pdf"
+  var m = fname.match(/20(2[0-9])/);
+  return m ? '20'+m[1] : null;
+}
+
+function detectYearFromTransactions(txs){
+  if(!txs||!txs.length) return null;
+  // Get the most common year from transaction dates
+  var years={};
+  txs.forEach(function(t){
+    if(t.date){var y=t.date.slice(0,4);if(y.match(/^20\d{2}$/))years[y]=(years[y]||0)+1;}
+  });
+  var best=null,bestCount=0;
+  Object.keys(years).forEach(function(y){if(years[y]>bestCount){bestCount=years[y];best=y;}});
+  return best;
+}
+
+function assignTransactionsToYear(newTxs, fname){
+  if(!newTxs||!newTxs.length) return;
+  // Detect year
+  var detectedYear = detectYearFromFilename(fname) || detectYearFromTransactions(newTxs);
+  if(!detectedYear || detectedYear === S.year) return; // already on right year
+  
+  // Create the year if it doesn't exist
+  if(!S.years) S.years={};
+  if(!S.years[detectedYear]){
+    S.years[detectedYear]={
+      herbert:{name:S.users.herbert.name,biz:S.users.herbert.biz,
+        avatar:'U1',color:'brand',tx:[],gambling:[],mileage:[],
+        c1099:[],retirement:[],equipment:[],invoices:[]},
+      extraUsers:[]
+    };
+    toast('Created tax year '+detectedYear+' for '+fname);
+  }
+  
+  // Move the new transactions from current year to detected year
+  var yearData = S.years[detectedYear].herbert;
+  newTxs.forEach(function(t){
+    // Remove from current user's tx
+    var currentTxs = S.users.herbert.tx;
+    var tIdx = currentTxs.findIndex(function(x){return x.id===t.id;});
+    if(tIdx>=0){
+      currentTxs.splice(tIdx,1);
+      yearData.tx.push(t);
+    }
+  });
+  
+  // Refresh year buttons in settings
+  if(typeof renderYearBtns==='function') renderYearBtns();renderYearTabsBar();
+}
+
 function handleFiles(files){
   var list=[].slice.call(files);if(!list.length)return;
   var wTier=currentTier();var total=0;
@@ -2886,7 +3357,19 @@ function handleFiles(files){
     setTimeout(function(){
       if(ext==='pdf'){
         if(wTier.maxStatements!==Infinity&&statementsUploaded>=wTier.maxStatements){toast('Free plan: max '+wTier.maxStatements+' statements. Upgrade!');showUpgradeModal();if(banner)banner.style.display='none';if(total>0){save();render();updateSummary();}return;}
-        parsePDF(f).then(function(n){if(n>0)statementsUploaded++;total+=n;next();}).catch(function(e){toast('Error: '+e.message);next();});
+        (function(file){
+          var txsBefore = (S.users.herbert.tx||[]).length;
+          parsePDF(file).then(function(n){
+            if(n>0){
+              statementsUploaded++;
+              total+=n;
+              // Get the new transactions that were just added
+              var newTxs = (S.users.herbert.tx||[]).slice(txsBefore);
+              if(newTxs.length) assignTransactionsToYear(newTxs, file.name);
+            }
+            next();
+          }).catch(function(e){toast('Error: '+e.message);next();});
+        })(f);
       } else if(ext==='csv'){
         readText(f).then(function(text){total+=parseCSV(text,f.name);next();}).catch(function(){toast('Error reading '+f.name);next();});
       } else if(ext==='xlsx'||ext==='xls'){
@@ -3282,9 +3765,19 @@ function clearSession() {
 // Fires when the tab/window is about to close
 
 window.addEventListener('DOMContentLoaded', async function(){
+  // Load PDF.js from CDN if local file didn't work
+  if(typeof pdfjsLib === 'undefined'){
+    console.warn('pdf.min.js not loaded locally, loading from CDN...');
+    await new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      s.onload=res; s.onerror=rej;
+      document.head.appendChild(s);
+    }).catch(function(e){console.error('PDF.js CDN failed:',e);});
+  }
   if(typeof pdfjsLib !== 'undefined'){
-    var _workerBase = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = _workerBase + 'pdf.worker.min.js';
+    // Use CDN worker - works for both local file and GitHub Pages
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
   load();
   // Init Supabase (waits for CDN if local file didn't work)
